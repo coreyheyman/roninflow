@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw, Search, CalendarDays, TriangleExclamationPoint as TriangleAlert } from 'lucide-react';
 import { useStore } from '../store/store';
-import { Seg, Modal, ModalHead } from '../components/ui';
+import { Seg, Modal, ModalHead, Switch } from '../components/ui';
 import { keyOf, MONTHS, MONTHS_LONG, WEEKDAYS, homeTimeZone, wallClock, fmtTime12 } from '../lib/stats';
 import { useMacro, refreshMacro, IMPACTS, impactOf, CURRENCIES, FLAGS, surprise, countdown } from '../lib/macro';
 
@@ -150,7 +150,7 @@ function MonthGrid({ month, byDay, onDay }) {
 function EventModal({ e, onClose }) {
   const [hist, setHist] = useState(null);
   useEffect(() => {
-    if (!e || e.src !== 'ff') return undefined;
+    if (!e || e.src === 'schedule') return undefined;
     let on = true;
     setHist(null);
     fetch(`/api/macro/calendar/history?ccy=${encodeURIComponent(e.ccy)}&title=${encodeURIComponent(e.title)}`).then((r) => r.json()).then((j) => on && setHist(j.events || [])).catch(() => on && setHist([]));
@@ -169,7 +169,7 @@ function EventModal({ e, onClose }) {
         </div>
         {s && <div className={`ec-verdict ${s}`}>{s === 'beat' ? 'Came in better than expected for the currency.' : s === 'miss' ? 'Came in worse than expected for the currency.' : 'Came in as expected.'}</div>}
         {e.src === 'schedule' && <div className="muted" style={{ fontSize: 13 }}>Taken from the official release calendar. The forecast and the full list of that day’s releases appear when ForexFactory publishes that week, usually the weekend before.</div>}
-        {e.src === 'ff' && (
+        {e.src !== 'schedule' && (
           <div>
             <div className="label" style={{ marginBottom: 8 }}>Earlier releases</div>
             {hist == null ? <div className="muted">Loading…</div> : earlier.length ? (
@@ -221,8 +221,15 @@ export default function EconCalendar() {
     return { from: f, to: addDays(f, 41), days: [], label: `${MONTHS_LONG[+month.slice(5) - 1]} ${month.slice(0, 4)}`, month };
   }, [view, range, anchor, today]);
 
-  const { data, error, loading, reload } = useMacro(`/api/macro/calendar?from=${from}&to=${to}`, { poll: 5 * 60e3 });
+  const useTv = s.ecTradingView !== false;
+  const [poll, setPoll] = useState(120e3);
+  const { data, error, loading, reload } = useMacro(`/api/macro/calendar?from=${from}&to=${to}${useTv ? '' : '&tv=0'}`, { poll });
   const events = useMemo(() => (data?.events || []).map(localize), [data]);
+  // just after a release, check for its actual every minute
+  useEffect(() => {
+    const waiting = useTv && events.some((e) => !e.allDay && e.forecast && !e.actual && e.ms < now && now - e.ms < 20 * 60e3);
+    setPoll(waiting ? 60e3 : 120e3);
+  }, [events, now, useTv]);
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return events.filter((e) => (impacts.includes(e.impact) || (e.impact === 'none' && impacts.includes('low')))
@@ -239,7 +246,7 @@ export default function EconCalendar() {
   const nextHigh = useMemo(() => events.filter((e) => e.impact === 'high' && !e.allDay && e.ms > now - 60000 && (!ccys.length || ccys.includes(e.ccy))).sort((a, b) => a.ms - b.ms)[0], [events, now, ccys]);
   // weeks in view that ForexFactory hasn't published yet (only the official US dates are known)
   const uncovered = useMemo(() => {
-    if (view === 'list') return false;
+    if (view === 'list' || data?.extended) return false;
     const ends = (data?.coverage || []).map(([, b]) => Date.parse(b));
     if (!ends.length) return false;
     const last = view === 'month' ? new Date(+anchor.slice(0, 4), +anchor.slice(5, 7), 0) : parseKey(to);
@@ -264,7 +271,7 @@ export default function EconCalendar() {
         <div className="ec-clock no-i18n"><b>{fmtTime12(wallClock(clock))}</b> <span className="muted">{tzLabel()}</span></div>
       </div>
 
-      {nextHigh && (
+      {nextHigh && today >= from && today <= to && (
         <button className="ec-next card" onClick={() => setOpen(nextHigh)}>
           <Impact id="high" />
           <span className="muted">Next high-impact</span>
@@ -316,7 +323,12 @@ export default function EconCalendar() {
           {view === 'month' && <MonthGrid month={anchor.slice(0, 7)} byDay={byDay} onDay={setDayOpen} />}
         </div>
       )}
-      <div className="muted ec-source">Times in {homeTimeZone().replace(/_/g, ' ')} ({tzLabel()}). Data: {data?.source || 'ForexFactory · Federal Reserve · BLS'}. Not financial advice.</div>
+      <div className="muted ec-source row gap8 wrap">
+        <span>Times in {homeTimeZone().replace(/_/g, ' ')} ({tzLabel()}). Data: {data?.source || 'ForexFactory · Federal Reserve · BLS'}. Not financial advice.</span>
+        <label className="row gap6 ec-tvtoggle" title="ForexFactory’s free feed has no actual figures. TradingView’s public calendar feed fills them in, plus the weeks ForexFactory hasn’t published yet.">
+          <Switch on={useTv} onChange={(v) => setSetting('ecTradingView', v)} /> Actuals from TradingView
+        </label>
+      </div>
 
       <EventModal e={open} onClose={() => setOpen(null)} />
       {dayOpen && (

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseFF, mergeWeek, scheduleEvents, mergeCot, nextCotRelease, nyTime, createMacroHandler, COT_MARKETS } from '../macro.js';
+import { parseFF, parseTV, tvValue, matchEvents, mergeWeek, scheduleEvents, mergeCot, nextCotRelease, nyTime, createMacroHandler, COT_MARKETS } from '../macro.js';
 import { parseValue, surprise, cotStats, countdown } from '../src/lib/macroMath.js';
 
 const ff = (date, title, extra = {}) => ({ title, country: 'USD', date, impact: 'High', forecast: '0.3%', previous: '0.2%', actual: '', ...extra });
@@ -101,34 +101,85 @@ async function call(h, url, method = 'GET', body) {
 }
 const reply = (status, body, type = 'application/json') => ({ ok: status < 300, status, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)), headers: new Map([['content-type', type]]) });
 
-test('calendar: first visit waits for the feeds, then serves from data/macro and adds official dates', async () => {
+const tvRow = (date, country, title, o = {}) => ({ id: `${date}${title}`, date, country, currency: { US: 'USD', DE: 'EUR', GB: 'GBP' }[country], title, importance: 1, actual: null, forecast: null, previous: null, unit: '', scale: '', ...o });
+
+test('TradingView values and impact', () => {
+  assert.equal(tvValue(195, { scale: 'K' }), '195K');
+  assert.equal(tvValue(0.3, { unit: '%' }), '0.3%');
+  assert.equal(tvValue(-1.2346, { scale: 'M' }), '-1.235M');
+  assert.equal(tvValue(null), null);
+  const [e] = parseTV([tvRow('2026-11-12T13:30:00.000Z', 'US', 'Initial Jobless Claims', { actual: 230, forecast: 219, previous: 221, scale: 'K', importance: 0 })]);
+  assert.equal(e.ccy, 'USD');
+  assert.equal(e.actual, '230K');
+  assert.equal(e.impact, 'medium');
+});
+
+test('actuals are matched to the right ForexFactory event even when several print at once', () => {
+  const ff = parseFF([
+    ff_('2026-11-10T08:30:00-05:00', 'CPI m/m', '0.3%', '0.2%'),
+    ff_('2026-11-10T08:30:00-05:00', 'Core CPI m/m', '0.3%', '0.3%'),
+    ff_('2026-11-10T08:30:00-05:00', 'CPI y/y', '2.9%', '3.0%'),
+    ff_('2026-11-12T08:30:00-05:00', 'Unemployment Claims', '219K', '221K'),
+    { ...ff_('2026-11-11T02:00:00-05:00', 'German Final CPI m/m', '-0.2%', '-0.2%'), country: 'EUR' },
+  ]);
+  const tv = parseTV([
+    tvRow('2026-11-10T13:30:00.000Z', 'US', 'Core Inflation Rate MoM', { actual: 0.4, forecast: 0.3, previous: 0.3, unit: '%' }),
+    tvRow('2026-11-10T13:30:00.000Z', 'US', 'Inflation Rate MoM', { actual: 0.2, forecast: 0.3, previous: 0.2, unit: '%' }),
+    tvRow('2026-11-10T13:30:00.000Z', 'US', 'Inflation Rate YoY', { actual: 2.8, forecast: 2.9, previous: 3.0, unit: '%' }),
+    tvRow('2026-11-10T13:30:00.000Z', 'US', 'CPI', { actual: 324.1, previous: 323.4 }),
+    tvRow('2026-11-12T13:30:00.000Z', 'US', 'Initial Jobless Claims', { actual: 230, forecast: 219, previous: 221, scale: 'K' }),
+    tvRow('2026-11-12T13:30:00.000Z', 'US', 'Continuing Jobless Claims', { actual: 1710, previous: 1718, scale: 'K' }),
+    tvRow('2026-11-11T07:00:00.000Z', 'DE', 'Inflation Rate MoM Final', { actual: -0.2, forecast: -0.2, previous: -0.2, unit: '%' }),
+  ]);
+  const m = matchEvents(ff, tv);
+  const act = Object.fromEntries(ff.map((e) => [e.title, m.get(e.id)?.actual]));
+  assert.deepEqual(act, { 'CPI m/m': '0.2%', 'Core CPI m/m': '0.4%', 'CPI y/y': '2.8%', 'Unemployment Claims': '230K', 'German Final CPI m/m': '-0.2%' });
+});
+function ff_(date, title, forecast, previous) { return { title, country: 'USD', date, impact: 'High', forecast, previous }; }
+
+test('calendar: first visit waits for the feeds, fills actuals from TradingView and its later weeks, and keeps a copy', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rf-macro-'));
   const calls = [];
-  const now = () => Date.parse('2026-11-11T12:00:00Z');
-  const fetchImpl = async (url) => {
+  const now = () => Date.parse('2026-11-13T16:00:00Z');
+  const fetchImpl = async (url, opts) => {
     calls.push(url);
-    if (url.endsWith('thisweek.json')) return reply(200, [ff('2026-11-12T08:30:00-05:00', 'Unemployment Claims', { forecast: '219K' }), ff('2026-11-13T08:30:00-05:00', 'PPI m/m', { country: 'USD' })]);
+    if (url.endsWith('thisweek.json')) return reply(200, [ff('2026-11-12T08:30:00-05:00', 'Unemployment Claims', { forecast: '219K', previous: '221K' }), ff('2026-11-13T08:30:00-05:00', 'PPI m/m', { country: 'USD' })]);
     if (url.endsWith('nextweek.json')) return reply(404, 'not found', 'text/plain');
+    if (url.startsWith('https://economic-calendar.tradingview.com/events')) {
+      assert.equal(opts.headers.Origin, 'https://www.tradingview.com');
+      const q = new URL(url).searchParams;
+      const from = Date.parse(q.get('from')), to = Date.parse(q.get('to'));
+      const rows = [
+        tvRow('2026-11-12T13:30:00.000Z', 'US', 'Initial Jobless Claims', { actual: 230, forecast: 219, previous: 221, scale: 'K' }),
+        tvRow('2026-12-09T19:00:00.000Z', 'US', 'Fed Interest Rate Decision', { forecast: 3.75, previous: 4, unit: '%', period: 'Dec' }),
+      ].filter((r) => Date.parse(r.date) >= from && Date.parse(r.date) <= to);
+      return reply(200, { status: 'ok', result: rows });
+    }
     throw new Error('unexpected ' + url);
   };
   const h = createMacroHandler(dir, { fetchImpl, now });
   const r = await call(h, '/api/macro/calendar?from=2026-11-08&to=2026-12-12');
   assert.equal(r.status, 200);
-  assert.equal(calls.length, 2);
-  assert.ok(r.body.events.some((e) => e.title === 'Unemployment Claims' && e.src === 'ff'));
-  assert.ok(r.body.events.some((e) => e.title === 'FOMC Rate Decision' && e.t.startsWith('2026-12-09')), 'December FOMC from the official dates');
-  assert.ok(!r.body.events.some((e) => e.src === 'schedule' && e.title.startsWith('PPI') && e.t.startsWith('2026-11-13')), 'ForexFactory covers that week');
+  const claims = r.body.events.find((e) => e.title === 'Unemployment Claims');
+  assert.equal(claims.src, 'ff');
+  assert.equal(claims.actual, '230K', 'actual from TradingView');
+  assert.equal(r.body.events.filter((e) => e.title.includes('Claims')).length, 1, 'no duplicate inside ForexFactory’s week');
+  const fed = r.body.events.find((e) => e.title === 'Fed Interest Rate Decision (Dec)');
+  assert.ok(fed && fed.src === 'tv' && fed.forecast === '3.75%', 'December from TradingView');
+  assert.ok(!r.body.events.some((e) => e.src === 'schedule'), 'official dates not needed when TradingView has the days');
+  assert.equal(r.body.extended, true);
   assert.equal(r.body.error, null);
-  assert.ok(fs.existsSync(path.join(dir, 'macro', 'calendar.json')));
-  // fresh: no new fetch
+  const n = calls.length;
   await call(h, '/api/macro/calendar?from=2026-11-08&to=2026-11-14');
-  assert.equal(calls.length, 2);
-  // a new process reads the saved copy
+  assert.equal(calls.length, n, 'fresh: nothing fetched again');
+  // a new process reads the saved copies; the matched actual was kept for history
   const h2 = createMacroHandler(dir, { fetchImpl: async () => { throw new Error('offline'); }, now });
-  const r2 = await call(h2, '/api/macro/calendar?from=2026-11-08&to=2026-11-14');
-  assert.ok(r2.body.events.some((e) => e.title === 'PPI m/m'));
   const hist = await call(h2, '/api/macro/calendar/history?ccy=USD&title=Unemployment%20Claims');
-  assert.deepEqual(hist.body.events, []); // still in the future at "now"
+  assert.equal(hist.body.events[0].actual, '230K');
+  // TradingView switched off: ForexFactory + official dates only
+  const r3 = await call(h2, '/api/macro/calendar?from=2026-11-08&to=2026-12-12&tv=0');
+  assert.ok(r3.body.events.some((e) => e.title === 'FOMC Rate Decision' && e.t.startsWith('2026-12-09')));
+  assert.ok(!r3.body.events.some((e) => e.src === 'tv'));
 });
 
 test('calendar: a rate-limit page is reported, the saved copy stays', async () => {

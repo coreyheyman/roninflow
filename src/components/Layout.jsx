@@ -139,6 +139,9 @@ export default function Layout({ route, crumbs, children }) {
   const due = useDueReviews();
   const [mobileMenu, setMobileMenu] = useState(false);
   useEffect(() => { setMobileMenu(false); setDayPopup(null); }, [route.join('/')]);
+  // a new page starts at the top, not at the depth the last one was scrolled to
+  const contentRef = useRef(null);
+  useEffect(() => { contentRef.current?.scrollTo(0, 0); window.scrollTo(0, 0); }, [route.join('/')]);
   const initials = state.user.name.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase();
 
   const exportData = () => {
@@ -303,7 +306,7 @@ export default function Layout({ route, crumbs, children }) {
         )}
         {replica && replica.pcOnline && replica.pending && <div className="storage-banner pos-b">PC is back — syncing your changes…</div>}
         {storage.error && storage.mode === 'server' && <div className="storage-banner warn-b">{storage.error}</div>}
-        <DayPopupContext.Provider value={setDayPopup}><div className="content">{children}</div></DayPopupContext.Provider>
+        <DayPopupContext.Provider value={setDayPopup}><div className="content" ref={contentRef}>{children}</div></DayPopupContext.Provider>
       </main>
 
       <nav className="mobile-nav">

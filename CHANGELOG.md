@@ -5,8 +5,9 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
 ## 1.1.0
 
 - **New: Macro section** in the sidebar.
-  - **Economic Calendar** — every release in your time zone as a list (today / this week / next week), a week or a month. Impact and currency filters, search, a live countdown to the next release and to the next high-impact event, actuals coloured better / worse than expected, and earlier releases of each event. Uses ForexFactory's public weekly feed (this week and next, kept as it arrives so history builds up) plus the official Fed and BLS dates (FOMC, jobs report, CPI, PPI, JOLTS) for the months ahead.
+  - **Economic Calendar** — every release in your time zone as a list (today / this week / next week), a week or a month. Impact and currency filters, search, a live countdown to the next release and to the next high-impact event, actuals coloured better / worse than expected, and earlier releases of each event. Uses ForexFactory's public weekly feed (this week and next, kept as it arrives so history builds up). Actual figures, and the weeks ForexFactory hasn't published yet, come from TradingView's public calendar feed (can be switched off at the bottom of the page); official Fed and BLS dates are the fallback.
   - **COT Report** — the CFTC's weekly Commitments of Traders for about 30 futures markets (indices, rates, FX, metals, energy, crypto, grains): large speculators' net position and weekly change, % long, a COT index over 6 months / 1 year / 3 years with crowded long / short flags, commercials and open interest. Click a market for a 3-year chart and recent weeks, or add any other market in the report.
+- A page opened from the sidebar now starts at the top instead of at the depth the previous page was scrolled to.
 - Both are fetched by RoninFlow's server (and by the home-server copy while your PC is off) and saved in `data/macro/`.
 
 ## 1.0.9

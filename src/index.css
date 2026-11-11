@@ -1576,3 +1576,5 @@ button.ec-row:hover { background: var(--hover); }
   .cot-tiles > div:nth-child(3) { border-right: none; }
   .cot-tiles > div:nth-child(-n+3) { border-bottom: 1px solid var(--border); }
 }
+.ec-tvtoggle { margin-left: auto; cursor: pointer; white-space: nowrap; }
+.ec-tvtoggle .switch { transform: scale(0.8); }

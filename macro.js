@@ -12,13 +12,20 @@
 //   • ForexFactory's public weekly feed (nfs.faireconomy.media): this week and next week, with impact, forecast,
 //     previous and actual. It allows a few requests every five minutes, so we fetch at most every 30 minutes. Every
 //     week we fetch is kept, so the calendar's history grows from the day you start using it.
-//   • Official US release dates (Federal Reserve, BLS) for the months beyond next week — see SCHEDULE below.
+//   • TradingView's economic calendar (the public feed its calendar widget uses): actual figures as they are released —
+//     ForexFactory's feed has none — and the weeks ForexFactory hasn't published yet. Each actual is matched to the
+//     ForexFactory event by currency, time and name. Can be turned off (?tv=0) in the calendar page.
+//   • Official US release dates (Federal Reserve, BLS) as a last resort for months neither feed has.
 //   • CFTC Public Reporting (publicreporting.cftc.gov), Legacy report, futures only: weekly positions published
 //     Fridays at 3:30 PM ET for the Tuesday before. Public domain, no key.
 import fs from 'node:fs';
 import path from 'node:path';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+const TV_URL = 'https://economic-calendar.tradingview.com/events';
+const TV_HEADERS = { Origin: 'https://www.tradingview.com', Referer: 'https://www.tradingview.com/' }; // the feed refuses requests without these
+const TV_COUNTRIES = 'US,EU,DE,FR,IT,ES,GB,JP,AU,CA,CH,NZ,CN';
+const TV_CHUNK_DAYS = 14;
 const FF_FEEDS = ['https://nfs.faireconomy.media/ff_calendar_thisweek.json', 'https://nfs.faireconomy.media/ff_calendar_nextweek.json'];
 const CFTC = 'https://publicreporting.cftc.gov/resource/6dca-aqww.json'; // Legacy – Futures Only
 const MIN = 60e3, HOUR = 60 * MIN, DAY = 24 * HOUR;
@@ -120,6 +127,67 @@ export function parseFF(rows) {
   return out;
 }
 
+// ---------- TradingView: actuals + weeks ForexFactory hasn't published ----------
+const COUNTRY_CCY = { US: 'USD', EU: 'EUR', DE: 'EUR', FR: 'EUR', IT: 'EUR', ES: 'EUR', GB: 'GBP', UK: 'GBP', JP: 'JPY', AU: 'AUD', CA: 'CAD', CH: 'CHF', NZ: 'NZD', CN: 'CNY' };
+const COUNTRY_WORD = { DE: 'german', FR: 'french', IT: 'italian', ES: 'spanish' };
+/** a TradingView number + its scale / unit → "195K", "0.3%", "-1.2M" */
+export function tvValue(v, e = {}) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'string') return v.trim() || null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  const txt = String(Number(n.toFixed(Math.abs(n) >= 100 ? 1 : 3)));
+  return `${txt}${e.scale && /^[KMBT]$/i.test(e.scale) ? e.scale.toUpperCase() : ''}${e.unit === '%' ? '%' : ''}`;
+}
+/** importance -1 / 0 / 1 (also seen as 0 / 1 / 2) → our impact */
+const tvImpact = (i) => { const n = Number(i); return n >= 1 ? 'high' : n === 0 ? 'medium' : 'low'; };
+export function parseTV(rows) {
+  const out = [];
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const ms = Date.parse(r?.date);
+    const title = clean(r?.title);
+    if (!title || !Number.isFinite(ms)) continue;
+    const country = String(r.country || '').toUpperCase();
+    const ccy = (clean(r.currency) || COUNTRY_CCY[country] || country || 'ALL').toUpperCase();
+    out.push({
+      id: `tv:${r.id ?? `${ms}:${country}:${title}`}`, t: new Date(ms).toISOString(), ccy, country, title, impact: tvImpact(r.importance), src: 'tv', allDay: false,
+      period: clean(r.period), actual: tvValue(r.actual, r), forecast: tvValue(r.forecast, r), previous: tvValue(r.previous, r),
+    });
+  }
+  return out;
+}
+const STOP = new Set(['the', 'of', 'and', 'change', 'index', 'initial', 's', 'sa', 'nsa', 'n', 'a', 'level']);
+const SYN = { mm: 'mom', yy: 'yoy', qq: 'qoq', jobless: 'unemployment', payrolls: 'employment', payroll: 'employment', nonfarm: 'nfp', germany: 'german', france: 'french', italy: 'italian', spain: 'spanish', ppi: 'ppi', preliminary: 'prelim', flash: 'prelim' };
+export function titleTokens(title, country = '') {
+  const s = `${COUNTRY_WORD[country] || ''} ${String(title).toLowerCase()}`
+    .replace(/\b([mqy])\/\1\b/g, (_, x) => ` ${x}o${x === 'm' ? 'm' : x} `.replace('yoy', 'yoy')) // m/m → mom, y/y → yoy, q/q → qoq
+    .replace(/inflation rate/g, 'cpi').replace(/consumer price index/g, 'cpi').replace(/producer price index/g, 'ppi')
+    .replace(/non[- ]farm/g, 'nonfarm').replace(/\(.*?\)/g, ' ');
+  return new Set(s.replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w && !STOP.has(w)).map((w) => SYN[w] || w));
+}
+const numOf = (v) => { if (v == null) return null; const m = String(v).replace(/,/g, '').match(/-?\d+(\.\d+)?/); if (!m) return null; const u = String(v).slice(m.index + m[0].length).trim().charAt(0).toUpperCase(); return parseFloat(m[0]) * ({ K: 1e3, M: 1e6, B: 1e9, T: 1e12 }[u] || 1); };
+const same = (a, b) => { const x = numOf(a), y = numOf(b); return x != null && y != null && Math.abs(x - y) <= Math.max(1e-9, Math.abs(y) * 0.005); };
+/** Pair each ForexFactory event with the TradingView release it describes; returns Map(ffId → tvEvent). */
+export function matchEvents(ffEvents, tvEvents) {
+  const pairs = [];
+  for (const f of ffEvents) {
+    const fms = Date.parse(f.t);
+    const ft = titleTokens(f.title);
+    for (const v of tvEvents) {
+      if (v.ccy !== f.ccy || Math.abs(Date.parse(v.t) - fms) > 10 * MIN) continue;
+      const vt = titleTokens(v.title, v.country);
+      const inter = [...ft].filter((w) => vt.has(w)).length;
+      const jac = inter / (new Set([...ft, ...vt]).size || 1);
+      const score = jac + (same(f.previous, v.previous) ? 0.8 : 0) + (same(f.forecast, v.forecast) ? 0.4 : 0);
+      if (score >= 0.5) pairs.push([score, f.id, v]);
+    }
+  }
+  pairs.sort((a, b) => b[0] - a[0]);
+  const out = new Map(), used = new Set();
+  for (const [, fid, v] of pairs) if (!out.has(fid) && !used.has(v.id)) { out.set(fid, v); used.add(v.id); }
+  return out;
+}
+
 /** Official dates as events, skipping days ForexFactory already covers (its listing is more complete). */
 export function scheduleEvents(fromMs, toMs, covered = []) {
   const inCover = (ms) => covered.some(([a, b]) => ms >= a && ms <= b);
@@ -185,11 +253,12 @@ export function createMacroHandler(dataDir, { log = () => {}, fetchImpl = (...a)
   const save = (n, v) => { fs.mkdirSync(dir, { recursive: true }); const tmp = file(n) + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(v)); fs.renameSync(tmp, file(n)); };
   let cal = load('calendar.json', { events: [], covered: [] });
   let cot = load('cot.json', { markets: {} });
+  let tv = load('tradingview.json', { days: {}, events: {} });
   const busy = {};
   const once = (k, fn) => (busy[k] ||= fn().finally(() => { busy[k] = null; }));
 
-  async function get(url, { json = true, timeout = 20000 } = {}) {
-    const r = await fetchImpl(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(timeout) });
+  async function get(url, { json = true, timeout = 20000, headers = {} } = {}) {
+    const r = await fetchImpl(url, { headers: { 'User-Agent': UA, Accept: 'application/json', ...headers }, signal: AbortSignal.timeout(timeout) });
     const text = await r.text();
     if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.status = r.status; e.body = text.slice(0, 300); throw e; }
     if (!json) return text;
@@ -220,18 +289,95 @@ export function createMacroHandler(dataDir, { log = () => {}, fetchImpl = (...a)
   });
   const calStale = () => !cal.lastTry || now() - (cal.updatedAt || 0) > CAL_STALE && now() - cal.lastTry > (cal.error ? CAL_RETRY : CAL_STALE);
 
-  async function calendar(fromStr, toStr) {
+  // TradingView, one stretch of days at a time; days near today are re-checked every few minutes for actuals
+  const tvDue = (d) => {
+    const f = tv.days[d];
+    if (!f) return true;
+    const start = Date.parse(`${d}T00:00:00Z`), end = start + DAY, t = now();
+    if (t >= start - DAY && t <= end + DAY) return t - f > 3 * MIN;
+    if (start > t) return t - f > 6 * HOUR;
+    return f < end + 2 * DAY && t - f > HOUR; // a past day fetched before its numbers settled
+  };
+  const refreshTv = (days) => once('tv', async () => {
+    tv = { ...tv, lastTry: now() };
+    const runs = [];
+    for (const d of [...days].sort()) {
+      const last = runs[runs.length - 1];
+      if (last && Date.parse(`${d}T00:00:00Z`) - Date.parse(`${last[last.length - 1]}T00:00:00Z`) === DAY && last.length < TV_CHUNK_DAYS) last.push(d); else runs.push([d]);
+    }
+    try {
+      for (const run of runs) {
+        const from = Date.parse(`${run[0]}T00:00:00Z`), to = Date.parse(`${run[run.length - 1]}T00:00:00Z`) + DAY - 1;
+        const q = new URLSearchParams({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), countries: TV_COUNTRIES });
+        const j = await get(`${TV_URL}?${q}`, { headers: TV_HEADERS });
+        if (j?.status && j.status !== 'ok') throw new Error(`TradingView answered “${j.status}”`);
+        const fresh = parseTV(j?.result);
+        const events = Object.fromEntries(Object.entries(tv.events).filter(([, e]) => { const ms = Date.parse(e.t); return (ms < from || ms > to) && ms > now() - CAL_KEEP; }));
+        for (const e of fresh) events[e.id] = e;
+        const daysDone = { ...tv.days };
+        for (const d of run) daysDone[d] = now();
+        tv = { ...tv, events, days: daysDone, error: null };
+      }
+    } catch (e) {
+      tv = { ...tv, error: `Couldn’t get actuals from TradingView (${e.message}).` };
+      log('[macro] tradingview:', e.message);
+    }
+    for (const d of Object.keys(tv.days)) if (Date.parse(`${d}T00:00:00Z`) < now() - CAL_KEEP) delete tv.days[d];
+    save('tradingview.json', tv);
+  });
+
+  async function calendar(fromStr, toStr, { useTv = true } = {}) {
     const today = now();
     const from = /^\d{4}-\d{2}-\d{2}$/.test(fromStr || '') ? Date.parse(`${fromStr}T00:00:00Z`) - DAY : today - 7 * DAY;
-    const to = /^\d{4}-\d{2}-\d{2}$/.test(toStr || '') ? Date.parse(`${toStr}T00:00:00Z`) + 2 * DAY : today + 14 * DAY;
+    const to = Math.min(/^\d{4}-\d{2}-\d{2}$/.test(toStr || '') ? Date.parse(`${toStr}T00:00:00Z`) + 2 * DAY : today + 14 * DAY, from + 120 * DAY);
     let refreshing = false;
+    const waits = [];
     if (calStale()) {
-      if (!cal.events.length) await refreshCalendar().catch(() => {}); // first visit: wait for it
+      if (!cal.events.length) waits.push(refreshCalendar().catch(() => {})); // first visit: wait for it
       else { refreshing = true; refreshCalendar().catch(() => {}); }
     }
-    const events = [...cal.events.filter((e) => { const ms = Date.parse(e.t); return ms >= from && ms <= to; }), ...scheduleEvents(from, to, cal.covered)]
-      .sort((a, b) => a.t.localeCompare(b.t));
-    return { events, coverage: (cal.covered || []).map(([a, b]) => [new Date(a).toISOString(), new Date(b).toISOString()]), updatedAt: cal.updatedAt || null, error: cal.error || null, refreshing, source: 'ForexFactory · Federal Reserve · BLS' };
+    if (useTv && !(tv.error && today - (tv.lastTry || 0) < CAL_RETRY)) {
+      const days = [];
+      for (let t = from; t <= to; t += DAY) days.push(isoDay(t));
+      const due = days.filter(tvDue);
+      if (due.length) waits.push(refreshTv(due).catch(() => {}));
+    }
+    if (waits.length) {
+      const done = await Promise.race([Promise.all(waits).then(() => true), new Promise((r) => setTimeout(() => r(false), 9000))]);
+      if (!done) refreshing = true;
+    }
+    const within = (e) => { const ms = Date.parse(e.t); return ms >= from && ms <= to; };
+    const inCover = (e) => { const ms = Date.parse(e.t); return (cal.covered || []).some(([a, b]) => ms >= a && ms <= b); };
+    let ff = cal.events.filter(within);
+    const tvIn = useTv ? Object.values(tv.events).filter(within) : [];
+    if (tvIn.length) {
+      // ForexFactory's feed has no actual figures: take them from the matching TradingView release
+      const m = matchEvents(ff.filter((e) => !e.allDay), tvIn);
+      let dirty = false;
+      ff = ff.map((e) => {
+        const v = m.get(e.id);
+        if (!v) return e;
+        const add = { actual: e.actual || v.actual, forecast: e.forecast || v.forecast, previous: e.previous || v.previous };
+        if (add.actual !== e.actual) dirty = true;
+        return { ...e, ...add };
+      });
+      if (dirty) { // keep them, so earlier releases show their actuals later
+        const byId = new Map(ff.map((e) => [e.id, e]));
+        cal = { ...cal, events: cal.events.map((e) => byId.get(e.id) || e) };
+        save('calendar.json', cal);
+      }
+    }
+    const tvOutside = tvIn.filter((e) => !inCover(e)).map((e) => ({ ...e, title: e.period ? `${e.title} (${e.period})` : e.title }));
+    const tvDays = new Set(useTv ? Object.keys(tv.days) : []);
+    const sched = scheduleEvents(from, to, cal.covered).filter((e) => !tvDays.has(isoDay(Date.parse(e.t))));
+    const events = [...ff, ...tvOutside, ...sched].sort((a, b) => a.t.localeCompare(b.t));
+    const errors = [cal.error, useTv && tvIn.length === 0 ? tv.error : null].filter(Boolean);
+    return {
+      events, coverage: (cal.covered || []).map(([a, b]) => [new Date(a).toISOString(), new Date(b).toISOString()]),
+      extended: useTv && tvIn.some((e) => !inCover(e)), // TradingView fills the weeks ForexFactory hasn't published
+      updatedAt: cal.updatedAt || null, actualsAt: useTv ? tv.lastTry || null : null, error: errors.join(' ') || null, refreshing,
+      source: useTv ? 'ForexFactory · TradingView (actuals, later weeks) · Federal Reserve · BLS' : 'ForexFactory · Federal Reserve · BLS',
+    };
   }
 
   // ---------- COT ----------
@@ -325,10 +471,12 @@ export function createMacroHandler(dataDir, { log = () => {}, fetchImpl = (...a)
     const u = new URL(req.url, 'http://x');
     const route = u.pathname.replace(/^\/api\/macro/, '') || '/';
     try {
-      if (req.method === 'GET' && route === '/calendar') return send(res, 200, await calendar(u.searchParams.get('from'), u.searchParams.get('to')));
+      if (req.method === 'GET' && route === '/calendar') return send(res, 200, await calendar(u.searchParams.get('from'), u.searchParams.get('to'), { useTv: u.searchParams.get('tv') !== '0' }));
       if (req.method === 'GET' && route === '/calendar/history') {
         const ccy = String(u.searchParams.get('ccy') || '').toUpperCase(), title = String(u.searchParams.get('title') || '');
-        const events = cal.events.filter((e) => e.ccy === ccy && e.title === title && Date.parse(e.t) <= now()).slice(-24);
+        const tvTitle = title.replace(/ \([^)]*\)$/, '');
+        const events = [...cal.events.filter((e) => e.ccy === ccy && e.title === title), ...Object.values(tv.events).filter((e) => e.ccy === ccy && e.title === tvTitle)]
+          .filter((e) => Date.parse(e.t) <= now()).sort((a, b) => a.t.localeCompare(b.t)).slice(-24);
         return send(res, 200, { events });
       }
       if (req.method === 'GET' && route === '/cot') {
