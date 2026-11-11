@@ -569,6 +569,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .upd-bar { height: 6px; background: var(--card-3); overflow: hidden; }
 .upd-bar i { display: block; height: 100%; background: var(--primary); transition: width 0.4s ease; }
 .notif-update { margin-top: 10px; }
+.cx-os { margin: 14px 0 2px; flex-wrap: wrap; }
 .demo-note { border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border)); background: color-mix(in srgb, var(--primary) 8%, transparent); padding: 12px 14px; font-size: 13px; line-height: 1.5; color: var(--fg-2); }
 .demo-note a { color: var(--fg); text-decoration: underline; }
 .storage-banner.pos-b { background: var(--pos-bg); color: var(--pos); }

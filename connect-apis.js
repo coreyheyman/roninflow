@@ -212,12 +212,35 @@ export function createIbkr(cfg) {
 }
 
 // ====================================================================== file drops (MetaTrader, cTrader)
-/** Folders MetaTrader's "Common\Files" may be in (Windows; Wine/CrossOver users can point MT_COMMON_DIR at theirs). */
+const listDirs = (d) => { try { return fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => path.join(d, e.name)); } catch { return []; } };
+/**
+ * macOS / Linux: the Windows user folders inside Wine / CrossOver prefixes, where MetaTrader and Sierra Chart write when
+ * they run there — MetaQuotes' own Mac app (a Wine bundle), its Linux install script (~/.mt5), plain Wine, CrossOver
+ * bottles, Bottles, PlayOnLinux, Lutris (~/Games) and winetricks prefixes.
+ */
+export function wineUserDirs(home = os.homedir(), platform = process.platform) {
+  if (platform === 'win32') return [];
+  const lib = path.join(home, 'Library', 'Application Support');
+  const prefixes = [
+    path.join(home, '.wine'), path.join(home, '.mt5'), path.join(home, '.mt4'),
+    path.join(lib, 'net.metaquotes.wine.metatrader5'), path.join(lib, 'net.metaquotes.wine.metatrader4'),
+    ...listDirs(path.join(lib, 'CrossOver', 'Bottles')),
+    ...listDirs(path.join(home, '.local', 'share', 'wineprefixes')),
+    ...listDirs(path.join(home, '.local', 'share', 'bottles', 'bottles')),
+    ...listDirs(path.join(home, '.var', 'app', 'com.usebottles.bottles', 'data', 'bottles', 'bottles')),
+    ...listDirs(path.join(home, '.PlayOnLinux', 'wineprefix')),
+    ...listDirs(path.join(home, 'Games')),
+  ];
+  return prefixes.flatMap((p) => listDirs(path.join(p, 'drive_c', 'users')).filter((u) => path.basename(u).toLowerCase() !== 'public'));
+}
+
+/** Folders MetaTrader's "Common\Files" may be in (Windows, or Wine / CrossOver on a Mac or Linux; MT_COMMON_DIR overrides). */
 export function metatraderDirs() {
   const dirs = [];
   if (process.env.MT_COMMON_DIR) dirs.push(process.env.MT_COMMON_DIR);
   const appdata = process.env.APPDATA || (process.platform === 'win32' ? path.join(os.homedir(), 'AppData', 'Roaming') : null);
   if (appdata) dirs.push(path.join(appdata, 'MetaQuotes', 'Terminal', 'Common', 'Files'));
+  for (const u of wineUserDirs()) dirs.push(path.join(u, 'AppData', 'Roaming', 'MetaQuotes', 'Terminal', 'Common', 'Files'));
   return dirs.map((d) => path.join(d, 'TradeJournal'));
 }
 /** cTrader's algo data folder (Documents\cAlgo\Data\cBots) — a cBot without extra permissions may only write there. */
@@ -226,6 +249,7 @@ export function ctraderDirs() {
   if (process.env.CTRADER_DATA_DIR) dirs.push(process.env.CTRADER_DATA_DIR);
   const home = process.env.USERPROFILE || os.homedir();
   for (const docs of [path.join(home, 'Documents'), path.join(home, 'OneDrive', 'Documents')]) dirs.push(path.join(docs, 'cAlgo', 'Data', 'cBots'));
+  for (const u of wineUserDirs()) dirs.push(path.join(u, 'Documents', 'cAlgo', 'Data', 'cBots'));
   return dirs;
 }
 /** The journal's own drop folder (%LOCALAPPDATA%\TradeJournal\drop) — used by add-ons that can write files anywhere (Sierra Chart). */
@@ -234,6 +258,7 @@ export function journalDropDirs() {
   if (process.env.TJ_DROP_DIR) dirs.push(process.env.TJ_DROP_DIR);
   const local = process.env.LOCALAPPDATA || (process.platform === 'win32' ? path.join(os.homedir(), 'AppData', 'Local') : null);
   if (local) dirs.push(path.join(local, 'TradeJournal', 'drop'));
+  for (const u of wineUserDirs()) dirs.push(path.join(u, 'AppData', 'Local', 'TradeJournal', 'drop')); // Sierra Chart under Wine
   return dirs;
 }
 /** Which journal source a dropped file belongs to, from its name. */

@@ -168,6 +168,8 @@ function handle(req, res) {
     ctx.authed = authed;
     // Add-ons on this PC post here without signing in (ATAS); everything else is the app itself.
     const addonRoute = /^\/api\/atas\/(trades|heartbeat|reset)/.test(req.url);
+    // ATAS on another computer (the journal on a Mac, Linux box or home server) sends the Webhook / API token instead
+    if (addonRoute && !loopback && !isReplica && req.method === 'POST' && connectApi.tokenOk(req, false)) return atasRoute(req, res);
     const needLogin = !isReplica && (!loopback || (config.get().requireLocal && !addonRoute));
     if (needLogin) {
       // Another device on the network: network access must be on, and it must sign in with the password.
@@ -179,7 +181,7 @@ function handle(req, res) {
         res.setHeader('Cache-Control', 'no-store');
         return res.end(loginPage({ setup: !config.hasLogin(), legacyPin: config.hasLogin() && !config.hasPassword() }));
       }
-      // The ATAS add-on only ever runs on the PC.
+      // without the token the ATAS add-on may only post from this computer
       if (!loopback && addonRoute) { res.statusCode = 403; return res.end(); }
     }
     if (isReplica && (req.url.startsWith('/api/atas/trades') || req.url.startsWith('/api/atas/heartbeat') || req.url.startsWith('/api/atas/reset') || (req.url.startsWith('/api/net/') && !req.url.startsWith('/api/net/status')))) { res.statusCode = 403; return res.end(); }

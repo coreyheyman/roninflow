@@ -7,6 +7,7 @@ import { useAtasSync } from '../components/AtasSync';
 import { useConnect } from '../components/ConnectSync';
 import { GROUPS, CONNECTORS, platformName } from '../lib/connectors';
 import { IS_DEMO, DOWNLOAD_URL } from '../lib/demoMode';
+import { useJournalOs, OS_OPTIONS } from '../lib/journalOs';
 
 const ago = (iso) => {
   if (!iso) return null;
@@ -58,6 +59,10 @@ function AddonSetup({ c, src, onClose, onWebhook }) {
   useEffect(() => { refresh(); const t = setInterval(refresh, 5000); return () => clearInterval(t); }, [refresh]);
   const hb = src?.heartbeat;
   const live = hb?.at && Date.now() - new Date(hb.at).getTime() < 90000;
+  const journalOs = useJournalOs();
+  const [picked, setOs] = useState(null);
+  const os = picked || journalOs;
+  const steps = os === 'unix' && c.unix ? c.unix : c;
   return (
     <Modal open onClose={onClose} width={620}>
       <ModalHead title={`${c.name} live sync${c.beta ? ' (beta)' : ''}`} sub={c.blurb} onClose={onClose} />
@@ -69,11 +74,17 @@ function AddonSetup({ c, src, onClose, onWebhook }) {
             : src ? <span><b>Not running</b> · last heard {ago(hb?.at || src.lastSeen) || 'never'}</span> : <span><b>Not set up yet</b> — follow the steps below.</span>}
         </div>
         {src && <div className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>{src.fills ? `${src.fills} fills` : `${src.trades || 0} trades`} received so far.</div>}
+        {c.unix && (
+          <div className="row gap10 cx-os">
+            <span className="muted" style={{ fontSize: 12.5 }}>RoninFlow runs on</span>
+            <Seg value={os} onChange={setOs} options={OS_OPTIONS} />
+          </div>
+        )}
         <ol className="cx-setup">
-          {c.setup.map(([t, d], i) => <li key={i}><b>{t}</b><span>{d}</span></li>)}
+          {steps.setup.map(([t, d], i) => <li key={i}><b>{t}</b><span>{d}</span></li>)}
         </ol>
         <div className="label" style={{ marginTop: 16 }}>Good to know</div>
-        <ul className="cx-rules">{c.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
+        <ul className="cx-rules">{steps.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={onWebhook}><KeyRound size={14} /> Token &amp; endpoint</button>
@@ -150,7 +161,7 @@ function ApiSetup({ c, api, src, onClose }) {
         <div className="label" style={{ marginTop: 16 }}>Good to know</div>
         <ul className="cx-rules">
           {c.notes.map((n, i) => <li key={i}>{n}</li>)}
-          <li>Your credentials are stored only on the journal server (data/connect.json) and are never shown again here.</li>
+          <li>Your credentials are stored encrypted on the computer running RoninFlow and are never shown again here.</li>
         </ul>
       </div>
       <div className="modal-foot">

@@ -80,7 +80,7 @@ export function createSystemHandler(root, dataDir, { log = () => {} } = {}) {
     } catch { return []; }
   };
   const updater = createUpdater({ root, version, newer, getRelease: fetchRelease, backup: () => backupNow(true), log });
-  const info = () => ({ version, update: updater.status(), repo: repo || null, updateCheck: cfg.updateCheck, latest: cfg.latest, updateAvailable: !!(cfg.latest && newer(cfg.latest, version)), updateUrl: cfg.updateUrl, notes: cfg.notes, checkedAt: cfg.checkedAt, keep: cfg.keep, backups: list(), dataDir });
+  const info = () => ({ version, platform: process.platform, update: updater.status(), repo: repo || null, updateCheck: cfg.updateCheck, latest: cfg.latest, updateAvailable: !!(cfg.latest && newer(cfg.latest, version)), updateUrl: cfg.updateUrl, notes: cfg.notes, checkedAt: cfg.checkedAt, keep: cfg.keep, backups: list(), dataDir });
 
   // daily: a backup, and (if allowed) a look for a new release
   const daily = () => { backupNow(); if (cfg.updateCheck) checkUpdates(); };

@@ -35,3 +35,41 @@ test('vault encrypts and survives a restart', () => {
   const enc = v.encrypt({ a: 1 });
   assert.deepEqual(v.decrypt(enc), { a: 1 });
 });
+
+// ---------------------------------------------------------------- MetaTrader / Sierra Chart under Wine or CrossOver
+import fsW from 'node:fs';
+import osW from 'node:os';
+import pathW from 'node:path';
+import { wineUserDirs, createDropWatcher } from '../connect-apis.js';
+
+test('wineUserDirs finds the Windows user folders in Wine / CrossOver prefixes on a Mac or Linux', () => {
+  const home = fsW.mkdtempSync(pathW.join(osW.tmpdir(), 'rf-wine-'));
+  const mk = (...p) => fsW.mkdirSync(pathW.join(home, ...p), { recursive: true });
+  mk('Library/Application Support/net.metaquotes.wine.metatrader5/drive_c/users/user');   // MetaQuotes' Mac app
+  mk('Library/Application Support/net.metaquotes.wine.metatrader5/drive_c/users/Public');
+  mk('.mt5/drive_c/users/al');                                                             // MetaQuotes' Linux script
+  mk('Library/Application Support/CrossOver/Bottles/Sierra/drive_c/users/crossover');      // a CrossOver bottle
+  const found = wineUserDirs(home, 'darwin').map((d) => pathW.relative(home, d)).sort();
+  assert.deepEqual(found, [
+    '.mt5/drive_c/users/al',
+    'Library/Application Support/CrossOver/Bottles/Sierra/drive_c/users/crossover',
+    'Library/Application Support/net.metaquotes.wine.metatrader5/drive_c/users/user',
+  ]);
+  assert.deepEqual(wineUserDirs(home, 'win32'), []);
+});
+
+test('a MetaTrader trade written inside the Mac MT5 app reaches the journal', () => {
+  const home = fsW.mkdtempSync(pathW.join(osW.tmpdir(), 'rf-wine-'));
+  const common = pathW.join(home, 'Library/Application Support/net.metaquotes.wine.metatrader5/drive_c/users/user/AppData/Roaming/MetaQuotes/Terminal/Common/Files/TradeJournal');
+  fsW.mkdirSync(common, { recursive: true });
+  fsW.writeFileSync(pathW.join(common, 'mt5-12345.jsonl'), JSON.stringify({ platform: 'MetaTrader 5', account: '12345', id: 't1', symbol: 'EURUSD', side: 'Long', qty: 0.1, entryTime: '2026-11-10T09:00:00Z', exitTime: '2026-11-10T10:00:00Z', entryPrice: 1.1, exitPrice: 1.101, pnl: 10 }) + '\n');
+  const realHome = process.env.HOME; process.env.HOME = home;
+  try {
+    const got = [];
+    const scan = createDropWatcher({ ingest: (b) => { got.push(b); return {}; }, setHeartbeat: () => {}, log: () => {}, offsets: {} });
+    scan();
+    assert.equal(got.length, 1);
+    assert.equal(got[0].source, 'metatrader');
+    assert.equal(got[0].trades[0].symbol, 'EURUSD');
+  } finally { process.env.HOME = realHome; }
+});

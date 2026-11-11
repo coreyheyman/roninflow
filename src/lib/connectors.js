@@ -9,12 +9,20 @@ export const GROUPS = [
   { id: 'file', label: 'File import', sub: 'Export your history from the platform and drop the file in. The format is recognised automatically.' },
 ];
 
+// Instructions shared by the platform add-ons. Windows-only platforms on a Mac / Linux journal run on a Windows PC (or VM)
+// that sends to this computer over the network; file-based ones (MetaTrader, Sierra Chart) must run here under Wine.
+const ADDON_WIN = (name, npm) => `Start menu → RoninFlow → Install platform add-ons, then choose ${name}. (Running from the source code? In the RoninFlow folder run  ${npm}.)`;
+const OTHER_PC = (name) => `On the Windows PC, download RoninFlow-<version>.zip from the Releases page on GitHub, unzip it, right-click scripts\\addons.ps1 → Run with PowerShell, and choose ${name}.`;
+const ADDON_FILE = (dir) => `it’s in the ${dir} folder of RoninFlow-<version>.zip on the Releases page, or of RoninFlow’s app folder on this computer`;
+const NET_STEP = ['Let other devices reach this journal', 'Here: Settings → Security & privacy → Phone & network access → allow devices on your network. It shows this computer’s address, like http://192.168.1.20:5173. The token is under Connections → Webhook / API.'];
+const VM_NOTE = 'Trading in a Windows virtual machine on this Mac (Parallels, VMware, UTM)? Same steps inside the VM, using the Mac’s address on the VM’s network.';
+
 export const CONNECTORS = [
   // live add-ons
   { id: 'atas', name: 'ATAS', group: 'live', status: 'ready', blurb: 'Journal Sync indicator: live fills, account balances and open P&L.' },
   { id: 'ninjatrader', name: 'NinjaTrader 8', group: 'live', status: 'ready', blurb: 'NinjaScript add-on: live executions and balances from any NinjaTrader connection.',
     setup: [
-      ['Install the add-on', 'In the journal folder on this PC run  npm run addon:nt  — it copies the add-on into Documents\\NinjaTrader 8\\bin\\Custom\\AddOns and creates a settings file.'],
+      ['Install the add-on', `${ADDON_WIN('NinjaTrader 8', 'npm run addon:nt')} It copies the add-on into Documents\\NinjaTrader 8\\bin\\Custom\\AddOns and creates a settings file.`],
       ['Compile it in NinjaTrader', 'Control Center → New → NinjaScript Editor, then press F5. It starts by itself from then on, every time NinjaTrader opens.'],
       ['Check it’s running', 'New → NinjaScript Output should show “[RoninFlow] started”. This card turns green within 30 seconds.'],
       ['Trade', 'Every fill on every connected account (Sim101 included) is sent. Trades appear once the position is flat.'],
@@ -24,22 +32,44 @@ export const CONNECTORS = [
       'Only some accounts? Add  accounts=Sim101,APEX-123  to the same file.',
       'NinjaTrader set to a different time zone than Windows (Tools → Options → General)? Add  timezone=Eastern Standard Time  (the Windows zone name).',
       'Today’s executions are sent when it starts, so trades placed before installing still come in. Repeats are ignored.',
-    ] },
+    ],
+    unix: {
+      setup: [
+        ['NinjaTrader runs on a Windows PC', 'NinjaTrader 8 is a Windows program, so the add-on goes on the Windows PC (or Windows virtual machine) you trade on. It sends your fills over the network to this journal.'],
+        NET_STEP,
+        ['Install the add-on on the Windows PC', `${OTHER_PC('NinjaTrader 8')} Then in NinjaTrader: Control Center → New → NinjaScript Editor → F5.`],
+        ['Point it at this journal', 'On the Windows PC edit Documents\\NinjaTrader 8\\journal-sync.txt: url=http://<this computer’s address>:5173/api/connect/ingest and token=<the token under Webhook / API>. NinjaScript Output shows “[RoninFlow] started” and this card turns green within 30 seconds.'],
+      ],
+      notes: [
+        VM_NOTE,
+        'Only some accounts? Add  accounts=Sim101,APEX-123  to journal-sync.txt. Different time zone in NinjaTrader than Windows? Add  timezone=Eastern Standard Time.',
+        'If this computer is off while you trade, nothing is lost — today’s executions are sent again when NinjaTrader starts. Repeats are ignored.',
+      ],
+    } },
   { id: 'quantower', name: 'Quantower', group: 'live', status: 'ready', beta: true, blurb: 'Strategy that sends live fills and balances (Rithmic, CQG, dxFeed, Tradovate… connections).',
     setup: [
       ['Install the .NET SDK (once)', 'Quantower runs compiled strategies, so building this one needs Microsoft’s free .NET SDK: dotnet.microsoft.com/download → “.NET SDK” for Windows.'],
-      ['Build it into Quantower', 'In the journal folder on this PC run  npm run addon:qt  — it finds Quantower, builds the strategy and puts it in Quantower\\Settings\\Scripts\\Strategies. If Quantower isn’t in C:\\Quantower it tells you how to point at it.'],
+      ['Build it into Quantower', `${ADDON_WIN('Quantower', 'npm run addon:qt')} It finds Quantower, builds the strategy and puts it in Quantower\\Settings\\Scripts\\Strategies. If Quantower isn’t in C:\\Quantower it tells you how to point at it.`],
       ['Run it', 'Restart Quantower, open Strategies Manager, pick “RoninFlow Sync” and press Run. Its log shows “[RoninFlow] started”.'],
       ['Trade', 'Every fill on every connected account is sent; trades appear in the journal once the position is flat. This card turns green within 30 seconds.'],
     ],
     notes: [
-      'Beta: built from Quantower’s published API but not yet tried on every connection type. If something looks off, send Claude the strategy log.',
+      'Beta: built from Quantower’s published API but not yet tried on every connection type. If something looks off, open an issue on GitHub with the strategy log.',
       'Fills from the last 30 days are sent when it starts (change “Days of history” in the strategy settings). Repeats are ignored.',
       'Journal on another computer? In the strategy settings set Journal address to its address + /api/connect/ingest and paste the token from Token & endpoint.',
-    ] },
+    ],
+    unix: {
+      setup: [
+        ['Quantower runs on a Windows PC', 'Quantower is a Windows program, so the strategy goes on the Windows PC (or Windows virtual machine) you trade on. It sends your fills over the network to this journal.'],
+        NET_STEP,
+        ['Build it on the Windows PC', `Install Microsoft’s free .NET SDK there (dotnet.microsoft.com/download), then: ${OTHER_PC('Quantower')}`],
+        ['Run it, pointed at this journal', 'Restart Quantower → Strategies Manager → “RoninFlow Sync”. In its settings set Journal address to http://<this computer’s address>:5173/api/connect/ingest and Token to the token under Webhook / API, then Run. This card turns green within 30 seconds.'],
+      ],
+      notes: [VM_NOTE, 'Fills from the last 30 days are sent when it starts, so nothing is lost if this computer was off. Repeats are ignored.'],
+    } },
   { id: 'sierrachart', name: 'Sierra Chart', group: 'live', status: 'ready', blurb: 'Custom study that sends your fills from the charts you trade on.',
     setup: [
-      ['Copy the study', 'In the journal folder on this PC run  npm run addon:sierra  — it copies TradeJournalSync.cpp into C:\\SierraChart\\ACS_Source (it tells you how to point at another folder).'],
+      ['Copy the study', `${ADDON_WIN('Sierra Chart', 'npm run addon:sierra')} It copies TradeJournalSync.cpp into C:\\SierraChart\\ACS_Source (it tells you how to point at another folder).`],
       ['Build it', 'In Sierra Chart: Analysis → Build Custom Studies DLL → select TradeJournalSync.cpp → Remote Build. Sierra Chart compiles it on their servers — nothing else to install.'],
       ['Add it to your trading chart', 'Analysis → Studies → Add Custom Study → RoninFlow Sync → Add → OK. The Message Log shows “RoninFlow Sync started”.'],
       ['Trade', 'Fills reach the journal within ~10 seconds and are paired into trades once you’re flat. This card turns green within ~15 seconds.'],
@@ -49,10 +79,23 @@ export const CONNECTORS = [
       'Older fills come in too, as far back as the chart’s “Order Fills Start Date-Time” setting (Trade → Trade Activity Log settings). Repeats are ignored.',
       'Fill times are converted from Sierra Chart’s time zone setting to UTC. If trades show up shifted by hours, set the study input “Fill times are already UTC” to Yes.',
       'It writes to %LOCALAPPDATA%\\TradeJournal\\drop, which the journal on this PC reads — so the journal needs to run on the same PC.',
-    ] },
+    ],
+    unix: {
+      setup: [
+        ['Run Sierra Chart here with CrossOver or Wine', 'Sierra Chart is a Windows program. On a Mac or Linux computer it runs under CrossOver or Wine — install it that way on this same computer, because the study hands fills to the journal through a file.'],
+        ['Copy the study into Sierra Chart', `Copy TradeJournalSync.cpp (${ADDON_FILE('sierrachart-addon')}) into the ACS_Source folder inside Sierra Chart’s install folder — in CrossOver, “Open C: Drive” and go to SierraChart\\ACS_Source.`],
+        ['Build it', 'In Sierra Chart: Analysis → Build Custom Studies DLL → select TradeJournalSync.cpp → Remote Build. Sierra Chart compiles it on their servers, so it works the same under CrossOver / Wine.'],
+        ['Add it to your trading chart', 'Analysis → Studies → Add Custom Study → RoninFlow Sync → Add → OK. The journal finds the CrossOver / Wine folder by itself; this card turns green within ~15 seconds.'],
+      ],
+      notes: [
+        'Sierra Chart on a separate Windows PC can’t send to a journal on another computer (it passes fills through a file). Run RoninFlow on that PC too, or export the trades and use File import.',
+        'The journal looks in CrossOver bottles, ~/.wine and the usual Wine / Bottles / PlayOnLinux / Lutris folders. Add the study to each symbol’s chart you trade, as on Windows.',
+        'If trades show up shifted by hours, set the study input “Fill times are already UTC” to Yes.',
+      ],
+    } },
   { id: 'metatrader', name: 'MetaTrader 4 / 5', group: 'live', status: 'ready', blurb: 'Expert Advisor that sends every closed trade and the account balance.',
     setup: [
-      ['Install the Expert Advisor', 'In the journal folder on this PC run  npm run addon:mt  — it copies TradeJournalSync into every MetaTrader 4 and 5 on this PC.'],
+      ['Install the Expert Advisor', `${ADDON_WIN('MetaTrader 4 / 5', 'npm run addon:mt')} It copies TradeJournalSync into every MetaTrader 4 and 5 on this PC.`],
       ['Load it on a chart', 'In MetaTrader: Navigator → Expert Advisors → right-click → Refresh, then drag “TradeJournalSync” onto any chart and press OK. (Not listed? Open it in MetaEditor and press F7 to compile.)'],
       ['Check it’s running', 'The Experts tab shows “[RoninFlow] started”. This card turns green within ~15 seconds.'],
       ['Trade', 'Closed trades reach the journal within ~10 seconds, with P&L including commission and swap.'],
@@ -64,10 +107,24 @@ export const CONNECTORS = [
       'One chart per terminal is enough. Several terminals / accounts each get their own file, so they don’t clash.',
       'The last 30 days are sent when it starts (BackfillDays input). Partly closed MT5 positions are sent once they’re fully closed.',
       'Times are converted from the broker’s server time to UTC using the server’s current offset.',
-    ] },
+    ],
+    unix: {
+      setup: [
+        ['Use MetaTrader on this computer', 'On a Mac use MetaQuotes’ MetaTrader 5 (or 4) app for macOS; on Linux, MetaQuotes’ install script or Wine. It needs to be on the same computer as the journal, because the Expert Advisor hands trades over through a file.'],
+        ['Copy the Expert Advisor in', `In MetaTrader: File → Open Data Folder → MQL5 → Experts (MQL4 → Experts for MetaTrader 4), and copy TradeJournalSync.mq5 (or .mq4) there — ${ADDON_FILE('metatrader-addon')}.`],
+        ['Load it on a chart', 'Navigator → Expert Advisors → right-click → Refresh, then drag “TradeJournalSync” onto any chart and press OK. (Not listed? Open it in MetaEditor and press F7.)'],
+        ['Check it’s running', 'The Experts tab shows “[RoninFlow] started”. The journal finds MetaTrader’s folder by itself; this card turns green within ~15 seconds.'],
+      ],
+      notes: [
+        'It only reads history and never trades — no WebRequest or algo-trading permission is needed.',
+        'The journal looks in MetaQuotes’ Mac app, ~/.mt5, ~/.wine, CrossOver bottles and the usual Wine / Bottles / PlayOnLinux / Lutris folders. Elsewhere? Start RoninFlow with MT_COMMON_DIR set to MetaTrader’s Common\\Files folder.',
+        'MetaTrader on a separate Windows PC can’t send to a journal on another computer (it passes trades through a file). Run RoninFlow on that PC too, or use File import.',
+        'MetaTrader 4 only shares the history in its Account History tab — right-click there and pick All History so older trades come in.',
+      ],
+    } },
   { id: 'ctrader', name: 'cTrader', group: 'live', status: 'ready', blurb: 'cBot that sends every closed trade and the account balance.',
     setup: [
-      ['Copy the cBot', 'In the journal folder on this PC run  npm run addon:ctrader  — it puts the cBot’s code on your clipboard (or open ctrader-addon\\TradeJournalSync.cs and copy it).'],
+      ['Copy the cBot', `${ADDON_WIN('cTrader', 'npm run addon:ctrader')} It puts the cBot’s code on your clipboard (or open ctrader-addon\\TradeJournalSync.cs and copy it).`],
       ['Create it in cTrader', 'cTrader 5 or newer: Algo → cBots → New, name it TradeJournalSync, select all the template code and paste over it, then Build (Ctrl+B).'],
       ['Start it', 'Add an instance on any symbol and press Start. The log shows “[RoninFlow] started”; this card turns green within 30 seconds.'],
       ['Trade', 'Closed trades reach the journal within seconds. A partial close is its own trade with its own P&L.'],
@@ -77,7 +134,20 @@ export const CONNECTORS = [
       'It sends to the journal over the network and also saves the same trades in Documents\\cAlgo\\Data\\cBots, which the journal on this PC reads — so trades still arrive if cTrader blocks the web request.',
       'Journal on another computer? In the instance parameters set Journal address to its address + /api/connect/ingest and paste the token from Token & endpoint.',
       'P&L is cTrader’s net profit (after commission and swap). The last 30 days are sent when it starts.',
-    ] },
+    ],
+    unix: {
+      setup: [
+        ['Where cTrader runs', 'Use cTrader on a Windows PC, or cTrader for Mac if your version has the Algo section (cBots). The cBot sends trades over the network, so it can be on this computer or another one.'],
+        ['Copy the cBot’s code', `Open TradeJournalSync.cs (${ADDON_FILE('ctrader-addon')}) and copy all of it.`],
+        ['Create it in cTrader', 'Algo → cBots → New, name it TradeJournalSync, select all the template code and paste over it, then Build.'],
+        ['Start it, pointed at this journal', 'Add an instance on any symbol. Same computer: leave Journal address as it is. Another computer: turn on network access here (Settings → Security & privacy), set Journal address to http://<this computer’s address>:5173/api/connect/ingest and paste the token from Token & endpoint. Press Start — this card turns green within 30 seconds.'],
+      ],
+      notes: [
+        'Run one instance per account you want synced. It never places, changes or closes orders.',
+        VM_NOTE,
+        'The last 30 days are sent when it starts, so nothing is lost if this computer was off.',
+      ],
+    } },
   // direct APIs
   { id: 'ibkr', name: 'Interactive Brokers', group: 'api', status: 'ready', blurb: 'Flex Web Service — free and read-only. Checks every 30 minutes.',
     fields: [

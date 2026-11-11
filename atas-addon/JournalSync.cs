@@ -24,10 +24,10 @@ using ATAS.Indicators;
 namespace TradeJournal
 {
     [DisplayName("Journal Sync")]
-    [Description("Sends closed trades from every connected account to your local RoninFlow (http://localhost:5173).")]
+    [Description("Sends closed trades from every connected account to RoninFlow (http://localhost:5173, or set Journal URL + Token for a journal on another computer).")]
     public class JournalSync : Indicator
     {
-        private const string SyncVersion = "1.2.0";
+        private const string SyncVersion = "1.3.0";
         private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
         private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -42,6 +42,11 @@ namespace TradeJournal
 
         [Display(Name = "Journal URL", GroupName = "Connection", Order = 10)]
         public string Endpoint { get; set; } = "http://localhost:5173/api/atas";
+
+        // Only needed when the journal runs on another computer (a Mac, Linux box or home server):
+        // RoninFlow → Connections → Webhook / API → token. Leave empty for a journal on this PC.
+        [Display(Name = "Token (journal on another computer only)", GroupName = "Connection", Order = 15)]
+        public string Token { get; set; } = "";
 
         [Display(Name = "Send this chart's candles to the journal (price data for the diary charts)", GroupName = "Price data", Order = 30)]
         public bool SendBars { get; set; } = true;
@@ -270,7 +275,7 @@ namespace TradeJournal
                 {
                     var payload = new { source = "atas", symbol, bars = bars.Skip(k).Take(2000).ToArray() };
                     using var content = new StringContent(JsonSerializer.Serialize(payload, Json), Encoding.UTF8, "application/json");
-                    using var response = await Http.PostAsync(url, content, token);
+                    using var response = await Send(url, content, token);
                     if (!response.IsSuccessStatusCode)
                         return response.StatusCode == System.Net.HttpStatusCode.NotFound; // older journal without price data: drop
                 }
@@ -286,13 +291,22 @@ namespace TradeJournal
             return true;
         }
 
+        /// <summary>POST, with the token when one is set (a journal on another computer needs it).</summary>
+        private Task<HttpResponseMessage> Send(string url, HttpContent content, CancellationToken token)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+            if (!string.IsNullOrWhiteSpace(Token))
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + Token.Trim());
+            return Http.SendAsync(request, token);
+        }
+
         private async Task<bool> Post(string route, object payload, CancellationToken token)
         {
             try
             {
                 var url = Endpoint.TrimEnd('/') + "/" + route;
                 using var content = new StringContent(JsonSerializer.Serialize(payload, Json), Encoding.UTF8, "application/json");
-                using var response = await Http.PostAsync(url, content, token);
+                using var response = await Send(url, content, token);
                 return response.IsSuccessStatusCode;
             }
             catch (OperationCanceledException)

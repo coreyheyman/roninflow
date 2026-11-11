@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { RefreshCw, Check, Copy, TriangleExclamationPoint as TriangleAlert, Zap } from 'lucide-react';
 import { useStore } from '../store/store';
-import { Modal, ModalHead, Switch, useToast, Private } from './ui';
+import { Modal, ModalHead, Switch, Seg, useToast, Private } from './ui';
+import { useJournalOs, OS_OPTIONS } from '../lib/journalOs';
 import { standardOffset } from '../lib/importers';
 import { fmtDate, fmtTime12, fmtMoney } from '../lib/stats';
 
@@ -145,6 +146,9 @@ function CopyCode({ text }) {
 
 function SyncModal({ open, onClose, status, checkNow }) {
   const { state, setSync, updateAccount, setPositionGrouping, setSetting } = useStore();
+  const journalOs = useJournalOs();
+  const [picked, setOs] = useState(null);
+  const os = picked || journalOs;
   const sync = state.settings.sync || {};
   const hb = status.heartbeat;
   const synced = state.trades.filter((t) => t.atasId).length;
@@ -248,24 +252,45 @@ function SyncModal({ open, onClose, status, checkNow }) {
         )}
 
         <div className="panel" style={{ padding: '6px 18px' }}>
-          <div className="row gap8" style={{ fontWeight: 600, padding: '10px 0 4px' }}><Zap size={15} className="accent" /> One-time setup</div>
-          <Step n={1} done={addonOk} title="Install the .NET 10 SDK (free, from Microsoft)">
-            Needed once to build the add-on. <a className="accent" href="https://dotnet.microsoft.com/download/dotnet/10.0" target="_blank" rel="noreferrer">Download .NET 10 SDK</a> → choose the Windows x64 installer.
-          </Step>
-          <Step n={2} done={addonOk} title="Close ATAS X, then build and install the add-on">
-            In a terminal in your <b style={{ color: 'var(--fg)', fontWeight: 500 }}>RoninFlow</b> folder run:<br />
-            <CopyCode text="npm run addon" /><br />
-            It builds <b style={{ color: 'var(--fg)', fontWeight: 500 }}>JournalSync.dll</b> and copies it to <code>%APPDATA%\ATAS X\Indicators</code>.
-          </Step>
-          <Step n={3} done={addonOk} title="Add “Journal Sync” to any chart in ATAS X">
-            Open ATAS X → any chart → Indicators → search <b style={{ color: 'var(--fg)', fontWeight: 500 }}>Journal Sync</b> → add. One chart is enough: it sends every account's closed trades, then each new trade as it closes.
-          </Step>
-          <Step n={4} done={receiverOk && addonOk} title="Keep the journal running">
-            Leave <CopyCode text="npm run dev" /> running. If the journal is closed while you trade, nothing is lost — the add-on resends its history every 10 minutes and whenever ATAS starts.
-          </Step>
+          <div className="row gap8 between" style={{ padding: '10px 0 4px', flexWrap: 'wrap' }}>
+            <span className="row gap8" style={{ fontWeight: 600 }}><Zap size={15} className="accent" /> One-time setup</span>
+            <span className="row gap8"><span className="muted" style={{ fontSize: 12.5 }}>RoninFlow runs on</span><Seg value={os} onChange={setOs} options={OS_OPTIONS} /></span>
+          </div>
+          {os === 'windows' ? (
+            <>
+              <Step n={1} done={addonOk} title="Install the .NET 10 SDK (free, from Microsoft)">
+                Needed once to build the add-on. <a className="accent" href="https://dotnet.microsoft.com/download/dotnet/10.0" target="_blank" rel="noreferrer">Download .NET 10 SDK</a> → choose the Windows x64 installer.
+              </Step>
+              <Step n={2} done={addonOk} title="Close ATAS X, then build and install the add-on">
+                Start menu → RoninFlow → <b style={{ color: 'var(--fg)', fontWeight: 500 }}>Install platform add-ons</b> → ATAS. (Running from the source code? In the RoninFlow folder run <CopyCode text="npm run addon" />.)<br />
+                It builds <b style={{ color: 'var(--fg)', fontWeight: 500 }}>JournalSync.dll</b> and copies it to <code>%APPDATA%\ATAS X\Indicators</code>.
+              </Step>
+              <Step n={3} done={addonOk} title="Add “Journal Sync” to any chart in ATAS X">
+                Open ATAS X → any chart → Indicators → search <b style={{ color: 'var(--fg)', fontWeight: 500 }}>Journal Sync</b> → add. One chart is enough: it sends every account's closed trades, then each new trade as it closes.
+              </Step>
+              <Step n={4} done={receiverOk && addonOk} title="Keep RoninFlow running">
+                It starts with Windows. If it's closed while you trade, nothing is lost — the add-on resends its history every 10 minutes and whenever ATAS starts.
+              </Step>
+            </>
+          ) : (
+            <>
+              <Step n={1} done={addonOk} title="ATAS runs on a Windows PC">
+                ATAS X is a Windows program, so the add-on goes on the Windows PC (or Windows virtual machine) you trade on. It sends your trades over the network to RoninFlow on this computer.
+              </Step>
+              <Step n={2} done={addonOk} title="Let other devices reach this journal">
+                Here: Settings → Security & privacy → <b style={{ color: 'var(--fg)', fontWeight: 500 }}>Phone & network access</b> → allow devices on your network. It shows this computer's address, like <code>http://192.168.1.20:5173</code>. Copy the token from Connections → <b style={{ color: 'var(--fg)', fontWeight: 500 }}>Webhook / API</b>.
+              </Step>
+              <Step n={3} done={addonOk} title="Install the add-on on the Windows PC">
+                There, install the free <a className="accent" href="https://dotnet.microsoft.com/download/dotnet/10.0" target="_blank" rel="noreferrer">.NET 10 SDK</a>, download <b style={{ color: 'var(--fg)', fontWeight: 500 }}>RoninFlow-&lt;version&gt;.zip</b> from the Releases page on GitHub and unzip it. Close ATAS X, right-click <code>scripts\addons.ps1</code> → Run with PowerShell, and choose ATAS.
+              </Step>
+              <Step n={4} done={receiverOk && addonOk} title="Point Journal Sync at this journal">
+                In ATAS X add <b style={{ color: 'var(--fg)', fontWeight: 500 }}>Journal Sync</b> to any chart. In its settings set <b style={{ color: 'var(--fg)', fontWeight: 500 }}>Journal URL</b> to <code>http://&lt;this computer's address&gt;:5173/api/atas</code> and <b style={{ color: 'var(--fg)', fontWeight: 500 }}>Token</b> to the token. Trading in a VM on this Mac? Use the Mac's address on the VM's network.
+              </Step>
+            </>
+          )}
         </div>
         {!receiverOk && status.receiver === 'offline' && (
-          <div className="badge neg-soft" style={{ padding: '8px 12px', whiteSpace: 'normal' }}><TriangleAlert size={14} /> This page isn't being served by the dev server, so it can't receive trades. Open it at http://localhost:5173 after running “npm run dev”.</div>
+          <div className="badge neg-soft" style={{ padding: '8px 12px', whiteSpace: 'normal' }}><TriangleAlert size={14} /> RoninFlow isn't answering, so it can't receive trades. Start it again (Windows: Start menu → RoninFlow; Mac / Linux: roninflow start) and reopen this page.</div>
         )}
       </div>
       <div className="modal-foot"><button className="btn white" onClick={onClose}>Done</button></div>
