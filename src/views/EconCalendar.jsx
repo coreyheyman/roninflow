@@ -338,6 +338,9 @@ export default function EconCalendar() {
         <label className="row gap6 ec-tvtoggle" title="ForexFactory’s free feed has no actual figures. TradingView’s public calendar feed fills them in, plus the weeks ForexFactory hasn’t published yet.">
           <Switch on={useTv} onChange={(v) => setSetting('ecTradingView', v)} /> Actuals from TradingView
         </label>
+        <label className="row gap6 ec-tvtoggle" title="A small note at the top right when a high-impact release or a market holiday is coming up today (follows the currency filter above)">
+          <Switch on={s.newsPill !== false} onChange={(v) => setSetting('newsPill', v)} /> Today’s events in the top bar
+        </label>
       </div>
 
       <EventModal e={open} onClose={() => setOpen(null)} />

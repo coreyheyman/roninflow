@@ -9,6 +9,7 @@ import { IS_DEMO, DOWNLOAD_URL, REPO_URL } from '../lib/demoMode';
 import { Drawer, Popover, Switch, useToast, Confirm } from './ui';
 import { MiniCoach } from '../views/Coach';
 import { SyncPill } from './AtasSync';
+import MacroPill from './MacroPill';
 import { RiskMini } from './Playbook';
 import NetworkAccess from './NetworkAccess';
 import { useThemeStudio } from './ThemeStudio';
@@ -279,6 +280,7 @@ export default function Layout({ route, crumbs, children }) {
             ))}
           </div>
           <div className="grow" />
+          <MacroPill />
           <SyncPill />
           <button className={`icon-btn ${s.privacy ? 'active' : ''}`} onClick={() => setSetting('privacy', (v) => !v)} title={s.privacy ? 'Show values' : 'Hide values'}>
             {s.privacy ? <EyeOff size={17} /> : <Eye size={17} />}

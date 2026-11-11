@@ -8,6 +8,7 @@ export function useMacro(url, { poll = 0 } = {}) {
   const [st, setSt] = useState({ loading: true, data: null, error: null });
   const alive = useRef(true);
   const load = useCallback(async (quiet) => {
+    if (!url) return; // nothing to load (e.g. the top-bar pill is switched off)
     if (!quiet) setSt((s) => ({ ...s, loading: true }));
     try {
       const data = IS_DEMO ? (await import('./macroDemo')).demoMacro(url) : await fetch(url, { cache: 'no-store' }).then(async (r) => {
