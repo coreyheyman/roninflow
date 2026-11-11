@@ -31,6 +31,8 @@ function useNow(every = 30000) {
   return now;
 }
 
+const HOL = { closed: 'Markets closed', early: 'Early close', bank: 'Banks closed' };
+const HolBadge = ({ k }) => <span className={`ec-hol ${k}`}>{HOL[k]}</span>;
 const Impact = ({ id, title }) => <i className={`ec-imp ${id}`} title={title || `${impactOf(id).label} impact`} />;
 const Ccy = ({ c }) => <span className="ec-ccy"><span className="ec-flag">{FLAGS[c] || '🏳️'}</span>{c}</span>;
 
@@ -61,12 +63,12 @@ function DayList({ days, byDay, nextMs, now, onOpen, emptyNote }) {
             return (
               <button key={e.id} className={`ec-row ${e.ms < now - 60000 ? 'past' : ''} ${next ? 'next' : ''} ${sameTime ? 'same' : ''}`} onClick={() => onOpen(e)}>
                 <span className="ec-time">
-                  {!sameTime && (e.allDay ? 'All day' : fmtTime12(e.clock))}
+                  {!sameTime && (e.allDay ? (e.holiday === 'early' ? 'Early close' : 'All day') : fmtTime12(e.clock))}
                   {next && !sameTime && <em>{countdown(e.ms - now)}</em>}
                 </span>
                 <Impact id={e.impact} />
                 <Ccy c={e.ccy} />
-                <span className="ec-title">{e.title}{e.src === 'schedule' && <span className="ec-sched" title="From the official release calendar — forecasts appear the week before">scheduled</span>}</span>
+                <span className="ec-title">{e.holiday && <HolBadge k={e.holiday} />}{e.holiday ? e.short : e.title}{e.src === 'schedule' && <span className="ec-sched" title="From the official release calendar — forecasts appear the week before">scheduled</span>}</span>
                 <span className="r ec-v" data-l="Actual"><Val e={e} k="actual" /></span>
                 <span className="r ec-v" data-l="Forecast"><Val e={e} k="forecast" /></span>
                 <span className="r ec-v" data-l="Previous"><Val e={e} k="previous" /></span>
@@ -94,9 +96,10 @@ function WeekGrid({ start, byDay, now, onOpen }) {
               <div className="ec-whead"><span>{SHORT_DAYS[dt.getDay()]}</span><b>{dt.getDate()}</b>{d === today && <i className="today-dot" />}<span className="muted grow r">{list.length || ''}</span></div>
               <div className="ec-wbody">
                 {list.map((e) => (
-                  <button key={e.id} className={`ec-chip ${e.impact} ${e.ms < now - 60000 ? 'past' : ''}`} onClick={() => onOpen(e)} title={e.title}>
+                  <button key={e.id} className={`ec-chip ${e.impact} ${e.holiday ? `hol ${e.holiday}` : ''} ${e.ms < now - 60000 && !e.allDay ? 'past' : ''}`} onClick={() => onOpen(e)} title={e.title}>
                     <span className="ec-chip-top"><span>{e.allDay ? 'All day' : fmtTime12(e.clock)}</span><Ccy c={e.ccy} /></span>
-                    <span className="ec-chip-title">{e.title}</span>
+                    <span className="ec-chip-title">{e.holiday ? e.short : e.title}</span>
+                    {e.holiday && <HolBadge k={e.holiday} />}
                     {e.actual && <span className="ec-chip-vals"><Val e={e} k="actual" /> <span className="muted">vs {e.forecast || e.previous || '—'}</span></span>}
                   </button>
                 ))}
@@ -112,6 +115,8 @@ function WeekGrid({ start, byDay, now, onOpen }) {
 
 // ---------- month ----------
 const RANK = { high: 0, medium: 1, low: 2, holiday: 3, none: 4 };
+// market closures go first in a day, then the biggest releases
+const rankOf = (e) => (e.holiday === 'closed' || e.holiday === 'early' ? (e.ccy === 'USD' ? -2 : -1) : RANK[e.impact]);
 function MonthGrid({ month, byDay, onDay }) {
   const first = `${month}-01`;
   const start = sunday(first);
@@ -125,18 +130,22 @@ function MonthGrid({ month, byDay, onDay }) {
         <div key={w} className="ec-mrow">
           {Array.from({ length: 7 }, (_, i) => {
             const d = addDays(start, w * 7 + i);
-            const list = [...(byDay[d] || [])].sort((a, b) => RANK[a.impact] - RANK[b.impact] || a.ms - b.ms);
+            const list = [...(byDay[d] || [])].sort((a, b) => rankOf(a) - rankOf(b) || a.ms - b.ms);
             const out = !d.startsWith(month);
-            const show = list.slice(0, 3);
+            // three or more holidays on one day (Christmas, Easter) fold into one chip of flags
+            const hols = list.filter((e) => e.holiday);
+            const folded = hols.length >= 3 ? { id: `${d}:hols`, fold: true, holiday: hols.some((h) => h.holiday === 'closed') ? 'closed' : hols[0].holiday, impact: 'holiday', ccys: [...new Set(hols.map((h) => h.ccy))], title: hols.map((h) => h.short).join(' · ') } : null;
+            const items = folded ? [folded, ...list.filter((e) => !e.holiday)] : list;
+            const show = items.slice(0, 3);
             return (
               <button key={d} className={`ec-mcell ${out ? 'out' : ''} ${d === today ? 'today' : ''}`} onClick={() => list.length && onDay(d)} disabled={!list.length}>
                 <span className="ec-mday">{parseKey(d).getDate()}{d === today && <i className="today-dot" />}</span>
                 {show.map((e) => (
-                  <span key={e.id} className={`ec-mev ${e.impact}`} title={`${e.ccy} ${e.title}`}>
-                    <span className="ec-mev-t">{e.allDay ? '' : fmtTime12(e.clock).replace(':00', '').replace(' ', '').toLowerCase()}</span> {e.ccy} {e.title}
+                  <span key={e.id} className={`ec-mev ${e.impact} ${e.holiday ? `hol ${e.holiday}` : ''}`} title={e.fold ? e.title : `${e.ccy} ${e.title}`}>
+                    {e.fold ? <>{e.ccys.map((c) => FLAGS[c]).join('')} holidays</> : e.holiday ? <>{FLAGS[e.ccy]} {e.short}</> : <><span className="ec-mev-t">{e.allDay ? '' : fmtTime12(e.clock).replace(':00', '').replace(' ', '').toLowerCase()}</span> {e.ccy} {e.title}</>}
                   </span>
                 ))}
-                {list.length > 3 && <span className="ec-more">+{list.length - 3} more</span>}
+                {items.length > 3 && <span className="ec-more">+{items.length - 3} more</span>}
               </button>
             );
           })}
@@ -150,7 +159,7 @@ function MonthGrid({ month, byDay, onDay }) {
 function EventModal({ e, onClose }) {
   const [hist, setHist] = useState(null);
   useEffect(() => {
-    if (!e || e.src === 'schedule') return undefined;
+    if (!e || e.src === 'schedule' || e.src === 'holiday') return undefined;
     let on = true;
     setHist(null);
     fetch(`/api/macro/calendar/history?ccy=${encodeURIComponent(e.ccy)}&title=${encodeURIComponent(e.title)}`).then((r) => r.json()).then((j) => on && setHist(j.events || [])).catch(() => on && setHist([]));
@@ -163,13 +172,13 @@ function EventModal({ e, onClose }) {
     <Modal open onClose={onClose} width={560}>
       <ModalHead title={e.title} sub={`${FLAGS[e.ccy] || ''} ${e.ccy} · ${dayTitle(e.day)}${e.allDay ? '' : ` · ${fmtTime12(e.clock)} ${tzLabel()}`}`} onClose={onClose} />
       <div className="modal-body col gap16">
-        <div className="row gap8"><Impact id={e.impact} /><span>{impactOf(e.impact).label} impact</span>{e.src === 'schedule' && <span className="ec-sched">scheduled</span>}</div>
-        <div className="ec-vals">
+        {e.holiday ? <div className="col gap8"><span><HolBadge k={e.holiday} /></span><div style={{ fontSize: 14, lineHeight: 1.55 }}>{e.note}</div></div> : <div className="row gap8"><Impact id={e.impact} /><span>{impactOf(e.impact).label} impact</span>{e.src === 'schedule' && <span className="ec-sched">scheduled</span>}</div>}
+        {!e.holiday && <div className="ec-vals">
           {['actual', 'forecast', 'previous'].map((k) => <div key={k}><span className="muted">{k[0].toUpperCase() + k.slice(1)}</span><b><Val e={e} k={k} /></b></div>)}
-        </div>
+        </div>}
         {s && <div className={`ec-verdict ${s}`}>{s === 'beat' ? 'Came in better than expected for the currency.' : s === 'miss' ? 'Came in worse than expected for the currency.' : 'Came in as expected.'}</div>}
         {e.src === 'schedule' && <div className="muted" style={{ fontSize: 13 }}>Taken from the official release calendar. The forecast and the full list of that day’s releases appear when ForexFactory publishes that week, usually the weekend before.</div>}
-        {e.src !== 'schedule' && (
+        {e.src !== 'schedule' && e.src !== 'holiday' && (
           <div>
             <div className="label" style={{ marginBottom: 8 }}>Earlier releases</div>
             {hist == null ? <div className="muted">Loading…</div> : earlier.length ? (
@@ -192,7 +201,8 @@ export default function EconCalendar() {
   const { state, setSetting } = useStore();
   const s = state.settings;
   const view = s.ecView || 'list';
-  const impacts = s.ecImpacts || ['high', 'medium'];
+  // holidays are on by default (also for anyone who changed the impact filter before holidays existed)
+  const impacts = s.ecImpactsV2 || [...new Set([...(s.ecImpacts || ['high', 'medium']), 'holiday'])];
   const ccys = s.ecCcys || [];
   const [range, setRange] = useState('week');
   const [anchor, setAnchor] = useState(homeToday);
@@ -301,7 +311,7 @@ export default function EconCalendar() {
         <div className="row gap6 wrap">
           <span className="muted ec-flabel">Impact</span>
           {IMPACTS.filter((i) => i.id !== 'none').map((i) => (
-            <button key={i.id} className={`chip ${impacts.includes(i.id) ? 'on' : ''}`} onClick={() => toggle('ecImpacts', impacts, i.id)}><Impact id={i.id} title="" />{i.label}</button>
+            <button key={i.id} className={`chip ${impacts.includes(i.id) ? 'on' : ''}`} onClick={() => toggle('ecImpactsV2', impacts, i.id)}><Impact id={i.id} title="" />{i.label}</button>
           ))}
         </div>
         <div className="row gap6 wrap">

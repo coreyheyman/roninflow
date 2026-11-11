@@ -38,7 +38,7 @@ jobs:
         run: |
           mkdir -p build/app/src/lib
           cp -r dist docs scripts LICENSE NOTICE.md README.md package.json build/app/
-          cp server.js local-api.js candles.js connect.js connect-apis.js connect-markets.js secrets.js system.js updater.js ai-proxy.js atas-sync.js replica.js macro.js build/app/
+          cp server.js local-api.js candles.js connect.js connect-apis.js connect-markets.js secrets.js system.js updater.js ai-proxy.js atas-sync.js replica.js macro.js holidays.js build/app/
           cp src/lib/pairing.js build/app/src/lib/
           for d in atas-addon ninjatrader-addon metatrader-addon ctrader-addon quantower-addon sierrachart-addon; do cp -r "$d" build/app/; done
       - uses: actions/upload-artifact@v4

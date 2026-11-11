@@ -20,6 +20,7 @@
 //     Fridays at 3:30 PM ET for the Tuesday before. Public domain, no key.
 import fs from 'node:fs';
 import path from 'node:path';
+import { holidayEvents } from './holidays.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 const TV_URL = 'https://economic-calendar.tradingview.com/events';
@@ -370,7 +371,13 @@ export function createMacroHandler(dataDir, { log = () => {}, fetchImpl = (...a)
     const tvOutside = tvIn.filter((e) => !inCover(e)).map((e) => ({ ...e, title: e.period ? `${e.title} (${e.period})` : e.title }));
     const tvDays = new Set(useTv ? Object.keys(tv.days) : []);
     const sched = scheduleEvents(from, to, cal.covered).filter((e) => !tvDays.has(isoDay(Date.parse(e.t))));
-    const events = [...ff, ...tvOutside, ...sched].sort((a, b) => a.t.localeCompare(b.t));
+    // market & bank holidays from our own rules (months ahead); the feeds' own holiday rows for the same day give way
+    const hol = holidayEvents(isoDay(from), isoDay(to));
+    const holKeys = new Set(hol.map((h) => `${h.ccy}|${h.t.slice(0, 10)}`));
+    const HOLIDAY_WORDS = /holiday|christmas|new year|thanksgiving|independence|labou?r day|memorial|juneteenth|easter|good friday|boxing|national day|veterans|columbus|remembrance/i;
+    const isDupHoliday = (e) => !e.actual && !e.forecast && (e.impact === 'holiday' || HOLIDAY_WORDS.test(e.title))
+      && (holKeys.has(`${e.ccy}|${nyDay(Date.parse(e.t))}`) || holKeys.has(`${e.ccy}|${e.t.slice(0, 10)}`));
+    const events = [...[...ff, ...tvOutside].filter((e) => !isDupHoliday(e)), ...sched, ...hol].sort((a, b) => a.t.localeCompare(b.t));
     const errors = [cal.error, useTv && tvIn.length === 0 ? tv.error : null].filter(Boolean);
     return {
       events, coverage: (cal.covered || []).map(([a, b]) => [new Date(a).toISOString(), new Date(b).toISOString()]),

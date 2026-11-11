@@ -241,3 +241,45 @@ test('COT: before the next release nothing is fetched; after it, only the last f
   assert.ok(urls.length > n);
   assert.match(urls[urls.length - 1], /report_date_as_yyyy_mm_dd >= '2026-10-06/);
 });
+
+// ---------- holidays ----------
+import { holidayEvents, easter } from '../holidays.js';
+const hol = (from, to, ccy) => holidayEvents(from, to).filter((e) => !ccy || e.ccy === ccy).map((e) => `${e.t.slice(0, 10)} ${e.short} (${e.holiday})`);
+
+test('Easter dates', () => {
+  assert.equal(easter(2026), '2026-04-05');
+  assert.equal(easter(2027), '2027-03-28');
+  assert.equal(easter(2028), '2028-04-16');
+});
+
+test('US market holidays follow NYSE / federal observance rules', () => {
+  assert.deepEqual(hol('2026-07-01', '2026-07-31', 'USD'), ['2026-07-03 US Independence Day (closed)']); // Jul 4 is a Saturday: closed Friday, no early close
+  assert.deepEqual(hol('2026-11-20', '2026-11-30', 'USD'), ['2026-11-26 US Thanksgiving (closed)', '2026-11-27 US Day after Thanksgiving (early)']);
+  assert.deepEqual(hol('2027-12-20', '2027-12-31', 'USD'), ['2027-12-24 US Christmas Day (closed)', '2027-12-31 US New Year’s Day (observed) (bank)']);
+  assert.ok(hol('2026-11-11', '2026-11-11', 'USD')[0].includes('Veterans Day (bank)'));
+});
+
+test('UK, Japan and NZ substitute days', () => {
+  assert.deepEqual(hol('2027-12-24', '2027-12-31', 'GBP'), ['2027-12-27 UK Christmas Day (closed)', '2027-12-28 UK Boxing Day (closed)']);
+  const jp = hol('2026-09-01', '2026-09-30', 'JPY');
+  assert.deepEqual(jp, ['2026-09-21 Japan Respect for the Aged Day (closed)', '2026-09-22 Japan Citizens’ holiday (closed)', '2026-09-23 Japan Autumnal Equinox Day (closed)']);
+  assert.ok(hol('2026-05-01', '2026-05-10', 'JPY').some((h) => h.startsWith('2026-05-06')), 'Constitution Day on a Sunday → May 6');
+  assert.ok(hol('2026-07-01', '2026-07-31', 'NZD').some((h) => h.includes('Matariki')));
+});
+
+test('calendar: holidays months ahead, and the feeds’ own holiday rows don’t double up', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rf-macro-'));
+  const fetchImpl = async (url) => {
+    if (url.endsWith('thisweek.json')) return reply(200, [ff('2026-11-11T00:00:00-05:00', 'Bank Holiday', { impact: 'Holiday', forecast: '', previous: '' }), ff('2026-11-11T00:00:00-05:00', 'Bank Holiday', { country: 'CNY', impact: 'Holiday', forecast: '', previous: '' })]);
+    if (url.includes('tradingview')) return reply(200, { status: 'ok', result: [tvRow('2026-11-26T00:00:00.000Z', 'US', 'Thanksgiving Day', { importance: -1 })] });
+    return reply(404, 'nope', 'text/plain');
+  };
+  const h = createMacroHandler(dir, { fetchImpl, now: () => Date.parse('2026-11-11T18:00:00Z') });
+  const r = await call(h, '/api/macro/calendar?from=2026-11-08&to=2026-11-30');
+  const titles = r.body.events.filter((e) => e.allDay || e.src === 'holiday').map((e) => `${e.t.slice(0, 10)} ${e.ccy} ${e.short || e.title}`);
+  assert.ok(titles.includes('2026-11-11 USD US Veterans Day'));
+  assert.ok(!titles.includes('2026-11-11 USD Bank Holiday'), 'ForexFactory’s generic row gives way');
+  assert.ok(titles.includes('2026-11-11 CNY Bank Holiday'), 'holidays we don’t compute (China) stay');
+  assert.equal(titles.filter((t) => t.includes('Thanksgiving') && t.startsWith('2026-11-26')).length, 1);
+  assert.ok(titles.includes('2026-11-23 JPY Japan Labour Thanksgiving Day'));
+});
