@@ -60,19 +60,18 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
                   <div
                     key={k}
                     className={`cal-cell ${out ? 'out' : ''} ${k === today ? 'today' : ''} ${day ? (day.net >= 0 ? 'win' : 'loss') : ''}`}
-                    style={compact ? { padding: 8 } : undefined}
                     onClick={() => !out && onDay?.(k)}
                   >
                     <span className="d">{d.getDate()}</span>
                     {day && (
                       <>
                         {!compact && <span className="sc"><ScoreBox v={day.score} /></span>}
-                        <div className={`pnl ${day.net >= 0 ? 'pos' : 'neg'}`} style={compact ? { fontSize: 14 } : undefined}>
+                        <div className={`pnl ${day.net >= 0 ? 'pos' : 'neg'}`}>
                           <span className={`pv-full ${priv ? 'hidden-val' : ''}`}>{fmtMoney(day.net, { sign: true })}</span><span className={`pv-short ${priv ? 'hidden-val' : ''}`}>{day.net > 0 ? '+' : ''}{fmtCompact(day.net)}</span>
                         </div>
                         <div className="meta">
                           <Clock size={12} />
-                          {compact ? `${day.count} trades` : fmtDuration(day.duration)}
+                          {compact ? `${day.count} trade${day.count === 1 ? '' : 's'}` : fmtDuration(day.duration)}
                         </div>
                       </>
                     )}
@@ -83,7 +82,7 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
                 <div className="row between">W{wi + 1} {wd.length > 0 && !compact && <Chev size={13} className="muted" />}</div>
                 {wd.length > 0 && (
                   <>
-                    <div className={`wk-pnl ${wNet >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: compact ? 13 : 16, fontWeight: 500, marginTop: 'auto', marginBottom: 6, filter: priv ? 'blur(6px)' : undefined }}>
+                    <div className={`wk-pnl ${wNet >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 16, fontWeight: 500, marginTop: 'auto', marginBottom: 6, filter: priv ? 'blur(6px)' : undefined }}>
                       <span className="pv-full">{fmtMoney(wNet, { sign: true })}</span><span className="pv-short">{wNet > 0 ? "+" : ""}{fmtCompact(wNet)}</span>
                     </div>
                     <div className="muted" style={{ fontWeight: 500 }}>{wTrades}t · {Math.round((wWins / wTrades) * 100)}%</div>

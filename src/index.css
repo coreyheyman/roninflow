@@ -319,7 +319,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
 .cal { border-top: 1px solid var(--border); }
 .cal-head, .cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, 0.53fr); }
 .cal-head div { text-align: center; padding: 12px 0; font-size: 13px; color: var(--fg-2); border-bottom: 1px solid var(--border); }
-.cal-cell { aspect-ratio: var(--tile-ar); min-height: 0; max-height: var(--tile-max); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 12px; position: relative; display: flex; flex-direction: column; }
+.cal-cell { width: 100%; aspect-ratio: var(--tile-ar); min-height: 0; max-height: var(--tile-max); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 12px; position: relative; display: flex; flex-direction: column; }
 .cal-cell .d { font-size: 12.5px; font-weight: 500; }
 .cal-cell.out .d { color: var(--muted-2); }
 .cal-cell.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 20%, transparent), color-mix(in srgb, var(--pos-strong) 8%, transparent)); cursor: pointer; }
@@ -660,7 +660,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 
 /* week strip */
 .rv-week { display: grid; grid-template-columns: repeat(calc(var(--n) - 1), minmax(0, 1fr)) minmax(0, 0.8fr); border: 1px solid var(--border); background: var(--panel); }
-.rv-wday { display: flex; flex-direction: column; border-right: 1px solid var(--border); cursor: pointer; min-width: 0; aspect-ratio: var(--tile-ar); max-height: var(--tile-max); }
+.rv-wday { display: flex; flex-direction: column; border-right: 1px solid var(--border); cursor: pointer; min-width: 0; width: 100%; aspect-ratio: var(--tile-ar); max-height: var(--tile-max); }
 .rv-wday:last-child { border-right: 0; cursor: default; }
 .rv-wday-h { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; font-size: 13px; font-weight: 500; border-bottom: 1px solid var(--border); background: var(--card); }
 .rv-wday-v { flex: 1; display: grid; place-items: center; font-size: clamp(18px, 2vw, 28px); font-weight: 500; letter-spacing: -0.02em; text-align: center; padding: 10px 8px; white-space: nowrap; min-height: 0; }
@@ -685,7 +685,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-cal-row { display: grid; grid-template-columns: repeat(calc(var(--cols) - 1), minmax(0, 1fr)) minmax(0, 0.75fr); }
 .rv-cal.heat .rv-cal-row { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 3px; margin-bottom: 3px; }
 .rv-cal-row.head div { text-align: center; padding: 9px 0; font-size: 12px; color: var(--fg-2); border-bottom: 1px solid var(--border); }
-.rv-day { position: relative; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); aspect-ratio: var(--tile-ar); min-height: 0; max-height: var(--tile-max); padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
+.rv-day { position: relative; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); width: 100%; aspect-ratio: var(--tile-ar); min-height: 0; max-height: var(--tile-max); padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
 .rv-day.out { background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(127, 127, 127, 0.04) 6px 12px); }
 .rv-day.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 20%, transparent), color-mix(in srgb, var(--pos-strong) 7%, transparent)); cursor: pointer; }
 .rv-day.loss { background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 14%, transparent), color-mix(in srgb, var(--neg) 5%, transparent)); cursor: pointer; }
@@ -693,6 +693,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-day .dn { font-size: 12px; font-weight: 500; color: var(--fg-2); }
 .rv-day.today .dn { color: var(--primary); font-weight: 700; }
 .rv-day .pv, .rv-wk .pv { font-size: clamp(14px, 1.3vw, 20px); font-weight: 500; letter-spacing: -0.02em; margin-top: auto; white-space: nowrap; text-align: center; }
+.rv-cal .pv-short { display: none; }
 .rv-day-meta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--fg-2); margin-top: 8px; gap: 4px; }
 .rv-wk { padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--card); display: flex; flex-direction: column; min-width: 0; }
 .rv-wk.win { box-shadow: inset 2px 0 0 var(--pos-strong); background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 16%, transparent), color-mix(in srgb, var(--pos-strong) 4%, transparent)); }
@@ -762,6 +763,8 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
   .rv-day .dn { font-size: 11.5px; line-height: 1.25; }
   .rv-day-meta { display: none; }
   .rv-day .pv, .rv-wk .pv { font-size: clamp(8.5px, 2.6vw, 11px); letter-spacing: -0.04em; flex-shrink: 0; }
+  .rv-cal .pv-full { display: none; }
+  .rv-cal .pv-short { display: inline; }
   .rv-cal.full .rv-cal-row.head div { font-size: 0; }
   .rv-cal.full .rv-cal-row.head div::first-letter { font-size: 11px; }
   .rv-period { min-width: 0; font-size: 15px; }

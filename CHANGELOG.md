@@ -2,6 +2,12 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.0.5
+
+- **Weekly review:** removed the gaps that appeared between the day tiles on wide screens.
+- **Dashboard calendar:** the daily P&L is now the same size as on the journal calendar instead of a small fixed size.
+- **Review calendar on small phones:** amounts switch to a short form (+$1.3k) so they fit, like the dashboard calendar.
+
 ## 1.0.4
 
 - **Calendars:** today is now marked with a violet outline around its tile and a violet date, instead of a circle around the date. The circle took up so much room on a phone that it pushed the day's P&L out of the tile.

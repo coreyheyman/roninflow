@@ -198,7 +198,7 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
                   {variant !== 'heat' && !out && <span className="dn">{d.getDate()}</span>}
                   {day && variant === 'full' && (
                     <>
-                      <div className={`pv ${day.net >= 0 ? 'pos' : 'neg'}`}><span className={priv ? 'hidden-val' : ''}>{fmtMoney(day.net, { sign: true, dp: 0 })}</span></div>
+                      <div className={`pv ${day.net >= 0 ? 'pos' : 'neg'}`}><span className={`pv-full ${priv ? 'hidden-val' : ''}`}>{fmtMoney(day.net, { sign: true, dp: 0 })}</span><span className={`pv-short ${priv ? 'hidden-val' : ''}`}>{short(day.net)}</span></div>
                       <div className="rv-day-meta"><span>{day.count} trades</span><span>{wr(day)}%</span></div>
                     </>
                   )}
@@ -211,7 +211,7 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
                 {variant === 'full' && <span className="muted" style={{ fontSize: 11.5 }}>W{wi + 1}</span>}
                 {inWeek.length > 0 && (
                   <>
-                    <div className={`pv ${wNet >= 0 ? 'pos' : 'neg'}`}><span className={priv ? 'hidden-val' : ''}>{variant === 'mini' ? short(wNet) : fmtMoney(wNet, { sign: true, dp: 0 })}</span></div>
+                    <div className={`pv ${wNet >= 0 ? 'pos' : 'neg'}`}>{variant === 'mini' ? <span className={priv ? 'hidden-val' : ''}>{short(wNet)}</span> : <><span className={`pv-full ${priv ? 'hidden-val' : ''}`}>{fmtMoney(wNet, { sign: true, dp: 0 })}</span><span className={`pv-short ${priv ? 'hidden-val' : ''}`}>{short(wNet)}</span></>}</div>
                     {variant === 'full' && <div className="rv-day-meta"><span>{wCount}t</span><span>WR {Math.round((wWins / wCount) * 100)}%</span></div>}
                   </>
                 )}
