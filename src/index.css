@@ -3,6 +3,8 @@
    ========================================================================== */
 :root,
 [data-theme='dark'] {
+  --tile-ar: 1.1;      /* day tiles stay this close to square at any width */
+  --tile-max: 200px;   /* …but stop growing on very wide monitors */
   --bg: #000000;
   --sidebar: #0e0e0e;
   --panel: #0a0a0a;
@@ -317,7 +319,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
 .cal { border-top: 1px solid var(--border); }
 .cal-head, .cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, 0.53fr); }
 .cal-head div { text-align: center; padding: 12px 0; font-size: 13px; color: var(--fg-2); border-bottom: 1px solid var(--border); }
-.cal-cell { aspect-ratio: 1.1; min-height: 0; max-height: 200px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 12px; position: relative; display: flex; flex-direction: column; }
+.cal-cell { aspect-ratio: var(--tile-ar); min-height: 0; max-height: var(--tile-max); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 12px; position: relative; display: flex; flex-direction: column; }
 .cal-cell .d { font-size: 12.5px; font-weight: 500; }
 .cal-cell.out .d { color: var(--muted-2); }
 .cal-cell.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 20%, transparent), color-mix(in srgb, var(--pos-strong) 8%, transparent)); cursor: pointer; }
@@ -656,18 +658,24 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 
 /* week strip */
 .rv-week { display: grid; grid-template-columns: repeat(calc(var(--n) - 1), minmax(0, 1fr)) minmax(0, 0.8fr); border: 1px solid var(--border); background: var(--panel); }
-.rv-wday { display: flex; flex-direction: column; border-right: 1px solid var(--border); cursor: pointer; min-width: 0; }
+.rv-wday { display: flex; flex-direction: column; border-right: 1px solid var(--border); cursor: pointer; min-width: 0; aspect-ratio: var(--tile-ar); max-height: var(--tile-max); }
 .rv-wday:last-child { border-right: 0; cursor: default; }
 .rv-wday-h { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; font-size: 13px; font-weight: 500; border-bottom: 1px solid var(--border); background: var(--card); }
-.rv-wday-v { font-size: clamp(18px, 2vw, 28px); font-weight: 500; letter-spacing: -0.02em; text-align: center; padding: 26px 8px; white-space: nowrap; }
+.rv-wday-v { flex: 1; display: grid; place-items: center; font-size: clamp(18px, 2vw, 28px); font-weight: 500; letter-spacing: -0.02em; text-align: center; padding: 10px 8px; white-space: nowrap; min-height: 0; }
 .rv-wday-f { display: flex; justify-content: space-between; padding: 8px 14px; font-size: 12px; color: var(--fg-2); border-top: 1px solid var(--border); margin-top: auto; }
 .rv-wday.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 18%, transparent), color-mix(in srgb, var(--pos-strong) 5%, transparent)); }
 .rv-wday.loss { background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 13%, transparent), color-mix(in srgb, var(--neg) 4%, transparent)); }
 .rv-wday.today .rv-wday-h span:first-child::after { content: ' · Today'; color: var(--primary); }
 .rv-wday:not(.total):hover { filter: brightness(1.15); }
-.rv-wday.total { box-shadow: inset 2px 0 0 var(--border-2); }
+.rv-wday.total { box-shadow: inset 2px 0 0 var(--border-2); aspect-ratio: auto; max-height: none; }
 .rv-wday.total.win { box-shadow: inset 2px 0 0 var(--pos-strong); }
 .rv-wday.total.loss { box-shadow: inset 2px 0 0 var(--neg-strong); }
+/* 6 day tiles need room: below ~1000px they go 3-up, and on a phone 2-up (further down) */
+@media (min-width: 761px) and (max-width: 1000px) {
+  .rv-week { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rv-wday { aspect-ratio: 1.35; border-bottom: 1px solid var(--border); }
+  .rv-wday:nth-child(3n) { border-right: 0; }
+}
 
 /* calendars */
 .rv-cal-top { display: flex; align-items: center; gap: 10px; padding: 16px 18px; flex-wrap: wrap; }
@@ -675,7 +683,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-cal-row { display: grid; grid-template-columns: repeat(calc(var(--cols) - 1), minmax(0, 1fr)) minmax(0, 0.75fr); }
 .rv-cal.heat .rv-cal-row { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 3px; margin-bottom: 3px; }
 .rv-cal-row.head div { text-align: center; padding: 9px 0; font-size: 12px; color: var(--fg-2); border-bottom: 1px solid var(--border); }
-.rv-day { position: relative; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); aspect-ratio: 1.1; min-height: 0; max-height: 200px; padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
+.rv-day { position: relative; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); aspect-ratio: var(--tile-ar); min-height: 0; max-height: var(--tile-max); padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
 .rv-day.out { background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(127, 127, 127, 0.04) 6px 12px); }
 .rv-day.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 20%, transparent), color-mix(in srgb, var(--pos-strong) 7%, transparent)); cursor: pointer; }
 .rv-day.loss { background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 14%, transparent), color-mix(in srgb, var(--neg) 5%, transparent)); cursor: pointer; }
@@ -746,8 +754,8 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
   .rv-months.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rv-qcols { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; }
   .rv-week { grid-template-columns: 1fr 1fr; }
-  .rv-wday { border-bottom: 1px solid var(--border); }
-  .rv-wday-v { padding: 14px 6px; }
+  .rv-wday { border-bottom: 1px solid var(--border); aspect-ratio: 1.5; }
+  .rv-wday-v { padding: 8px 6px; }
   .rv-day { padding: 5px; }
   .rv-day-meta { display: none; }
   .rv-day .pv, .rv-wk .pv { font-size: 11px; letter-spacing: -0.04em; }
