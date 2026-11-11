@@ -1630,3 +1630,25 @@ button.ec-row:hover { background: var(--hover); }
 .ec-tf-list .pop-item { font-size: 13px; font-variant-numeric: tabular-nums; }
 .ec-tf-list .pop-item.on { color: var(--primary); }
 .ec-tf-list .pop-item:disabled { opacity: 0.35; cursor: not-allowed; }
+/* week tiles open that week's review */
+.wk-link { cursor: pointer; transition: filter 0.12s; }
+.wk-link:hover { filter: brightness(1.25); box-shadow: inset 0 0 0 1px var(--primary); }
+
+/* click a stat's name to see what it means */
+.stat-q { cursor: help; text-decoration: underline dotted color-mix(in srgb, currentColor 45%, transparent); text-underline-offset: 3px; text-decoration-thickness: 1px; border-radius: 2px; }
+.stat-q:hover, .stat-q.on { text-decoration-color: var(--primary); color: var(--fg); }
+.stat-q:focus-visible { outline: 1.5px solid var(--primary); outline-offset: 2px; }
+.stat-pop { position: fixed; z-index: 1000; width: min(340px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; background: var(--card); border: 1px solid var(--border-2); border-radius: 6px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); padding: 14px 16px 12px; font-size: 13px; line-height: 1.5; color: var(--fg-2); text-align: left; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.stat-pop p { margin: 0 0 10px; }
+.stat-pop-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.stat-pop-h b { font-size: 14.5px; color: var(--fg); font-weight: 600; }
+.stat-pop-h .icon-btn { width: 26px; height: 26px; }
+.stat-pop-how { font-size: 12.5px; padding: 8px 10px; background: var(--card-3); border-radius: 4px; margin-bottom: 8px; color: var(--fg); font-variant-numeric: tabular-nums; }
+.stat-pop-how span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.stat-pop-bench { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.stat-pop-you { border-top: 1px solid var(--border); padding-top: 10px; }
+.stat-pop-you .row { margin-bottom: 4px; font-size: 12.5px; }
+.stat-pop-you b { font-weight: 600; }
+.stat-pop-you p { margin: 0; color: var(--fg); }
+.stat-pop-you.good { --c: var(--pos); } .stat-pop-you.bad { --c: var(--neg); } .stat-pop-you.ok { --c: var(--warn); }
+.stat-pop-note { margin-top: 10px; font-size: 12px; color: var(--muted); font-style: italic; }

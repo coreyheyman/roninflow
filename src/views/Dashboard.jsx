@@ -1,3 +1,4 @@
+import { StatLabel } from '../components/StatInfo';
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChartArea, ChartLine, ChartColumn, Trophy, Minus, TrendingDown, TrendingUp, Check, ArrowUp, ArrowDown, LayoutGrid } from 'lucide-react';
 import { useStore, useAccountTrades, navigate } from '../store/store';
@@ -118,7 +119,7 @@ export default function Dashboard() {
       {show('kpis') && trades.length > 0 && (
         <div className="kpis">
           <div className={`kpi ${totalNet >= 0 ? 'posc' : 'negc'}`}>
-            <div className="kpi-head">Total P&L <TrendBadge value={(totalNet / initial) * 100} /></div>
+            <div className="kpi-head"><StatLabel k="net" v={s.net} ctx={{ ...s, maxDD: dd }}>Total P&L</StatLabel> <TrendBadge value={(totalNet / initial) * 100} /></div>
             <div className="kpi-val"><Private>{fmtMoney(totalNet)}</Private></div>
             <div className="kpi-sub">{gap
               ? <span title="Total P&L is your ATAS balance minus your starting balance. The adjustment is what the trades in the journal don't account for (missing fills, account fees…).">Trades <Private>{fmtMoney(s.net)}</Private> · balance adj. <Private>{fmtMoney(gap, { sign: true })}</Private></span>
@@ -127,7 +128,7 @@ export default function Dashboard() {
             <div className="kpi-foot">{s.count} closed positions</div>
           </div>
           <div className={`kpi ${s.winRate >= 50 ? 'posc' : 'negc'}`}>
-            <div className="kpi-head">Win Rate <TrendBadge value={prevTrades.length ? pctChange(s.winRate, p.winRate) : s.winRate - 50} /></div>
+            <div className="kpi-head"><StatLabel k="winRate" v={s.winRate} ctx={{ ...s, maxDD: dd }}>Win Rate</StatLabel> <TrendBadge value={prevTrades.length ? pctChange(s.winRate, p.winRate) : s.winRate - 50} /></div>
             <div className="row gap24" style={{ marginTop: 30 }}>
               <div className="kpi-val" style={{ margin: 0 }}>{Math.round(s.winRate)}%</div>
               <div className="grow"><RateBar pct={s.winRate} /></div>
@@ -140,29 +141,29 @@ export default function Dashboard() {
             <div className="kpi-foot">{s.count} closed positions</div>
           </div>
           <div className={`kpi ${s.profitFactor >= 1 ? 'posc' : 'negc'}`}>
-            <div className="kpi-head">Profit Factor <TrendBadge value={prevTrades.length ? pctChange(s.profitFactor === Infinity ? 99 : s.profitFactor, p.profitFactor === Infinity ? 99 : p.profitFactor) : (s.profitFactor - 1) * 100} /></div>
+            <div className="kpi-head"><StatLabel k="profitFactor" v={s.profitFactor} ctx={{ ...s, maxDD: dd }}>Profit Factor</StatLabel> <TrendBadge value={prevTrades.length ? pctChange(s.profitFactor === Infinity ? 99 : s.profitFactor, p.profitFactor === Infinity ? 99 : p.profitFactor) : (s.profitFactor - 1) * 100} /></div>
             <div style={{ position: 'relative', alignSelf: 'center', marginTop: 12 }}>
               <Gauge value={s.profitFactor} />
               <div style={{ position: 'absolute', left: 0, right: 0, bottom: 10, textAlign: 'center', fontSize: 31, fontWeight: 500, letterSpacing: '-0.03em' }}>{pfText(s.profitFactor)}</div>
             </div>
             <div className="kpi-foot" style={{ textAlign: 'center' }}>Gross profit / gross loss ratio</div>
           </div>
-          <div className={`kpi ${pr >= 0.5 ? 'posc' : 'negc'}`} title="Performance Ratio = win% × (avg win ÷ avg loss). Above 0.5 is good performance, above 0.75 is great.">
-            <div className="kpi-head">Performance Ratio <TrendBadge value={prevTrades.length ? pctChange(fin(pr), fin(prPrev)) : (fin(pr) - 0.5) * 100} /></div>
+          <div className={`kpi ${pr >= 0.5 ? 'posc' : 'negc'}`}>
+            <div className="kpi-head"><StatLabel k="perfRatio" v={pr} ctx={{ ...s, maxDD: dd }}>Performance Ratio</StatLabel> <TrendBadge value={prevTrades.length ? pctChange(fin(pr), fin(prPrev)) : (fin(pr) - 0.5) * 100} /></div>
             <div className="kpi-val" style={{ marginTop: 22 }}>{ratioText(pr)}</div>
             <div className="kpi-sub muted" style={{ fontWeight: 400, fontSize: 13 }}>{Math.round(s.winRate)}% win × {s.avgLoss ? (s.avgWin / Math.abs(s.avgLoss)).toFixed(2) : '∞'} avg win/loss</div>
             <div style={{ margin: '14px 0 10px' }}><MarkerScale value={pr} min={0} max={1.5} marks={[{ v: 0.5, color: 'var(--neg)', label: '0.5 good' }, { v: 0.75, color: 'var(--pos)', label: '0.75 great' }]} /></div>
             <div className="kpi-foot">Win% × avg win / avg loss</div>
           </div>
-          <div className={`kpi ${ro >= 1 ? 'posc' : 'negc'}`} title="ROMAD = total P&L ÷ maximum peak-to-trough drawdown in the same period. Below 1 means you lost more at some point than you ended up making; above 2 is high-quality trading.">
-            <div className="kpi-head">ROMAD <TrendBadge value={prevTrades.length ? pctChange(fin(ro), fin(roPrev)) : (fin(ro) - 1) * 100} /></div>
+          <div className={`kpi ${ro >= 1 ? 'posc' : 'negc'}`}>
+            <div className="kpi-head"><StatLabel k="romad" v={ro} ctx={{ ...s, maxDD: dd }}>ROMAD</StatLabel> <TrendBadge value={prevTrades.length ? pctChange(fin(ro), fin(roPrev)) : (fin(ro) - 1) * 100} /></div>
             <div className="kpi-val" style={{ marginTop: 22 }}>{ratioText(ro)}</div>
             <div className="kpi-sub muted" style={{ fontWeight: 400, fontSize: 13 }}><Private>{fmtMoney(s.net, { dp: 0, sign: true })}</Private> P&L ÷ <Private>{fmtMoney(dd, { dp: 0 })}</Private> max drawdown</div>
             <div style={{ margin: '14px 0 10px' }}><MarkerScale value={ro} min={-2} max={4} marks={[{ v: 1, color: 'var(--warn)', label: '1' }, { v: 2, color: 'var(--pos)', label: '2 high quality' }]} /></div>
             <div className="kpi-foot">Return over max drawdown</div>
           </div>
           <div className={`kpi ${(top?.pnl || 0) >= 0 ? 'posc' : 'negc'}`}>
-            <div className="kpi-head">Most Traded {top && <TrendBadge value={prevTrades.length ? pctChange(top.pnl, prevTop) : (top.pnl / initial) * 100} />}</div>
+            <div className="kpi-head"><StatLabel k="mostTraded" v={top?.pnl || 0} ctx={{ ...s, maxDD: dd }}>Most Traded</StatLabel> {top && <TrendBadge value={prevTrades.length ? pctChange(top.pnl, prevTop) : (top.pnl / initial) * 100} />}</div>
             <div className="kpi-val"><Private>{fmtMoney(top?.pnl || 0)}</Private></div>
             <div className="kpi-sub">{top?.symbol} — {top?.count} positions</div>
             {top && <Sparkline values={[0, ...equityCurve(top.trades).map((c) => c.y)]} />}
@@ -333,6 +334,7 @@ function AvgWinLoss({ title, unit, win, loss, wins, losses, total, winRate, avg,
   const edge = beWr == null ? null : winRate - beWr;
   const sum = win + loss || 1;
   const noun = unit === 'day' ? ['green day', 'red day'] : ['winning trade', 'losing trade'];
+  const ctx = { count: total, wins, losses, winRate, avgWin: win, avgLoss: -loss };
   return (
     <Panel title={title}>
       <div className="avgt">
@@ -354,10 +356,10 @@ function AvgWinLoss({ title, unit, win, loss, wins, losses, total, winRate, avg,
           <span className="l" style={{ width: `${(loss / sum) * 100}%` }} />
         </div>
         <div className="avgt-rows">
-          <div><span>Reward : risk</span><b className={rr == null ? '' : rr >= 1 ? 'pos' : 'neg'}>{rr == null ? '—' : `${rr.toFixed(2)}x`}</b></div>
-          <div><span>Break-even {unit === 'day' ? 'green-day rate' : 'win rate'}</span><b>{beWr == null ? '—' : `${beWr.toFixed(1)}%`}</b></div>
+          <div><span><StatLabel k="payoff" v={rr} ctx={ctx}>Reward : risk</StatLabel></span><b className={rr == null ? '' : rr >= 1 ? 'pos' : 'neg'}>{rr == null ? '—' : `${rr.toFixed(2)}x`}</b></div>
+          <div><span><StatLabel k="breakEven" v={beWr} ctx={ctx}>{`Break-even ${unit === 'day' ? 'green-day rate' : 'win rate'}`}</StatLabel></span><b>{beWr == null ? '—' : `${beWr.toFixed(1)}%`}</b></div>
           <div><span>{rateLabel}</span><b className={edge == null ? '' : edge >= 0 ? 'pos' : 'neg'}>{total ? `${winRate.toFixed(1)}%` : '—'}{edge != null && total ? <em> {edge >= 0 ? '+' : ''}{edge.toFixed(1)} pts</em> : null}</b></div>
-          <div><span>Expectancy / {unit}</span><b><Private className={avg >= 0 ? 'pos' : 'neg'}>{fmtMoney(avg, { sign: true })}</Private></b></div>
+          <div><span><StatLabel k={unit === 'day' ? 'avgDay' : 'ev'} v={avg} ctx={unit === 'day' ? { ...ctx, days: total } : ctx}>{`Expectancy / ${unit}`}</StatLabel></span><b><Private className={avg >= 0 ? 'pos' : 'neg'}>{fmtMoney(avg, { sign: true })}</Private></b></div>
         </div>
       </div>
     </Panel>

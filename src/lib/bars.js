@@ -4,7 +4,7 @@
 export const toLocal = (t) => t - new Date(t * 1000).getTimezoneOffset() * 60;
 /** "1m" / "60m" / "4h" / "1d" → seconds */
 export const ivSec = (s) => { const m = /^(\d+)([mhd])$/.exec(String(s || '1m')); return m ? Number(m[1]) * { m: 60, h: 3600, d: 86400 }[m[2]] : 60; };
-export const TIMEFRAMES = ['1m', '5m', '10m', '15m', '30m', '1h', '4h', '1d'];
+export const TIMEFRAMES = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '4h', '1d'];
 // how many calendar days back are loaded so the bigger timeframes have more than a few candles
 export const SPAN_DAYS = { '1h': 2, '4h': 7, '1d': 35 };
 export const tfLabel = (s) => String(s || '1m').replace(/^60m$/, '1h').replace(/^240m$/, '4h');

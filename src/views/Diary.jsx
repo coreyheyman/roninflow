@@ -1,3 +1,4 @@
+import { StatLabel } from '../components/StatInfo';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Play, List, LayoutGrid, Calendar, EllipsisVertical, X, Maximize2, CircleCheck, Circle, Quote, Sunrise, TrendingUp, TrendingDown, ArrowLeft, ChevronLeft, ChevronRight, Clock, Settings, ChartArea, ChartColumn, ChevronDown } from 'lucide-react';
@@ -176,9 +177,9 @@ function DiaryIndex() {
                   <span className={`badge ${d.net >= 0 ? 'pos' : 'neg'}`}>{d.net >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}{d.net >= 0 ? '+' : ''}{((d.net / initial) * 100).toFixed(2)}%</span>
                 </div>
                 <div className="row gap24" style={{ marginTop: 22 }}>
-                  <div><div className="lbl">Profit Factor</div><div style={{ fontWeight: 500, marginTop: 6 }}>{pfText(d.profitFactor)}</div></div>
-                  <div><div className="lbl">Win Rate</div><div style={{ fontWeight: 500, marginTop: 6 }}>{Math.round(d.winRate)}%</div></div>
-                  <div><div className="lbl">Trades</div><div style={{ fontWeight: 500, marginTop: 6 }}>{d.count}</div></div>
+                  <div><div className="lbl"><StatLabel ctx={d}>Profit Factor</StatLabel></div><div style={{ fontWeight: 500, marginTop: 6 }}>{pfText(d.profitFactor)}</div></div>
+                  <div><div className="lbl"><StatLabel ctx={d}>Win Rate</StatLabel></div><div style={{ fontWeight: 500, marginTop: 6 }}>{Math.round(d.winRate)}%</div></div>
+                  <div><div className="lbl"><StatLabel ctx={d}>Trades</StatLabel></div><div style={{ fontWeight: 500, marginTop: 6 }}>{d.count}</div></div>
                   {state.diary[d.date]?.mood && <div><div className="lbl">Mood</div><div style={{ marginTop: 4, fontSize: 16 }}>{MOODS[state.diary[d.date].mood - 1]}</div></div>}
                 </div>
               </div>
@@ -329,7 +330,7 @@ function DayPage({ date, embedded = false, onDate, onClose }) {
               ['Avg hold', `${fmtHold(d.holdWin)} W · ${fmtHold(d.holdLoss)} L`],
             ].map(([k, v]) => (
               <div key={k} className="panel" style={{ padding: '16px 18px' }}>
-                <div className="muted" style={{ fontSize: 12.5 }}>{k}</div>
+                <div className="muted" style={{ fontSize: 12.5 }}><StatLabel ctx={d}>{k}</StatLabel></div>
                 <div style={{ fontSize: 20, fontWeight: 500, marginTop: 8 }}>{v}</div>
               </div>
             ))}

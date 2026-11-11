@@ -22,9 +22,9 @@ import UpdateDialog from './UpdateDialog';
 import { PlaybookSettings } from './Playbook';
 import { vaultKeys, VAULT } from '../lib/ai';
 import { LANGS } from '../lib/i18n';
-import { useReviewWatcher, useDueReviews } from '../views/Review';
+import { useReviewWatcher, useDueReviews, ReviewPopup } from '../views/Review';
 import { REVIEW_TYPES } from '../lib/reviews';
-import { DayPopupContext } from '../lib/dayPopup';
+import { DayPopupContext, ReviewPopupContext } from '../lib/dayPopup';
 import { DiaryDayModal } from '../views/Diary';
 import { fmtDate, fmtTime12 } from '../lib/stats';
 
@@ -125,6 +125,7 @@ export default function Layout({ route, crumbs, children }) {
     return { ...st, settings: { ...st.settings, ...themeSettings(ok) } };
   });
   const [dayPopup, setDayPopup] = useState(null);
+  const [reviewPopup, setReviewPopup] = useState(null);
   useCurrencyAutoRate();
   const [notifOpen, setNotifOpen] = useState(false);
   const [miniOpen, setMiniOpen] = useState(false);
@@ -139,7 +140,7 @@ export default function Layout({ route, crumbs, children }) {
   useReviewWatcher();
   const due = useDueReviews();
   const [mobileMenu, setMobileMenu] = useState(false);
-  useEffect(() => { setMobileMenu(false); setDayPopup(null); }, [route.join('/')]);
+  useEffect(() => { setMobileMenu(false); setDayPopup(null); setReviewPopup(null); }, [route.join('/')]);
   // a new page starts at the top, not at the depth the last one was scrolled to
   const contentRef = useRef(null);
   useEffect(() => { contentRef.current?.scrollTo(0, 0); window.scrollTo(0, 0); }, [route.join('/')]);
@@ -308,7 +309,7 @@ export default function Layout({ route, crumbs, children }) {
         )}
         {replica && replica.pcOnline && replica.pending && <div className="storage-banner pos-b">PC is back — syncing your changes…</div>}
         {storage.error && storage.mode === 'server' && <div className="storage-banner warn-b">{storage.error}</div>}
-        <DayPopupContext.Provider value={setDayPopup}><div className="content" ref={contentRef}>{children}</div></DayPopupContext.Provider>
+        <DayPopupContext.Provider value={setDayPopup}><ReviewPopupContext.Provider value={setReviewPopup}><div className="content" ref={contentRef}>{children}</div></ReviewPopupContext.Provider></DayPopupContext.Provider>
       </main>
 
       <nav className="mobile-nav">
@@ -373,6 +374,7 @@ export default function Layout({ route, crumbs, children }) {
       <UpdateDialog open={updOpen} info={sysInfo} onClose={() => setUpdOpen(false)} />
       {studio.ui}
       {dayPopup && <DiaryDayModal date={dayPopup} onClose={() => setDayPopup(null)} />}
+      {reviewPopup && <ReviewPopup period={reviewPopup} onClose={() => setReviewPopup(null)} />}
       <Confirm
         open={confirmReset}
         title="Erase your journal?"

@@ -7,6 +7,9 @@ import { PnlChart, MarkerScale } from '../components/Charts';
 import { RegimeCards } from '../components/Playbook';
 import { playbookOf } from '../lib/playbook';
 import { DiaryDayModal } from './Diary';
+import { StatLabel } from '../components/StatInfo';
+import { statKey } from '../lib/statInfo';
+import { useOpenReview as useGlobalOpenReview } from '../lib/dayPopup';
 import { WrappedButton } from '../components/Wrapped';
 import CoachReview from '../components/CoachReview';
 import { periodBalanceGap } from '../lib/balance';
@@ -83,10 +86,14 @@ export function StatusBadge({ status, small }) {
   return <span className={`badge ${s.cls}`} style={small ? { fontSize: 11, padding: '2px 6px' } : undefined}><s.icon size={small ? 11 : 13} /> {s.label}</span>;
 }
 
+/** The stats behind the tiles below, so each tile's name can explain itself (StatLabel). */
+const TileStats = createContext(null);
 function Tile({ label, value, t = '', sub, title, big }) {
+  const m = useContext(TileStats);
+  const key = m && statKey(label === 'EV / trade' ? 'EV' : label);
   return (
-    <div className={`rv-tile ${t}`} title={title}>
-      <div className="rv-tile-l">{label}</div>
+    <div className={`rv-tile ${t}`} title={key ? undefined : title}>
+      <div className="rv-tile-l">{key ? <StatLabel k={key} v={key === 'trades' ? m.count : m[key]} ctx={m}>{label}</StatLabel> : label}</div>
       <div className={`rv-tile-v ${big ? 'big' : ''}`}>{value}</div>
       {sub && <div className="rv-tile-s">{sub}</div>}
     </div>
@@ -105,6 +112,7 @@ function MetricGrid({ m }) {
   const pctOrDash = (v) => (v == null ? '—' : `${Math.round(v)}%`);
   const discSub = m.count ? `${m.flaggedTrades} of ${m.count} trades flagged${m.flaggedTrades ? ` · ${money0(m.flaggedPnl)}` : ''}` : '';
   return (
+    <TileStats.Provider value={m}>
     <div className="rv-tiles five">
       <Tile label="Realized P&L" value={<P v={m.net} />} t={tone.money(m.net)} />
       <Tile label="Win rate" value={`${Math.round(m.winRate)}%`} t={m.count ? tone.winRate(m.winRate) : ''} sub={`${m.wins}W · ${m.losses}L · ${m.be}BE`} />
@@ -122,6 +130,7 @@ function MetricGrid({ m }) {
       <Tile label="Disciplined trades" value={pctOrDash(m.discipline)} t={tone.pct90(m.discipline)} sub={discSub} title="Trades with no edge blocker flagged ÷ all trades. Flag blockers on each trade from its details." />
       <Tile label="Size management" value={pctOrDash(m.sizeMgmt)} t={tone.pct90(m.sizeMgmt)} sub={m.count ? `${m.sizingTrades} of ${m.count} trades flagged for sizing` : ''} title="Trades not flagged with a sizing blocker (Bad Sizing) ÷ all trades" />
     </div>
+    </TileStats.Provider>
   );
 }
 
@@ -130,18 +139,18 @@ function Headline({ m }) {
   return (
     <div className="rv-head3">
       <div className="panel rv-hcard">
-        <div className="rv-tile-l">EV <span className="muted2">· expectancy per trade</span></div>
+        <div className="rv-tile-l"><StatLabel k="ev" v={m.ev} ctx={m}>EV</StatLabel> <span className="muted2">· expectancy per trade</span></div>
         <div className={`rv-hval ${tone.money(m.ev)}`}><Private>{fmtMoney(m.ev, { sign: true })}</Private></div>
         <div className="muted" style={{ fontSize: 12.5 }}>{nTrades(m.count)} · net ÷ trades</div>
       </div>
       <div className="panel rv-hcard">
-        <div className="rv-tile-l">Performance Ratio</div>
+        <div className="rv-tile-l"><StatLabel k="perfRatio" v={m.perfRatio} ctx={m}>Performance Ratio</StatLabel></div>
         <div className={`rv-hval ${m.count ? tone.pr(m.perfRatio) : ''}`}>{ratioText(m.perfRatio)}</div>
         <MarkerScale value={m.perfRatio} min={0} max={1.5} marks={[{ v: 0.5, color: 'var(--neg)', label: '0.5' }, { v: 0.75, color: 'var(--pos)', label: '0.75' }]} />
         <div className="muted" style={{ fontSize: 12.5 }}>win% × avg win ÷ avg loss</div>
       </div>
       <div className="panel rv-hcard">
-        <div className="rv-tile-l">ROMAD <span className="muted2">· return over max drawdown</span></div>
+        <div className="rv-tile-l"><StatLabel k="romad" v={m.romad} ctx={m}>ROMAD</StatLabel> <span className="muted2">· return over max drawdown</span></div>
         <div className={`rv-hval ${m.count ? tone.romad(m.romad) : ''}`}>{ratioText(m.romad)}</div>
         <MarkerScale value={m.romad} min={-2} max={4} marks={[{ v: 1, color: 'var(--warn)', label: '1' }, { v: 2, color: 'var(--pos)', label: '2' }]} />
         <div className="muted" style={{ fontSize: 12.5 }}><Private>{money0(m.net)}</Private> ÷ <Private>{fmtMoney(m.maxDD, { dp: 0 })}</Private> max drawdown</div>
@@ -160,6 +169,8 @@ const wr = (d) => (d.count ? Math.round((d.wins / d.count) * 100) : 0);
 function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
   const openDay = useOpenDay();
   const onDay = onDayProp || openDay;
+  const globalOpen = useGlobalOpenReview();
+  const openReview = useContext(OpenReview) || globalOpen;
   const { state } = useStore();
   const priv = state.settings.privacy;
   const first = new Date(year, month, 1), last = new Date(year, month + 1, 0);
@@ -209,7 +220,7 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
               );
             })}
             {showWeek && (
-              <div className={`rv-wk ${inWeek.length ? (wNet >= 0 ? 'win' : 'loss') : ''}`}>
+              <div className={`rv-wk wk-link ${inWeek.length ? (wNet >= 0 ? 'win' : 'loss') : ''}`} title="Open this week’s review" onClick={() => openReview(periodOf('weekly', wk[1]))}>
                 {variant === 'full' && <span className="muted" style={{ fontSize: 11.5 }}>W{wi + 1}</span>}
                 {inWeek.length > 0 && (
                   <>
@@ -471,6 +482,7 @@ function Weekly({ period, trades }) {
     <>
       <Commitment period={period} />
       <WeekDays period={period} dayMap={dayMap} />
+      <TileStats.Provider value={m}>
       <div className="rv-tiles eight">
         <Tile label="Net P&L" value={<Private>{money0(m.net)}</Private>} t={tone.money(m.net)} big />
         <Tile label="Win rate" value={`${Math.round(m.winRate)}%`} t={m.count ? tone.winRate(m.winRate) : ''} sub={`${m.wins}W · ${m.losses}L`} big />
@@ -481,6 +493,7 @@ function Weekly({ period, trades }) {
         <Tile label="Max drawdown" value={<Private>{fmtMoney(-m.maxDD, { dp: 0 })}</Private>} t={m.maxDD ? 'neg' : ''} big />
         <Tile label="Disciplined trades" value={m.discipline == null ? '—' : `${Math.round(m.discipline)}%`} t={tone.pct90(m.discipline)} big title="Trades with no edge blocker flagged ÷ all trades" sub={m.count ? `${m.flaggedTrades} of ${m.count} flagged` : undefined} />
       </div>
+      </TileStats.Provider>
       <div className="rv-two">
         <EquityPanel trades={trades} title="Week equity curve" />
         <WeekDiary period={period} trades={trades} />
@@ -728,6 +741,21 @@ function ReviewModal({ period, onPeriod, onClose }) {
       </div>
     </div>,
     document.body,
+  );
+}
+
+/** A review pop-up that works anywhere (calendar week tiles): its own day pop-ups and period stepping. */
+export function ReviewPopup({ period: start, onClose }) {
+  const [period, setPeriod] = useState(start);
+  const [day, setDay] = useState(null);
+  useEffect(() => setPeriod(start), [start]);
+  return (
+    <OpenDay.Provider value={setDay}>
+      <OpenReview.Provider value={setPeriod}>
+        <ReviewModal period={period} onPeriod={setPeriod} onClose={onClose} />
+        {day && <DiaryDayModal date={day} onClose={() => setDay(null)} />}
+      </OpenReview.Provider>
+    </OpenDay.Provider>
   );
 }
 

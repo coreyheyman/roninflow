@@ -1,3 +1,4 @@
+import { StatLabel } from '../components/StatInfo';
 import { useMemo, useState } from 'react';
 import { Settings, LayoutGrid, List, Plus, ChevronDown, ChevronLeft, ChevronRight, X, Trash, Pencil, ArrowLeft, ImagePlus, Check, Target, Link as LinkIcon } from 'lucide-react';
 import { useStore, navigate, useAccountTrades } from '../store/store';
@@ -317,7 +318,7 @@ function Strategies() {
                 <div className="row gap6 wrap">{[...s.timeframes, ...s.tags].slice(0, 5).map((t) => <span key={t} className="chip" style={{ padding: '2px 7px' }}>{t}</span>)}</div>
                 <div className="row gap24" style={{ fontSize: 13 }}>
                   <div><div className="muted">Net P&L</div><Money v={st.net} colored /></div>
-                  <div><div className="muted">Win rate</div>{st.count ? `${Math.round(st.winRate)}%` : '—'}</div>
+                  <div><div className="muted"><StatLabel ctx={st}>Win rate</StatLabel></div>{st.count ? `${Math.round(st.winRate)}%` : '—'}</div>
                   <div><div className="muted">Trades</div>{st.count}</div>
                   <div><div className="muted">R:R</div>{s.rr || '—'}</div>
                 </div>
@@ -374,7 +375,7 @@ function StrategyDetail({ id }) {
       </div>
       <div className="kpis">
         {[['Net P&L', <Money key="m" v={st.net} colored />], ['Win rate', st.count ? `${Math.round(st.winRate)}%` : '—'], ['Profit factor', st.count ? pfText(st.profitFactor) : '—'], ['Trades', st.count]].map(([k, v]) => (
-          <div key={k} className="panel"><div className="muted" style={{ fontSize: 13 }}>{k}</div><div style={{ fontSize: 26, fontWeight: 500, marginTop: 10 }}>{v}</div></div>
+          <div key={k} className="panel"><div className="muted" style={{ fontSize: 13 }}><StatLabel ctx={st}>{k}</StatLabel></div><div style={{ fontSize: 26, fontWeight: 500, marginTop: 10 }}>{v}</div></div>
         ))}
       </div>
       <div className="dash-grid">

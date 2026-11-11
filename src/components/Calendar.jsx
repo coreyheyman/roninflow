@@ -3,10 +3,13 @@ import { ChevronLeft, ChevronRight, Clock, ChevronRight as Chev } from 'lucide-r
 import { useStore } from '../store/store';
 import { ScoreBox } from './ui';
 import { MONTHS_LONG, keyOf, fmtMoney, fmtCompact, fmtDuration, startOfCalWeek, toDate } from '../lib/stats';
+import { periodOf } from '../lib/reviews';
+import { useOpenReview } from '../lib/dayPopup';
 
 /** Month calendar with daily P&L cells and weekly summary column. days: groupByDay() output */
 export function PnlCalendar({ days, onDay, initial, compact = false }) {
   const { state } = useStore();
+  const openReview = useOpenReview();
   const priv = state.settings.privacy;
   const latest = days[0]?.date;
   const [anchor, setAnchor] = useState(() => (initial ? toDate(initial) : latest ? toDate(latest) : new Date()));
@@ -78,7 +81,7 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
                   </div>
                 );
               })}
-              <div className={`cal-wk ${wd.length ? (wNet >= 0 ? 'win' : 'loss') : ''}`}>
+              <div className={`cal-wk wk-link ${wd.length ? (wNet >= 0 ? 'win' : 'loss') : ''}`} title="Open this week’s review" onClick={() => openReview(periodOf('weekly', wk[1]))}>
                 <div className="row between">W{wi + 1} {wd.length > 0 && !compact && <Chev size={13} className="muted" />}</div>
                 {wd.length > 0 && (
                   <>

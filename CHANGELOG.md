@@ -2,6 +2,12 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.1.3
+
+- **Every stat explains itself:** click a stat's name (dotted underline) on the dashboard, reviews, diary or strategies for what it means, how it's worked out, the usual benchmarks, and what *your* number says — e.g. your win rate compared with the win rate you need to break even at your average win and loss. Small samples are flagged.
+- **Week tiles open that week's review** in a pop-up from every calendar (dashboard, journal, diary, monthly / quarterly reviews), with ‹ › to step through weeks.
+- **2m and 3m** timeframes on the execution chart.
+
 ## 1.1.2
 
 - **Timeframes on the execution chart:** click the timeframe (1m) for 1m, 5m, 10m, 15m, 30m, 1h, 4h or 1d. Bigger candles are built from your 1-minute data and count from the 6 PM ET futures session open, like TradingView; 1h, 4h and 1d also load the days before so there's enough history. Your choice is remembered. Timeframes finer than your price source provides are greyed out.
