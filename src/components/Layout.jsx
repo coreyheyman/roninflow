@@ -5,6 +5,7 @@ import {
   Languages,
 } from 'lucide-react';
 import { useStore, navigate } from '../store/store';
+import { IS_DEMO, DOWNLOAD_URL, REPO_URL } from '../lib/demoMode';
 import { Drawer, Popover, Switch, useToast, Confirm } from './ui';
 import { MiniCoach } from '../views/Coach';
 import { SyncPill } from './AtasSync';
@@ -71,7 +72,7 @@ export const CoachLogo = ({ size = 100, icon = 44 }) => (
 );
 
 export default function Layout({ route, crumbs, children }) {
-  const { update, state, storage, dismissStorageNotice, setSetting, markAllRead, markRead, clearNotifications, importState, resetAll } = useStore();
+  const { update, state, storage, dismissStorageNotice, setSetting, markAllRead, markRead, clearNotifications, importState, resetAll, resetDemo } = useStore();
   const replica = useReplicaStatus();
   const [offlineHidden, setOfflineHidden] = useState(false); // dismissed until the next reload
   const [netOpen, setNetOpen] = useState(false);
@@ -217,12 +218,14 @@ export default function Layout({ route, crumbs, children }) {
                 </div>
                 <button className="pop-item" onClick={() => { close(); setRegionOpen(true); }}><Languages size={15} /> <span className="grow">Language</span> <span className="muted no-i18n" style={{ fontSize: 12 }}>{LANGS.find((l) => l.code === (s.language || 'en'))?.label}</span></button>
                 <button className="pop-item" onClick={() => { close(); setCurOpen(true); }}><Coins size={15} /> <span className="grow">Currency</span> <span className="muted" style={{ fontSize: 12 }}>{s.currency?.code || 'USD'}</span></button>
-                <button className="pop-item" onClick={() => { close(); setNetOpen(true); }}><Smartphone size={15} /> Phone & network access</button>
+                {!IS_DEMO && <button className="pop-item" onClick={() => { close(); setNetOpen(true); }}><Smartphone size={15} /> Phone & network access</button>}
                 <button className="pop-item" onClick={() => { close(); navigate('coach/settings'); }}><Settings size={15} /> Coach settings</button>
                 <button className="pop-item" onClick={() => { exportData(); close(); }}><Download size={15} /> Export backup (.json)</button>
                 <button className="pop-item" onClick={() => { fileRef.current?.click(); close(); }}><Upload size={15} /> Restore backup</button>
                 <div className="pop-sep" />
-                <button className="pop-item danger" onClick={() => { setConfirmReset(true); close(); }}><RefreshCw size={15} /> Erase journal & start over</button>
+                {IS_DEMO
+                  ? <button className="pop-item" onClick={() => { resetDemo(); close(); }}><RefreshCw size={15} /> Reset demo</button>
+                  : <button className="pop-item danger" onClick={() => { setConfirmReset(true); close(); }}><RefreshCw size={15} /> Erase journal & start over</button>}
               </div>
             )}
           </Popover>
@@ -250,6 +253,14 @@ export default function Layout({ route, crumbs, children }) {
             {s.privacy ? <EyeOff size={17} /> : <Eye size={17} />}
           </button>
         </header>
+        {IS_DEMO && (
+          <div className="storage-banner demo-b">
+            <span><b>Live demo</b> · made-up trades, and anything you change stays in this browser.</span>
+            <a className="demo-cta" href={DOWNLOAD_URL} target="_blank" rel="noreferrer">Get RoninFlow — free</a>
+            <a href={REPO_URL} target="_blank" rel="noreferrer">GitHub</a>
+            <button onClick={resetDemo}>Reset demo</button>
+          </div>
+        )}
         {storage.notice === 'migrated' && (
           <div className="storage-banner pos-b">Your journal now lives in its data folder on this computer, so your phone can use it too. <button onClick={() => setNetOpen(true)}>Set up phone access</button><button onClick={dismissStorageNotice}><X size={14} /></button></div>
         )}

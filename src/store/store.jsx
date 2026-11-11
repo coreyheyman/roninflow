@@ -6,8 +6,10 @@ import { setLanguage } from '../lib/i18n';
 import { applyAtasBatch, groupAtasTrades } from '../lib/atasSync';
 import { applyTheme, findTheme } from '../lib/themes';
 import { applyConnectBatch } from '../lib/connectSync';
+import { IS_DEMO } from '../lib/demoMode';
+import { buildShowcase } from '../data/showcase';
 
-const KEY = 'trade-journal-state-v1';
+const KEY = IS_DEMO ? 'roninflow-demo-v1' : 'trade-journal-state-v1';
 const OLD_KEY = 'iq-journal-state-v1'; // earlier versions
 const Ctx = createContext(null);
 
@@ -64,10 +66,10 @@ function normalize(saved) {
 
 function load() {
   try {
-    const raw = localStorage.getItem(KEY) ?? localStorage.getItem(OLD_KEY);
+    const raw = localStorage.getItem(KEY) ?? (IS_DEMO ? null : localStorage.getItem(OLD_KEY));
     if (raw) return normalize(JSON.parse(raw));
   } catch { /* ignore corrupted storage */ }
-  return initialState();
+  return IS_DEMO ? buildShowcase() : initialState();
 }
 
 const jsonOf = async (r) => ((r.headers.get('content-type') || '').includes('json') ? r.json() : null);
@@ -101,6 +103,11 @@ export function StoreProvider({ children }) {
 
   useEffect(() => {
     let dead = false;
+    if (IS_DEMO) { // the demo has no server: everything stays in this browser
+      srv.current.mode = 'local';
+      setStorage((x) => ({ ...x, mode: 'local' }));
+      return () => { dead = true; };
+    }
     (async () => {
       try {
         const r = await fetch('/api/data/state', { cache: 'no-store' });
@@ -279,6 +286,7 @@ export function StoreProvider({ children }) {
       markRead: (id) => patchList('notifications', id, { read: true }),
       clearNotifications: () => update((s) => ({ ...s, notifications: [] })),
       resetAll: () => setState(initialState()),
+      resetDemo: () => setState(buildShowcase()),
       loadDemo: () => update((s) => ({
         ...s,
         accounts: [...s.accounts.filter((a) => a.id !== DEMO_ACCOUNT.id), { ...DEMO_ACCOUNT, createdAt: new Date(Date.now() - 70 * 86400e3).toISOString().slice(0, 10) }],

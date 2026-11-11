@@ -12,6 +12,8 @@ diary, reviews and screenshots stay on your own machine.
 - **Weekly → yearly reviews** with your own questions, and an **AI coach** (your own key, a free local model, or offline).
 - 16 languages, themes, password protection, encrypted API keys, daily backups, update checks.
 
+**[Try the live demo →](https://coreyheyman.github.io/roninflow/)** — a made-up journal that runs in your browser, nothing to install.
+
 Licence: MIT (see `LICENSE`; third-party credits in `NOTICE.md`). Not financial advice.
 
 ## Install

@@ -6,6 +6,7 @@ import ImportModal from '../components/ImportModal';
 import { useAtasSync } from '../components/AtasSync';
 import { useConnect } from '../components/ConnectSync';
 import { GROUPS, CONNECTORS, platformName } from '../lib/connectors';
+import { IS_DEMO, DOWNLOAD_URL } from '../lib/demoMode';
 
 const ago = (iso) => {
   if (!iso) return null;
@@ -325,8 +326,14 @@ export default function Connections() {
           <div className="page-title" style={{ marginBottom: 6 }}>Connections</div>
           <div className="muted" style={{ fontSize: 13 }}>Bring trades in automatically from your platforms, or import a file. {readyCount} ways ready today, more on the way.</div>
         </div>
-        <button className="btn" onClick={() => checkNow(true)}><RefreshCw size={15} /> Check for new trades</button>
+        {!IS_DEMO && <button className="btn" onClick={() => checkNow(true)}><RefreshCw size={15} /> Check for new trades</button>}
       </div>
+      {IS_DEMO && (
+        <div className="demo-note" style={{ margin: '12px 0 4px' }}>
+          In the demo you can read each platform's setup steps and try a <b>file import</b> (it runs right here in your browser).
+          Live add-ons and broker or exchange logins need RoninFlow running on your computer — <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">download it free</a>.
+        </div>
+      )}
 
       {sources.length > 0 && (
         <div className="panel" style={{ margin: '22px 0 6px' }}>

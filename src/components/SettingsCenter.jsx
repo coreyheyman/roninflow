@@ -5,6 +5,7 @@ import { Modal, ModalHead, Switch, useToast } from './ui';
 import { LANGS } from '../lib/i18n';
 import { fmtDate, fmtTime12 } from '../lib/stats';
 import { useNetStatus } from './NetworkAccess';
+import { IS_DEMO, DOWNLOAD_URL } from '../lib/demoMode';
 
 const jsonOf = async (r) => ((r.headers.get('content-type') || '').includes('json') ? r.json() : null);
 const ZONES = (() => { try { return Intl.supportedValuesOf('timeZone'); } catch { return ['UTC', 'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Europe/London', 'Europe/Berlin', 'Asia/Tokyo']; } })();
@@ -16,6 +17,13 @@ const TABS = [
   ['backups', 'Backups & updates', Archive],
   ['about', 'About & credits', Info],
 ];
+
+const DemoNote = () => (
+  <div className="demo-note">
+    This part needs RoninFlow running on your own computer or server: password protection, encrypted API keys, price data
+    for the execution charts, daily backups and update checks. <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">Download RoninFlow</a> to use it.
+  </div>
+);
 
 /** Everything that isn't part of trading itself, in one place. */
 export default function SettingsCenter({ open, tab: initialTab = 'general', onClose, onNetwork, onCurrency, onPlaybook }) {
@@ -32,9 +40,10 @@ export default function SettingsCenter({ open, tab: initialTab = 'general', onCl
         </nav>
         <div className="set-body">
           {tab === 'general' && <General onCurrency={onCurrency} onPlaybook={onPlaybook} />}
-          {tab === 'security' && <Security onNetwork={onNetwork} />}
-          {tab === 'prices' && <Prices />}
-          {tab === 'backups' && <Backups />}
+          {IS_DEMO && ['security', 'prices', 'backups'].includes(tab) && <DemoNote />}
+          {!IS_DEMO && tab === 'security' && <Security onNetwork={onNetwork} />}
+          {!IS_DEMO && tab === 'prices' && <Prices />}
+          {!IS_DEMO && tab === 'backups' && <Backups />}
           {tab === 'about' && <About />}
         </div>
       </div>

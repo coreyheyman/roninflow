@@ -557,6 +557,12 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .storage-banner { display: flex; align-items: center; gap: 12px; padding: 9px 24px; font-size: 13px; border-bottom: 1px solid var(--border); }
 .storage-banner button { color: inherit; text-decoration: underline; display: inline-flex; }
 .storage-banner button:last-child { margin-left: auto; text-decoration: none; }
+.demo-b { background: color-mix(in srgb, var(--primary) 12%, var(--bg)); color: var(--fg-2); flex-wrap: wrap; row-gap: 6px; }
+.demo-b a { color: var(--fg); text-decoration: underline; }
+.demo-b .demo-cta { background: var(--primary); color: var(--primary-ink); text-decoration: none; padding: 4px 10px; font-weight: 600; }
+.demo-b button:last-child { text-decoration: underline; }
+.demo-note { border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border)); background: color-mix(in srgb, var(--primary) 8%, transparent); padding: 12px 14px; font-size: 13px; line-height: 1.5; color: var(--fg-2); }
+.demo-note a { color: var(--fg); text-decoration: underline; }
 .storage-banner.pos-b { background: var(--pos-bg); color: var(--pos); }
 .storage-banner.warn-b { background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn); }
 @media (max-width: 760px) {
