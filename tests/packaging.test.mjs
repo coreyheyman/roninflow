@@ -36,8 +36,11 @@ test('the home-server copy ships every file the replica imports', () => {
 });
 
 import { execFileSync } from 'node:child_process';
-test('the macOS / Linux scripts parse, and the release packages the roninflow command', () => {
+const hasBash = (() => { try { execFileSync('bash', ['-c', 'true']); return true; } catch { return false; } })();
+test('the macOS / Linux scripts parse', { skip: !hasBash && 'no bash here (the Docker build image)' }, () => {
   for (const f of ['install.sh', 'installer/unix/roninflow']) execFileSync('bash', ['-n', path.join(root, f)]);
+});
+test('the release packages the roninflow command for every platform', () => {
   const rel = lists['release.yml'];
   assert.ok(rel.includes('installer/unix/roninflow'), 'release.yml must copy installer/unix/roninflow into the packages');
   for (const t of ['linux-x64', 'linux-arm64', 'darwin-x64', 'darwin-arm64']) assert.ok(rel.includes(t), `release.yml builds ${t}`);
