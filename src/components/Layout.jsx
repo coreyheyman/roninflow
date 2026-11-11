@@ -85,6 +85,21 @@ export default function Layout({ route, crumbs, children }) {
     window.addEventListener('tj:open-settings', h);
     return () => window.removeEventListener('tj:open-settings', h);
   }, []);
+  // a new RoninFlow release → one notification per version (the server checks GitHub daily)
+  useEffect(() => {
+    if (storage.mode !== 'server') return;
+    const look = () => fetch('/api/system/info').then((r) => (r.ok ? r.json() : null)).then((j) => {
+      if (!j?.updateAvailable || !j.latest) return;
+      const id = `upd_${j.latest}`;
+      update((st) => (st.notifications.some((n) => n.id === id) ? st : {
+        ...st,
+        notifications: [{ id, title: `RoninFlow ${j.latest} is available`, body: `You have ${j.version}. Click to see what's new and download it — your journal data is kept when you update.`, date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19), read: false, link: j.updateUrl }, ...st.notifications],
+      }));
+    }).catch(() => {});
+    look();
+    const t = setInterval(look, 6 * 3600e3);
+    return () => clearInterval(t);
+  }, [storage.mode, update]);
   // AI keys typed before the vault existed move into it (encrypted on the server, out of the journal file)
   useEffect(() => {
     if (storage.mode !== 'server') return;
@@ -308,6 +323,8 @@ export default function Layout({ route, crumbs, children }) {
             <a
               key={n.id}
               href={n.link || '#'}
+              target={n.link?.startsWith('http') ? '_blank' : undefined}
+              rel="noreferrer"
               onClick={() => { markRead(n.id); setNotifOpen(false); }}
               className="row gap12"
               style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', alignItems: 'flex-start', background: n.read ? undefined : 'var(--card-2)' }}
