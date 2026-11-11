@@ -3,7 +3,9 @@
 #   docker run -d -p 5173:5173 -v tj-data:/data --name roninflow ghcr.io/coreyheyman/roninflow
 # First start: open http://<server>:5173 and set a password with the setup code from `docker logs roninflow`.
 
-FROM node:22-alpine AS build
+# The build runs once on the build machine's own platform (no emulation): the built app and server files are the same
+# for every CPU, and the server needs no npm packages at runtime. Only the small final image is made per platform.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --no-audit --no-fund
