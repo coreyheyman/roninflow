@@ -30,6 +30,8 @@ export function rootOf(symbol) {
   const s = String(symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   return ROOTS.find((r) => s.startsWith(r)) || s.replace(/[FGHJKMNQUVXZ]\d{1,2}$/, '') || s;
 }
+const MICRO = { MES: 'ES', MNQ: 'NQ', MYM: 'YM', M2K: 'RTY', MCL: 'CL', MGC: 'GC', SIL: 'SI', QM: 'CL', QG: 'NG', M6E: '6E', M6B: '6B', M6A: '6A' };
+const TWIN = { ...MICRO, ...Object.fromEntries(Object.entries(MICRO).filter(([k]) => k !== 'QM' && k !== 'QG').map(([m, f]) => [f, m])) };
 export const yahooSymbol = (symbol) => `${rootOf(symbol)}=F`;
 
 // ---------- time zones without a library ----------
@@ -142,11 +144,14 @@ export function createCandleHandler(dataDir, { readTrades, log = () => {}, vault
     return n;
   }
   function addonBars(symbol, from, to) {
-    const root = rootOf(symbol);
     const out = [];
-    for (let t = from - (from % DAY); t <= to; t += DAY) {
-      const cur = readCache(barFile(root, t));
-      if (cur) for (const r of Object.values(cur)) if (r[0] >= from && r[0] < to) out.push(r);
+    // a micro trades at the same price as its full-size contract, so either chart's bars will do (MES ↔ ES …)
+    for (const root of [rootOf(symbol), ...(TWIN[rootOf(symbol)] ? [TWIN[rootOf(symbol)]] : [])]) {
+      for (let t = from - (from % DAY); t <= to; t += DAY) {
+        const cur = readCache(barFile(root, t));
+        if (cur) for (const r of Object.values(cur)) if (r[0] >= from && r[0] < to) out.push(r);
+      }
+      if (out.length) break;
     }
     out.sort((a, b) => a[0] - b[0]);
     // bar size from the data (an add-on on a 1-minute chart sends 1-minute bars)
@@ -166,7 +171,9 @@ export function createCandleHandler(dataDir, { readTrades, log = () => {}, vault
     const { from, to } = dayWindow(date, tz);
     const now = Math.floor(Date.now() / 1000);
     const ageDays = (now - to) / DAY;
-    const cached = readCache(file);
+    // saved Yahoo data is only shown while Yahoo is switched on (older saved days have no source: they're Yahoo too)
+    const saved = readCache(file);
+    const cached = saved && (cfg.yahoo || (saved.source && !saved.source.startsWith('Yahoo'))) ? saved : null;
     const best = INTERVALS.find(([, max]) => (now - from) / DAY <= max)?.[0] || '60m';
     if (cached && !force) {
       const better = cached.interval !== best && cached.interval !== '1m'; // a finer interval is still available
