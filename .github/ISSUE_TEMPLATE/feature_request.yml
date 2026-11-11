@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea for RoninFlow
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: Describe the problem or workflow first, then your idea for solving it.
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform / broker (for connection requests)
+      placeholder: e.g. Rithmic R|Trader, Webull, Deribit

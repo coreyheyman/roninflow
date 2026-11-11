@@ -1,0 +1,34 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: RoninFlow version
+      description: Settings → About & credits
+      placeholder: 1.0.5
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run it?
+      options: [Windows installer, Docker, From source, Live demo]
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform / broker involved (if any)
+      placeholder: e.g. ATAS, NinjaTrader 8, Tradovate API, CSV import from TradingView
+  - type: markdown
+    attributes:
+      value: "Please don't paste API keys, passwords or account numbers."

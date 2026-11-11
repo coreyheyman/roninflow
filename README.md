@@ -1,7 +1,21 @@
 # RoninFlow
 
-A free, open-source trading journal you run yourself — on your Windows PC, a home server or a NAS. Your trades,
-diary, reviews and screenshots stay on your own machine.
+**A free, open-source trading journal you run yourself** — on your Windows PC, a home server or a NAS. A self-hosted
+alternative to TradeZella, Tradervue and Edgewonk for futures, stocks, forex and crypto traders. Your trades, diary,
+reviews and screenshots stay on your own machine.
+
+[![Latest release](https://img.shields.io/github/v/release/coreyheyman/roninflow?label=release&color=7452ff)](https://github.com/coreyheyman/roninflow/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-7452ff)](LICENSE)
+[![Live demo](https://img.shields.io/badge/live%20demo-try%20it-7452ff)](https://coreyheyman.github.io/roninflow/)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-7452ff)](https://github.com/coreyheyman/roninflow/pkgs/container/roninflow)
+
+**[▶ Try the live demo](https://coreyheyman.github.io/roninflow/)** (made-up data, runs in your browser) ·
+**[⬇ Download for Windows](https://github.com/coreyheyman/roninflow/releases/latest)** ·
+**[🐳 Docker](docs/install.md#docker-home-server-nas-raspberry-pi-45)**
+
+![RoninFlow dashboard](docs/screenshots/dashboard.png)
+
+## Features
 
 - **Automatic trade import** from ATAS, NinjaTrader, MetaTrader 4/5, cTrader, Sierra Chart, Quantower, TopstepX/ProjectX,
   Tradovate, Interactive Brokers, Schwab, TradeStation, Alpaca, OANDA, tastytrade, Bybit, Binance, OKX, Bitget,
@@ -10,9 +24,20 @@ diary, reviews and screenshots stay on your own machine.
 - **Risk tiers** that move you between risk levels based on drawdown and recent days, prop-firm account rules
   (profit target, static / intraday / EOD trailing drawdown) and payouts / ROI.
 - **Weekly → yearly reviews** with your own questions, and an **AI coach** (your own key, a free local model, or offline).
-- 16 languages, themes, password protection, encrypted API keys, daily backups, update checks.
+- **Private by design:** password protection, encrypted API keys, daily backups — nothing leaves your machine unless you
+  connect a service yourself.
+- 16 languages, themes, works on your phone, update notifications.
 
-**[Try the live demo →](https://coreyheyman.github.io/roninflow/)** — a made-up journal that runs in your browser, nothing to install.
+## Screenshots
+
+| | |
+|---|---|
+| ![Daily diary with today's risk and edge blockers](docs/screenshots/diary.png) | ![Monthly review calendar and stats](docs/screenshots/review.png) |
+| **Daily diary** — today's risk tier, edge blockers, session cards | **Reviews** — weekly to yearly, with your own questions |
+| ![Performance by market condition](docs/screenshots/market-conditions.png) | ![Prop-firm accounts with drawdown and ROI](docs/screenshots/accounts.png) |
+| **Market conditions** — how you trade in each one | **Accounts** — prop-firm rules, drawdown, costs & payouts |
+
+<p align="center"><img src="docs/screenshots/mobile.png" width="300" alt="RoninFlow on a phone"></p>
 
 Licence: MIT (see `LICENSE`; third-party credits in `NOTICE.md`). Not financial advice.
 
