@@ -1,6 +1,6 @@
 {
   "name": "roninflow",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "description": "Free, open-source, self-hosted trading journal with live platform sync, reviews, risk tiers and an AI coach.",
   "license": "MIT",
   "homepage": "https://github.com/coreyheyman/roninflow",

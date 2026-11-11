@@ -158,7 +158,7 @@ function DiaryIndex() {
                 <span className="sep-v" />
                 <span className="muted">Session Time:</span>
                 <span>{fmtTime24(d.start)} – {fmtTime24(d.end)}</span>
-                <ScoreBox v={d.score} />
+                <ScoreBox v={d.score} ctx={d} />
                 <div className="grow" />
                 <WrappedButton date={d.date} />
                 <Popover align="right" trigger={({ toggle }) => <button className="icon-btn" onClick={(e) => { e.stopPropagation(); toggle(); }} style={{ border: '1px solid var(--border-2)', width: 26, height: 26 }}><EllipsisVertical size={15} /></button>}>
@@ -215,7 +215,7 @@ function DiaryIndex() {
                   <td>{Math.round(d.winRate)}%</td>
                   <td>{pfText(d.profitFactor)}</td>
                   <td>{d.count}</td>
-                  <td><ScoreBox v={d.score} /></td>
+                  <td><ScoreBox v={d.score} ctx={d} /></td>
                 </tr>
               )))}
             </tbody>
@@ -310,7 +310,7 @@ function DayPage({ date, embedded = false, onDate, onClose }) {
         </div>
         <div className="grow" />
         {d && <WrappedButton date={date} />}
-        {d && <ScoreBox v={d.score} />}
+        {d && <ScoreBox v={d.score} ctx={d} />}
       </div>
       {commitment && (
         <div className="day-commit" style={{ margin: '0 0 20px' }}>

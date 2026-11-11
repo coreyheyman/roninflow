@@ -34,3 +34,17 @@ test('small samples are flagged', () => {
   assert.equal(explain('profitFactor', 2, { ...ctx, count: 8 }, $).small, true);
   assert.equal(explain('profitFactor', 2, ctx, $).small, false);
 });
+
+test('session score explains its points, and the parts add up to the score', async () => {
+  const { dayScore } = await import('../src/lib/stats.js');
+  const day = { count: 16, winRate: 43.75, profitFactor: 1.91, net: 84.9 };
+  const v = dayScore(day);
+  assert.equal(v, 59);
+  const r = explain('score', v, day, $).result;
+  assert.equal(Math.round(r.parts.reduce((s, p) => s + p[1], 0)), v);
+  assert.equal(r.tone, 'good');
+  const red = { count: 5, winRate: 20, profitFactor: 0.4, net: -200 };
+  const rr = explain('score', dayScore(red), red, $).result;
+  assert.equal(rr.tone, 'bad');
+  assert.match(rr.text, /\+12/);
+});

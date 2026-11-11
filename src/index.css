@@ -1652,3 +1652,14 @@ button.ec-row:hover { background: var(--hover); }
 .stat-pop-you p { margin: 0; color: var(--fg); }
 .stat-pop-you.good { --c: var(--pos); } .stat-pop-you.bad { --c: var(--neg); } .stat-pop-you.ok { --c: var(--warn); }
 .stat-pop-note { margin-top: 10px; font-size: 12px; color: var(--muted); font-style: italic; }
+/* session score: clickable, explains itself */
+.stat-q.score-q { text-decoration: none; cursor: pointer; display: inline-flex; border-radius: 4px; }
+.stat-q.score-q:hover .score, .stat-q.score-q.on .score { box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 60%, transparent); }
+.stat-pop-parts { margin: 6px 0 10px; display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.stat-pop-parts > div { display: grid; grid-template-columns: minmax(0, 1fr) 70px 40px; align-items: center; gap: 8px; }
+.stat-pop-parts span { color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-pop-parts i { height: 5px; border-radius: 3px; background: var(--card-3); overflow: hidden; }
+.stat-pop-parts i b { display: block; height: 100%; background: var(--primary); }
+.stat-pop-parts em { font-style: normal; text-align: right; color: var(--fg); }
+.stat-pop-parts .tot { border-top: 1px solid var(--border); padding-top: 5px; font-weight: 600; }
+.stat-pop-parts .tot i { background: none; }

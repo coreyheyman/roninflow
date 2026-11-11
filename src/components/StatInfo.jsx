@@ -7,6 +7,7 @@ import { fmtMoney } from '../lib/stats';
 import { explain, statKey } from '../lib/statInfo';
 
 const TONE = { good: 'pos', ok: 'warn', bad: 'neg', none: 'muted' };
+const num1 = (x) => (Math.round(x * 10) / 10).toString();
 
 /** Wrap a stat's label: <StatLabel k="profitFactor" v={s.profitFactor} ctx={s}>Profit Factor</StatLabel>
  *  (k can be left out when the label is a known stat name; v defaults to ctx[k]). */
@@ -71,6 +72,12 @@ function StatPop({ anchor, k, v, ctx, onClose }) {
       {r && (
         <div className={`stat-pop-you ${r.tone}`}>
           <div className="row gap8"><span className="muted">For you</span><b className={TONE[r.tone]}>{r.verdict}</b></div>
+          {r.parts && (
+            <div className="stat-pop-parts">
+              {r.parts.map(([label, pts, max]) => <div key={label}><span>{label}</span><i><b style={{ width: `${Math.min(100, (pts / max) * 100)}%` }} /></i><em>{pts ? `+${num1(pts)}` : '0'}</em></div>)}
+              <div className="tot"><span>Score</span><i /><em>{Math.round(v)}</em></div>
+            </div>
+          )}
           <p>{r.text}</p>
         </div>
       )}

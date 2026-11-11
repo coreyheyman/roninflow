@@ -209,6 +209,25 @@ export const STATS = {
       ? { tone: 'good', verdict: `You’re ${Math.round(c.winRate - v)} pts above`, text: `You need ${pct(v)} and you win ${pct(c.winRate)} of the time.` }
       : { tone: 'bad', verdict: `You’re ${Math.round(v - c.winRate)} pts below`, text: `You need ${pct(v)} but win ${pct(c.winRate)} of the time. Either raise the win rate or bring this number down by growing winners relative to losers.` }),
   },
+  score: {
+    name: 'Session score',
+    what: 'A quick 0–100 grade for one trading session, from how often you won, how much you won compared with what you lost, and whether the day finished green. It runs from 33 (a red day with no winners) to about 68 (a green day with every trade a winner and a profit factor of 2.2 or more).',
+    how: '33 + 0.138 × win rate + 4.3 × profit factor (counted up to 2.2) + 12 if the day was green',
+    bench: 'Green box 50+ (a good session) · amber 45–49 · red under 45',
+    read: (v, c) => {
+      if (!c?.count) return none('No trades this session.');
+      const pf = c.profitFactor === Infinity ? 2.2 : Math.min(c.profitFactor || 0, 2.2);
+      const wr = 0.138 * (c.winRate || 0), pfp = 4.3 * pf, green = c.net > 0 ? 12 : 0;
+      const parts = [['Base', 33, 33], [`Win rate ${pct(c.winRate || 0)}`, wr, 13.8], [`Profit factor ${c.profitFactor === Infinity ? '∞' : num(c.profitFactor || 0)}`, pfp, 9.46], [c.net > 0 ? 'Green day' : 'Red day', green, 12]];
+      const tips = [];
+      if (!green) tips.push('finishing green is worth +12 on its own — the biggest single piece');
+      if (pf < 2.2) tips.push(`a profit factor of 2.2 would add ${num(9.46 - pfp, 1)}`);
+      if ((c.winRate || 0) < 60) tips.push(`every 10 points of win rate adds 1.4`);
+      const verdict = v >= 50 ? 'Good session' : v >= 45 ? 'Middling session' : 'Tough session';
+      const lead = v >= 60 ? 'A strong session: green, with winners outweighing losers.' : v >= 50 ? 'A good session.' : v >= 45 ? 'An OK session that could have gone either way.' : 'A tough session.';
+      return { tone: v >= 50 ? 'good' : v >= 45 ? 'ok' : 'bad', verdict, parts, text: `${lead}${tips.length ? ` Where the points are: ${tips.join('; ')}.` : ' You got close to the most this score gives.'} It grades results only — judge the process in your post-session review.` };
+    },
+  },
   mostTraded: {
     name: 'Most traded', what: 'The symbol you traded most often and what it made you.', how: 'Symbol with the most closed positions; its total P&L',
     read: (v, c, $) => (v >= 0 ? { tone: 'good', verdict: 'Profitable', text: `Your main market made ${$(v)} — it’s working for you.` } : { tone: 'bad', verdict: 'Losing', text: `Your main market lost ${$(Math.abs(v))}. Compare it with your other symbols in the Symbols widget — you may be doing better elsewhere.` }),
@@ -230,5 +249,5 @@ export function explain(key, v, c, money) {
   if (!s) return null;
   let r;
   try { r = s.read(v, c || {}, money); } catch { r = null; }
-  return { ...s, result: r, small: c?.count != null && c.count > 0 && c.count < 20 };
+  return { ...s, result: r, small: key !== 'score' && c?.count != null && c.count > 0 && c.count < 20 };
 }

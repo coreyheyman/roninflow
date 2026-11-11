@@ -1,3 +1,4 @@
+import { StatLabel } from './StatInfo';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { X, ChevronDown, CalendarDays, Check, TrendingUp, TrendingDown } from 'lucide-react';
 import { useStore } from '../store/store';
@@ -260,8 +261,10 @@ export function useSize() {
   return [ref, size];
 }
 
-export function ScoreBox({ v }) {
-  return <span className={`score ${v >= 50 ? 'good' : v >= 45 ? 'mid' : 'bad'}`}>{v}</span>;
+/** Session score badge; with the session's stats (ctx) it's clickable and explains itself. */
+export function ScoreBox({ v, ctx }) {
+  const box = <span className={`score ${v >= 50 ? 'good' : v >= 45 ? 'mid' : 'bad'}`}>{v}</span>;
+  return ctx ? <StatLabel k="score" v={v} ctx={ctx} className="score-q">{box}</StatLabel> : box;
 }
 
 export function Stars({ value = 0, onChange }) {

@@ -68,7 +68,7 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
                     <span className="d">{d.getDate()}</span>
                     {day && (
                       <>
-                        {!compact && <span className="sc"><ScoreBox v={day.score} /></span>}
+                        {!compact && <span className="sc"><ScoreBox v={day.score} ctx={day} /></span>}
                         <div className={`pnl ${day.net >= 0 ? 'pos' : 'neg'}`}>
                           <span className={`pv-full ${priv ? 'hidden-val' : ''}`}>{fmtMoney(day.net, { sign: true })}</span><span className={`pv-short ${priv ? 'hidden-val' : ''}`}>{day.net > 0 ? '+' : ''}{fmtCompact(day.net)}</span>
                         </div>

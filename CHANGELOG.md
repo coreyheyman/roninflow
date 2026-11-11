@@ -2,6 +2,10 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.1.4
+
+- **The session score explains itself:** click it (diary, day pages, calendars) to see how it's worked out and your session's breakdown — base 33, win-rate points, profit-factor points and the +12 for a green day — plus where the remaining points are.
+
 ## 1.1.3
 
 - **Every stat explains itself:** click a stat's name (dotted underline) on the dashboard, reviews, diary or strategies for what it means, how it's worked out, the usual benchmarks, and what *your* number says — e.g. your win rate compared with the win rate you need to break even at your average win and loss. Small samples are flagged.
