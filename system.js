@@ -16,6 +16,22 @@ import { createUpdater } from './updater.js';
 
 const UA = 'RoninFlow (self-hosted update check)';
 
+/** Release notes of every published release newer than `current`, newest first (install instructions trimmed). */
+export function releaseNotesSince(releases, current, max = 15000) {
+  const v = (t) => String(t || '').replace(/^v/, '');
+  const parts = (x) => v(x).split(/[.-]/).map((n) => parseInt(n, 10) || 0);
+  const cmp = (a, b) => { const pa = parts(a), pb = parts(b); for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0); return 0; };
+  let total = 0;
+  const out = [];
+  for (const r of (Array.isArray(releases) ? releases : []).filter((r) => !r.draft && !r.prerelease && cmp(r.tag_name, current) > 0).sort((a, b) => cmp(b.tag_name, a.tag_name))) {
+    const notes = String(r.body || '').split('\n---')[0].trim();
+    if (total + notes.length > max) break;
+    total += notes.length;
+    out.push({ version: v(r.tag_name), notes, date: r.published_at || null });
+  }
+  return out;
+}
+
 export function createSystemHandler(root, dataDir, { log = () => {} } = {}) {
   const pkg = (() => { try { return JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')); } catch { return {}; } })();
   const version = pkg.version || '0.0.0';
@@ -40,11 +56,20 @@ export function createSystemHandler(root, dataDir, { log = () => {} } = {}) {
     if (!r.ok) throw new Error(`GitHub answered ${r.status}`);
     return r.json();
   }
+  async function fetchReleases() {
+    const r = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=50`, { headers: { 'User-Agent': UA, Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`GitHub answered ${r.status}`);
+    return r.json();
+  }
   async function checkUpdates() {
     if (!validRepo()) return;
     try {
       const j = await fetchRelease();
       cfg = { ...cfg, latest: String(j.tag_name || '').replace(/^v/, '') || null, updateUrl: j.html_url || null, notes: String(j.body || '').slice(0, 2000), checkedAt: new Date().toISOString() };
+      // several versions behind: collect the notes of every release in between, so nothing new goes unmentioned
+      if (cfg.latest && newer(cfg.latest, version)) {
+        try { cfg.notesSince = releaseNotesSince(await fetchReleases(), version); } catch (e) { log('[update] couldn’t list releases:', e.message); }
+      }
       save();
       if (cfg.latest && newer(cfg.latest, version)) log(`[update] RoninFlow ${cfg.latest} is available (you have ${version}) — ${cfg.updateUrl}`);
     } catch (e) { cfg.checkedAt = new Date().toISOString(); save(); log('[update] check failed:', e.message); }
@@ -80,7 +105,7 @@ export function createSystemHandler(root, dataDir, { log = () => {} } = {}) {
     } catch { return []; }
   };
   const updater = createUpdater({ root, version, newer, getRelease: fetchRelease, backup: () => backupNow(true), log });
-  const info = () => ({ version, platform: process.platform, update: updater.status(), repo: repo || null, updateCheck: cfg.updateCheck, latest: cfg.latest, updateAvailable: !!(cfg.latest && newer(cfg.latest, version)), updateUrl: cfg.updateUrl, notes: cfg.notes, checkedAt: cfg.checkedAt, keep: cfg.keep, backups: list(), dataDir });
+  const info = () => ({ version, platform: process.platform, update: updater.status(), repo: repo || null, updateCheck: cfg.updateCheck, latest: cfg.latest, updateAvailable: !!(cfg.latest && newer(cfg.latest, version)), updateUrl: cfg.updateUrl, notes: cfg.notes, notesSince: (cfg.notesSince || []).filter((n) => newer(n.version, version)), checkedAt: cfg.checkedAt, keep: cfg.keep, backups: list(), dataDir });
 
   // daily: a backup, and (if allowed) a look for a new release
   const daily = () => { backupNow(); if (cfg.updateCheck) checkUpdates(); };

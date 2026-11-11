@@ -99,7 +99,7 @@ export default function Layout({ route, crumbs, children }) {
       const id = `upd_${j.latest}`;
       update((st) => (st.notifications.some((n) => n.id === id) ? st : {
         ...st,
-        notifications: [{ id, title: `RoninFlow ${j.latest} is available`, body: `You have ${j.version}. Your journal, settings and connections are kept when you update.`, date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19), read: false, link: j.updateUrl }, ...st.notifications],
+        notifications: [{ id, title: `RoninFlow ${j.latest} is available`, body: `You have ${j.version}.${(j.notesSince || []).length > 1 ? ` That’s ${j.notesSince.length} updates — one update installs them all.` : ''} Your journal, settings and connections are kept when you update.`, date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19), read: false, link: j.updateUrl }, ...st.notifications],
       }));
     }).catch(() => {});
     look();

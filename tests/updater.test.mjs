@@ -168,3 +168,15 @@ test('macOS / Linux: not run by launchd / systemd → no Update now (it couldn�
     await assert.rejects(up.start(), /can’t update itself/);
   } finally { srv.close(); }
 });
+
+test('release notes for every version since yours, newest first, without the install footer', async () => {
+  const { releaseNotesSince } = await import('../system.js');
+  const rel = (tag, body, extra = {}) => ({ tag_name: tag, body, published_at: '2026-11-11T00:00:00Z', ...extra });
+  const out = releaseNotesSince([
+    rel('v1.1.2', '- Timeframes\n\n---\n**Windows:** download …'), rel('v1.0.9', '- old'), rel('v1.1.4', '- Score'), rel('v1.1.3', '- Stats'),
+    rel('v1.2.0-beta', '- beta', { prerelease: true }), rel('v1.1.1', '- Macro'), rel('v9.9.9', '- draft', { draft: true }),
+  ], '1.0.9');
+  assert.deepEqual(out.map((n) => n.version), ['1.1.4', '1.1.3', '1.1.2', '1.1.1']);
+  assert.equal(out[2].notes, '- Timeframes');
+  assert.deepEqual(releaseNotesSince([rel('v1.1.4', 'x')], '1.1.4'), []);
+});

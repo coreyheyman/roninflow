@@ -8,6 +8,24 @@ const jsonOf = async (r) => ((r.headers.get('content-type') || '').includes('jso
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const RESTART_LIMIT = 4 * 60e3; // give up waiting for the restart after this long
 
+const plain = (t) => String(t || '').split('\n---')[0].replace(/\*\*(.+?)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').replace(/(^|[\s(])\*([^*\n]+)\*/g, '$1$2').trim();
+/** Everything new since your version: the notes of each release in between, newest first. */
+function WhatsNew({ info }) {
+  const since = (info.notesSince || []).filter((n) => n.notes);
+  if (!since.length) return info.notes ? <pre className="upd-notes">{plain(info.notes)}</pre> : null;
+  return (
+    <div className="upd-notes upd-since">
+      {since.length > 1 && <div className="upd-since-h">{since.length} updates since your version {info.version} — you get all of them in this one update:</div>}
+      {since.map((n) => (
+        <div key={n.version} className="upd-ver">
+          <div className="upd-ver-h">{n.version}{n.date && <span className="muted"> · {new Date(n.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>}</div>
+          <pre>{plain(n.notes)}</pre>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function UpdateDialog({ open, info, onClose }) {
   const [phase, setPhase] = useState('confirm'); // confirm | running | restarting | done | error
   const [prog, setProg] = useState({ state: 'downloading', progress: 0 });
@@ -61,7 +79,7 @@ export default function UpdateDialog({ open, info, onClose }) {
           <>
             <div>RoninFlow downloads the new version from GitHub, checks it hasn’t been tampered with, backs up your journal and installs it.
               It closes for about a minute and opens again on its own — your trades, settings and connections are kept.</div>
-            {info.notes && <pre className="upd-notes">{info.notes.split('\n---')[0].replace(/\*\*(.+?)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').trim()}</pre>}
+            <WhatsNew info={info} />
           </>
         ) : (
           <>
@@ -74,6 +92,7 @@ export default function UpdateDialog({ open, info, onClose }) {
               unix: 'roninflow update',
             }[info.update?.installType] || 'git pull\nnpm install\nnpm run build\nnpm run autostart:restart   # or restart "npm start"'}</pre>
             <div className="muted" style={{ fontSize: 12.5 }}>Your journal and settings are kept.</div>
+            <WhatsNew info={info} />
           </>
         ))}
         {(phase === 'running' || phase === 'restarting') && (
