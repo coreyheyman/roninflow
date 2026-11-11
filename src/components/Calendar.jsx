@@ -60,7 +60,7 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
                   <div
                     key={k}
                     className={`cal-cell ${out ? 'out' : ''} ${day ? (day.net >= 0 ? 'win' : 'loss') : ''}`}
-                    style={compact ? { minHeight: 96, padding: 8 } : undefined}
+                    style={compact ? { padding: 8 } : undefined}
                     onClick={() => !out && onDay?.(k)}
                   >
                     <span className="d">{k === today ? <span className="today">{d.getDate()}</span> : d.getDate()}</span>

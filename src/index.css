@@ -317,7 +317,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
 .cal { border-top: 1px solid var(--border); }
 .cal-head, .cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, 0.53fr); }
 .cal-head div { text-align: center; padding: 12px 0; font-size: 13px; color: var(--fg-2); border-bottom: 1px solid var(--border); }
-.cal-cell { min-height: 148px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 12px; position: relative; display: flex; flex-direction: column; }
+.cal-cell { aspect-ratio: 1.1; min-height: 0; max-height: 200px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 12px; position: relative; display: flex; flex-direction: column; }
 .cal-cell .d { font-size: 12.5px; font-weight: 500; }
 .cal-cell.out .d { color: var(--muted-2); }
 .cal-cell.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 20%, transparent), color-mix(in srgb, var(--pos-strong) 8%, transparent)); cursor: pointer; }
@@ -576,7 +576,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
   .hold-card .v { font-size: 18px; }
   .dash-grid.thirds, .dash-grid { grid-template-columns: 1fr !important; }
   .tbl thead th, .tbl tbody td { padding: 0 10px; }
-  .cal-cell { min-height: 72px; padding: 5px 3px !important; }
+  .cal-cell { padding: 5px 3px !important; }
   .cal-cell .pnl { font-size: 10.5px !important; letter-spacing: -0.04em; overflow: hidden; }
   .cal-cell .pv-full { display: none; }
   .cal-cell .pv-short { display: inline; }
@@ -675,7 +675,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-cal-row { display: grid; grid-template-columns: repeat(calc(var(--cols) - 1), minmax(0, 1fr)) minmax(0, 0.75fr); }
 .rv-cal.heat .rv-cal-row { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 3px; margin-bottom: 3px; }
 .rv-cal-row.head div { text-align: center; padding: 9px 0; font-size: 12px; color: var(--fg-2); border-bottom: 1px solid var(--border); }
-.rv-day { position: relative; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); min-height: 104px; padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
+.rv-day { position: relative; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); aspect-ratio: 1.1; min-height: 0; max-height: 200px; padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
 .rv-day.out { background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(127, 127, 127, 0.04) 6px 12px); }
 .rv-day.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 20%, transparent), color-mix(in srgb, var(--pos-strong) 7%, transparent)); cursor: pointer; }
 .rv-day.loss { background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 14%, transparent), color-mix(in srgb, var(--neg) 5%, transparent)); cursor: pointer; }
@@ -687,7 +687,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-wk { padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--card); display: flex; flex-direction: column; min-width: 0; }
 .rv-wk.win { box-shadow: inset 2px 0 0 var(--pos-strong); background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 16%, transparent), color-mix(in srgb, var(--pos-strong) 4%, transparent)); }
 .rv-wk.loss { box-shadow: inset 2px 0 0 var(--neg-strong); background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 11%, transparent), color-mix(in srgb, var(--neg) 3%, transparent)); }
-.rv-cal.mini .rv-day, .rv-cal.mini .rv-wk { min-height: 50px; padding: 5px 6px; }
+.rv-cal.mini .rv-day, .rv-cal.mini .rv-wk { padding: 5px 6px; }
 .rv-cal.mini .rv-day .dn { font-size: 10.5px; }
 .rv-cal.mini .pv { font-size: 12px; letter-spacing: -0.03em; overflow: hidden; text-overflow: clip; }
 .rv-cal.mini .rv-day, .rv-cal.mini .rv-wk { overflow: hidden; padding: 4px 3px; }
@@ -748,7 +748,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
   .rv-week { grid-template-columns: 1fr 1fr; }
   .rv-wday { border-bottom: 1px solid var(--border); }
   .rv-wday-v { padding: 14px 6px; }
-  .rv-day { min-height: 64px; padding: 5px; }
+  .rv-day { padding: 5px; }
   .rv-day-meta { display: none; }
   .rv-day .pv, .rv-wk .pv { font-size: 11px; letter-spacing: -0.04em; }
   .rv-cal.full .rv-cal-row.head div { font-size: 0; }
@@ -1084,7 +1084,7 @@ div:hover > .shot-ask, .shot-ask:focus { opacity: 1; }
 }
 /* calendar: drop the extras first, then switch to the compact phone layout */
 @container (max-width: 1000px) {
-  .cal-cell { min-height: 118px; padding: 10px 8px; }
+  .cal-cell { padding: 10px 8px; }
   .cal-cell .meta { display: none; }
   .cal-cell .sc { right: 8px; top: 10px; transform: scale(0.9); transform-origin: top right; }
   .cal-wk { padding: 10px 8px; font-size: 12px; overflow: hidden; }
@@ -1092,7 +1092,7 @@ div:hover > .shot-ask, .shot-ask:focus { opacity: 1; }
   .cal-top { flex-wrap: wrap; row-gap: 10px; gap: 10px !important; }
 }
 @container (max-width: 720px) {
-  .cal-cell { min-height: 76px; padding: 6px 4px !important; }
+  .cal-cell { padding: 6px 4px !important; }
   .cal-cell .pnl { font-size: 11.5px !important; letter-spacing: -0.03em; overflow: hidden; }
   .cal-cell .pv-full { display: none; }
   .cal-cell .pv-short { display: inline; }
