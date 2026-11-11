@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, RefreshCw, Palette, Check } from 'lucide-react';
+import { Maximize2, RefreshCw, Palette, Check, ChevronDown } from 'lucide-react';
 import { useStore } from '../store/store';
 import { todayKey, fmtMoney, fmtTime12 } from '../lib/stats';
-import { Modal, ModalHead } from './ui';
+import { Modal, ModalHead, Popover } from './ui';
 import { ColorRow } from './ThemeStudio';
+import { ivSec, TIMEFRAMES, SPAN_DAYS, tfLabel, toLocal, barTime, aggregate } from '../lib/bars';
 
 // Candlestick chart of the day with your executions, drawn with TradingView Lightweight Charts™.
 // Candles come from the journal server (/api/candles, cached on your PC); the library is served by it too.
@@ -24,14 +25,11 @@ function loadLib() {
   return libPromise;
 }
 
-const IV = { '1m': 60, '2m': 120, '5m': 300, '15m': 900, '30m': 1800, '60m': 3600, '1h': 3600 };
 const TICKS = { ES: 0.25, MES: 0.25, NQ: 0.25, MNQ: 0.25, YM: 1, MYM: 1, RTY: 0.1, M2K: 0.1, CL: 0.01, MCL: 0.01, QM: 0.025, GC: 0.1, MGC: 0.1, SI: 0.005, SIL: 0.005, HG: 0.0005, NG: 0.001, QG: 0.005, ZB: 0.03125, ZN: 0.015625, '6E': 0.00005, M6E: 0.0001, '6J': 0.0000005, '6B': 0.0001, '6A': 0.00005, BTC: 5, MBT: 5, ETH: 0.5, MET: 0.05 };
 const ROOTS = Object.keys(TICKS).sort((a, b) => b.length - a.length);
 const rootOf = (s) => { const u = String(s || '').toUpperCase(); return ROOTS.find((r) => u.startsWith(r)) || u; };
 const decimals = (x) => { const s = String(x); return s.includes('e-') ? Number(s.split('e-')[1]) : (s.split('.')[1] || '').length; };
 
-// Lightweight Charts shows times as UTC, so shift everything by your UTC offset to read in local time.
-const toLocal = (t) => t - new Date(t * 1000).getTimezoneOffset() * 60;
 const epoch = (iso) => Math.floor(new Date(iso).getTime() / 1000); // journal times are local wall-clock
 
 function cssColors() {
@@ -78,7 +76,7 @@ const alpha = (hex, a) => {
 };
 
 /** Executions for one symbol → markers, trade lines and the time span to show. */
-export function buildExecutions(trades, barTimes) {
+export function buildExecutions(trades, barTimes, toBar = (u) => toLocal(u)) {
   const snap = (t) => { // the bar that contains time t
     let lo = 0, hi = barTimes.length - 1, ans = barTimes[0];
     while (lo <= hi) { const mid = (lo + hi) >> 1; if (barTimes[mid] <= t) { ans = barTimes[mid]; lo = mid + 1; } else hi = mid - 1; }
@@ -89,7 +87,7 @@ export function buildExecutions(trades, barTimes) {
   let first = Infinity, last = -Infinity;
   const add = (iso, price, side, qty, tradeId, kind) => {
     if (!iso || !Number.isFinite(Number(price))) return null;
-    const raw = toLocal(epoch(iso));
+    const raw = toBar(epoch(iso));
     first = Math.min(first, raw); last = Math.max(last, raw);
     const time = snap(raw);
     const k = `${time}|${side}|${price}`;
@@ -108,7 +106,7 @@ export function buildExecutions(trades, barTimes) {
       add(f.exit, f.exitPrice, buyFirst ? 'sell' : 'buy', f.qty || t.qty, t.id, 'exit');
     }
     if (t.entry && t.exit && Number.isFinite(Number(t.entryPrice)) && Number.isFinite(Number(t.exitPrice))) {
-      const a = snap(toLocal(epoch(t.entry))), b = snap(toLocal(epoch(t.exit)));
+      const a = snap(toBar(epoch(t.entry))), b = snap(toBar(epoch(t.exit)));
       if (b > a) lines.push({ id: t.id, pnl: t.pnl, points: [{ time: a, value: Number(t.entryPrice) }, { time: b, value: Number(t.exitPrice) }] });
     }
   }
@@ -121,7 +119,7 @@ export default function ExecChart({ date: dateProp, trades: tradesProp, onOpenTr
   const trades = useMemo(() => (focus ? [focus] : tradesProp), // eslint-disable-line react-hooks/exhaustive-deps
     focus ? [focus.id, focus.entry, focus.exit, focus.entryPrice, focus.exitPrice, focus.pnl, focus.fills] : [tradesProp]);
   const date = focus ? String(focus.entry || '').slice(0, 10) : dateProp;
-  const { state } = useStore();
+  const { state, setSetting } = useStore();
   const symbols = useMemo(() => {
     const n = new Map();
     for (const t of trades) n.set(t.symbol, (n.get(t.symbol) || 0) + 1);
@@ -143,6 +141,8 @@ export default function ExecChart({ date: dateProp, trades: tradesProp, onOpenTr
   const [colorsOpen, setColorsOpen] = useState(false);
   const legendColors = useMemo(() => chartColors(state.settings.chartColors), [themeKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const isToday = date === todayKey();
+  const tf = TIMEFRAMES.includes(state.settings.execTf) ? state.settings.execTf : '1m';
+  const span = SPAN_DAYS[tf] || 0;
 
   // candles
   useEffect(() => {
@@ -150,35 +150,45 @@ export default function ExecChart({ date: dateProp, trades: tradesProp, onOpenTr
     let alive = true;
     let timer;
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const get = (d, refresh) => fetch(`/api/candles?symbol=${encodeURIComponent(sym)}&date=${d}&tz=${encodeURIComponent(tz)}${refresh ? '&refresh=1' : ''}`)
+      .then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `Error ${r.status}`); return j; });
+    // earlier days for the 1h / 4h / 1d timeframes (weekdays only; a day without prices is just skipped)
+    const extraDays = [];
+    for (let i = 1; i <= span; i++) { const x = new Date(`${date}T12:00:00`); x.setDate(x.getDate() - i); if (x.getDay() !== 6) extraDays.push(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`); }
+    let extra = null;
     const load = (quiet, refresh) => {
       if (!quiet) setRec({ status: 'loading' });
-      fetch(`/api/candles?symbol=${encodeURIComponent(sym)}&date=${date}&tz=${encodeURIComponent(tz)}${refresh ? '&refresh=1' : ''}`)
-        .then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `Error ${r.status}`); return j; })
-        .then((j) => alive && setRec((old) => {
-          const a = old.candles, b = j.candles || [];
+      if (!extra) extra = Promise.all(extraDays.map((d) => get(d).then((j) => j.candles || []).catch(() => []))).then((xs) => xs.flat());
+      Promise.all([get(date, refresh), extra])
+        .then(([j, more]) => alive && setRec((old) => {
+          const byT = new Map();
+          for (const c of [...more, ...(j.candles || [])]) byT.set(c[0], c);
+          const b = [...byT.values()].sort((x, y) => x[0] - y[0]);
+          const a = old.candles;
           if (quiet && a && a.length === b.length && String(a[a.length - 1]) === String(b[b.length - 1])) return old;
-          return { status: 'ok', ...j, key: `${sym}|${date}` };
+          return { status: 'ok', ...j, candles: b, key: `${sym}|${date}|${span}` };
         }))
         .catch((e) => alive && !quiet && setRec({ status: 'error', error: e.message }));
     };
     load(false, nonce > 0);
     if (isToday) timer = setInterval(() => load(true), 60000);
     return () => { alive = false; clearInterval(timer); };
-  }, [sym, date, isToday, nonce]);
+  }, [sym, date, isToday, nonce, span]);
 
   const symTrades = useMemo(() => trades.filter((t) => t.symbol === sym), [trades, sym]);
 
   // chart
   useEffect(() => {
     // only draw candles that belong to the instrument/day being shown (not the previous one while the new one loads)
-    if (rec.status !== 'ok' || !rec.candles?.length || !box.current || rec.key !== `${sym}|${date}`) return undefined;
+    if (rec.status !== 'ok' || !rec.candles?.length || !box.current || rec.key !== `${sym}|${date}|${span}`) return undefined;
     let fitted = false;
     let chart;
     let cancelled = false;
     loadLib().then((LW) => {
       if (cancelled || !box.current) return;
       const c = chartColors(state.settings.chartColors);
-      const iv = IV[rec.interval] || 60;
+      const iv = Math.max(ivSec(tf), ivSec(rec.interval)); // can't draw finer than the price source sends
+      const toBar = (u) => barTime(u, iv);
       const tick = TICKS[rootOf(sym)];
       const prec = tick ? decimals(tick) : 2;
       chart = LW.createChart(box.current, {
@@ -186,11 +196,11 @@ export default function ExecChart({ date: dateProp, trades: tradesProp, onOpenTr
         layout: { background: { type: 'solid', color: c.bg }, textColor: c.text, fontFamily: c.font, fontSize: 11, attributionLogo: true },
         grid: { vertLines: { color: alpha(c.border, 0.55) }, horzLines: { color: alpha(c.border, 0.55) } },
         rightPriceScale: { borderColor: c.border, scaleMargins: { top: 0.08, bottom: 0.08 } },
-        timeScale: { borderColor: c.border, timeVisible: true, secondsVisible: false, rightOffset: 3, barSpacing: 7 },
+        timeScale: { borderColor: c.border, timeVisible: iv < 86400, secondsVisible: false, rightOffset: 3, barSpacing: iv >= 86400 ? 12 : 7 },
         crosshair: { mode: 0 },
       });
       chartRef.current = chart;
-      const candles = rec.candles.map(([t, o, h, l, cl]) => ({ time: toLocal(t), open: o, high: h, low: l, close: cl }));
+      const candles = aggregate(rec.candles, iv);
       const series = chart.addSeries(LW.CandlestickSeries, {
         upColor: c.up, downColor: c.down, wickUpColor: c.wickUp, wickDownColor: c.wickDown, borderUpColor: c.wickUp, borderDownColor: c.wickDown, borderVisible: c.wickUp !== c.up || c.wickDown !== c.down,
         priceFormat: { type: 'price', precision: prec, minMove: tick || 0.01 },
@@ -199,7 +209,7 @@ export default function ExecChart({ date: dateProp, trades: tradesProp, onOpenTr
       series.setData(candles);
 
       const barTimes = candles.map((x) => x.time);
-      const ex = buildExecutions(symTrades, barTimes);
+      const ex = buildExecutions(symTrades, barTimes, toBar);
       for (const ln of ex.lines) {
         const s = chart.addSeries(LW.LineSeries, {
           color: alpha(ln.pnl >= 0 ? c.win : c.loss, 0.85), lineWidth: 1, lineStyle: 2,
@@ -225,7 +235,7 @@ export default function ExecChart({ date: dateProp, trades: tradesProp, onOpenTr
         try { chart.timeScale().setVisibleRange({ from, to }); } catch { chart.timeScale().fitContent(); }
       };
       fitRef.current = fit;
-      const key = `${sym}|${date}`;
+      const key = `${sym}|${date}|${iv}`;
       const keep = viewRef.current?.key === key && viewRef.current.range;
       requestAnimationFrame(() => {
         if (cancelled) return;
@@ -291,12 +301,12 @@ export default function ExecChart({ date: dateProp, trades: tradesProp, onOpenTr
       cancelled = true;
       if (chart) {
         // remember your zoom for redraws of this same chart, but only once it was actually framed
-        if (fitted) { try { viewRef.current = { key: `${sym}|${date}`, range: chart.timeScale().getVisibleRange() }; } catch { /* */ } }
+        if (fitted) { try { viewRef.current = { key: `${sym}|${date}|${Math.max(ivSec(tf), ivSec(rec.interval))}`, range: chart.timeScale().getVisibleRange() }; } catch { /* */ } }
         chart.remove();
       }
       chartRef.current = null;
     };
-  }, [rec, symTrades, themeKey, sym, isToday, date]);
+  }, [rec, symTrades, themeKey, sym, isToday, date, tf, span]);
 
   if (!symbols.length) return null;
   const old = rec.status === 'ok' && rec.interval && rec.interval !== '1m';
@@ -313,7 +323,7 @@ export default function ExecChart({ date: dateProp, trades: tradesProp, onOpenTr
           ))}
         </div>}
         <div className="row gap4 ec-tools">
-          {rec.status === 'ok' && <span className="ec-iv" title={rec.source}>{(rec.interval || '1m').replace('60m', '1h')}</span>}
+          <TimeframePicker tf={tf} native={rec.status === 'ok' ? rec.interval : null} source={rec.source} onPick={(v) => setSetting('execTf', v)} />
           <button className="icon-btn" title="Chart colours" onClick={() => setColorsOpen(true)}><Palette size={15} /></button>
           <button className="icon-btn" title={focus ? 'Zoom to this trade' : 'Fit all executions'} onClick={() => fitRef.current()}><Maximize2 size={15} /></button>
           <button className="icon-btn" title="Reload prices" onClick={() => setNonce((n) => n + 1)}><RefreshCw size={15} /></button>
@@ -348,6 +358,31 @@ export default function ExecChart({ date: dateProp, trades: tradesProp, onOpenTr
       </div>
       {colorsOpen && <ChartColors onClose={() => setColorsOpen(false)} />}
     </div>
+  );
+}
+
+/** The timeframe button: shows the candle size, opens a list of timeframes. */
+function TimeframePicker({ tf, native, source, onPick }) {
+  const nat = native ? ivSec(native) : 60;
+  return (
+    <Popover align="right" width={150} trigger={({ toggle, open }) => (
+      <button className={`ec-iv ec-tf ${open ? 'on' : ''}`} onClick={toggle} title={`Timeframe${source ? ` · prices: ${source}` : ''}`}>
+        {ivSec(tf) < nat ? tfLabel(native) : tf}<ChevronDown size={11} />
+      </button>
+    )}>
+      {(close) => (
+        <div className="ec-tf-list">
+          {TIMEFRAMES.map((x) => {
+            const tooFine = ivSec(x) < nat;
+            return (
+              <button key={x} className={`pop-item ${x === tf ? 'on' : ''}`} disabled={tooFine} title={tooFine ? `Your price source sends ${tfLabel(native)} candles for this day` : undefined} onClick={() => { onPick(x); close(); }}>
+                <span className="grow">{x}</span>{x === tf && <Check size={13} className="accent" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </Popover>
   );
 }
 

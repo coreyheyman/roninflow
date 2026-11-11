@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Maximize2, ChevronLeft, ChevronRight, ChartArea, ChartColumn, CircleCheck, CircleDashed, Clock3, Flag, Quote, RotateCcw, TriangleExclamationPoint as TriangleAlert, ArrowRight, Pencil, ChevronUp, ChevronDown, Trash, Plus, Check } from 'lucide-react';
+import { X, Maximize2, ChevronLeft, ChevronRight, ChartArea, ChartColumn, ChartColumnStacked, CircleCheck, CircleDashed, Clock3, Flag, Quote, RotateCcw, TriangleExclamationPoint as TriangleAlert, ArrowRight, Pencil, ChevronUp, ChevronDown, Trash, Plus, Check } from 'lucide-react';
 import { useStore, useAccountTrades, navigate } from '../store/store';
 import { AccountPicker, Seg, Private, Modal, ModalHead, useToast } from '../components/ui';
 import { PnlChart, MarkerScale } from '../components/Charts';
@@ -253,20 +253,27 @@ function MonthCard({ year, month, trades, dayMap, variant }) {
 
 function EquityPanel({ trades, title = 'Equity curve', height = 240 }) {
   const { state, setSetting } = useStore();
-  const bars = state.settings.reviewChart === 'bar';
+  const mode = ['bar', 'trade'].includes(state.settings.reviewChart) ? state.settings.reviewChart : 'area';
   const priv = state.settings.privacy;
   const curve = useMemo(() => equityCurve(trades), [trades]);
   const area = useMemo(() => curve.map((c) => ({ label: fmtShortDate(c.x), y: c.y, tip: `${fmtDate(c.x)} · ${fmtTime12(c.x)} · ${c.t.symbol} ${fmtMoney(c.t.pnl, { sign: true })}` })), [curve]);
   const days = useMemo(() => [...groupByDay(trades)].reverse().map((d) => ({ label: fmtShortDate(d.date), y: d.net, tip: `${WEEKDAYS[toDate(d.date).getDay()]}, ${fmtDate(d.date)} · ${d.count} trade${d.count === 1 ? '' : 's'}` })), [trades]);
+  // one bar per trade, in the order they were taken
+  const perTrade = useMemo(() => [...trades].sort((a, b) => String(a.entry).localeCompare(String(b.entry))).map((t, i) => ({
+    label: `${fmtShortDate(t.entry)} #${i + 1}`, y: Number(t.pnl) || 0,
+    tip: `${fmtDate(t.entry)} · ${fmtTime12(t.entry)} · ${t.direction} ${t.symbol}${t.qty > 1 ? ` ×${t.qty}` : ''} · ${fmtMoney(t.pnl, { sign: true })}`,
+  })), [trades]);
   const yFmt = (v) => (priv ? '•••' : fmtMoney(v, { dp: 0, raw: true }));
+  const heading = mode === 'bar' ? title.replace(/equity curve/i, 'P&L by day') : mode === 'trade' ? title.replace(/equity curve/i, 'P&L by trade') : title;
   return (
     <div className="panel" style={{ padding: 18 }}>
       <div className="panel-head" style={{ marginBottom: 6 }}>
-        <div className="card-title">{bars ? title.replace(/equity curve/i, 'P&L by day') : title}</div>
-        <Seg icon value={bars ? 'bar' : 'area'} onChange={(v) => setSetting('reviewChart', v)} options={[{ value: 'area', icon: ChartArea, title: 'Equity curve' }, { value: 'bar', icon: ChartColumn, title: 'P&L by day' }]} />
+        <div className="card-title">{heading}{mode === 'trade' && trades.length > 0 && <span className="muted" style={{ fontWeight: 400, fontSize: 13, marginLeft: 8 }}>{trades.length} trade{trades.length === 1 ? '' : 's'}</span>}</div>
+        <Seg icon value={mode} onChange={(v) => setSetting('reviewChart', v)} options={[{ value: 'area', icon: ChartArea, title: 'Equity curve' }, { value: 'bar', icon: ChartColumn, title: 'P&L by day' }, { value: 'trade', icon: ChartColumnStacked, title: 'P&L by trade' }]} />
       </div>
       {!trades.length ? <div className="empty" style={{ padding: 30 }}>No trades in this period.</div>
-        : bars ? <PnlChart data={days} mode="bar" height={height} xLabels={7} yFmt={yFmt} />
+        : mode === 'bar' ? <PnlChart data={days} mode="bar" height={height} xLabels={7} yFmt={yFmt} />
+        : mode === 'trade' ? <PnlChart data={perTrade} mode="bar" height={height} xLabels={6} yFmt={yFmt} />
         : <PnlChart data={area} smooth height={height} xLabels={6} yFmt={yFmt} />}
     </div>
   );

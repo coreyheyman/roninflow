@@ -1623,3 +1623,10 @@ button.ec-row:hover { background: var(--hover); }
   .mp-row .grow.truncate { white-space: normal; }
   .topbar .mp-pop .grow { display: block; } /* the top bar hides its spacer on phones; not the event names in here */
 }
+/* execution chart timeframe picker */
+.ec-tf { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
+.ec-tf:hover, .ec-tf.on { color: var(--fg); border-color: var(--primary); }
+.ec-tf-list { padding: 2px; }
+.ec-tf-list .pop-item { font-size: 13px; font-variant-numeric: tabular-nums; }
+.ec-tf-list .pop-item.on { color: var(--primary); }
+.ec-tf-list .pop-item:disabled { opacity: 0.35; cursor: not-allowed; }
