@@ -5,12 +5,14 @@
 //   POST /api/system/backup            → makes a backup now
 //   POST /api/system/settings          { keep, updateCheck }
 //   GET  /api/system/backups/<file>    → download one backup
+//   POST /api/system/update            → one-click update (Windows installer copies; header x-tj-update: 1)
 //
 // Backups: data/backups/journal-YYYY-MM-DD.json (one per day, made automatically when the journal changes and once
 // a day by the timer below), plus connect.json and vault.json copies, so a backup restores trades *and* connections.
 // The newest `keep` days are kept (default 30).
 import fs from 'node:fs';
 import path from 'node:path';
+import { createUpdater } from './updater.js';
 
 const UA = 'RoninFlow (self-hosted update check)';
 
@@ -31,12 +33,17 @@ export function createSystemHandler(root, dataDir, { log = () => {} } = {}) {
     for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
     return false;
   };
+  const validRepo = () => !!repo && /^[\w.-]+\/[\w.-]+$/.test(repo);
+  async function fetchRelease() {
+    if (!validRepo()) throw new Error('No GitHub repository is set for updates.');
+    const r = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers: { 'User-Agent': UA, Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`GitHub answered ${r.status}`);
+    return r.json();
+  }
   async function checkUpdates() {
-    if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return;
+    if (!validRepo()) return;
     try {
-      const r = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers: { 'User-Agent': UA, Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(15000) });
-      if (!r.ok) throw new Error(`GitHub answered ${r.status}`);
-      const j = await r.json();
+      const j = await fetchRelease();
       cfg = { ...cfg, latest: String(j.tag_name || '').replace(/^v/, '') || null, updateUrl: j.html_url || null, notes: String(j.body || '').slice(0, 2000), checkedAt: new Date().toISOString() };
       save();
       if (cfg.latest && newer(cfg.latest, version)) log(`[update] RoninFlow ${cfg.latest} is available (you have ${version}) — ${cfg.updateUrl}`);
@@ -72,7 +79,8 @@ export function createSystemHandler(root, dataDir, { log = () => {} } = {}) {
         .map((x) => ({ file: x, date: x.slice(8, 18), size: fs.statSync(path.join(backupDir, x)).size }));
     } catch { return []; }
   };
-  const info = () => ({ version, repo: repo || null, updateCheck: cfg.updateCheck, latest: cfg.latest, updateAvailable: !!(cfg.latest && newer(cfg.latest, version)), updateUrl: cfg.updateUrl, notes: cfg.notes, checkedAt: cfg.checkedAt, keep: cfg.keep, backups: list(), dataDir });
+  const updater = createUpdater({ root, version, newer, getRelease: fetchRelease, backup: () => backupNow(true), log });
+  const info = () => ({ version, update: updater.status(), repo: repo || null, updateCheck: cfg.updateCheck, latest: cfg.latest, updateAvailable: !!(cfg.latest && newer(cfg.latest, version)), updateUrl: cfg.updateUrl, notes: cfg.notes, checkedAt: cfg.checkedAt, keep: cfg.keep, backups: list(), dataDir });
 
   // daily: a backup, and (if allowed) a look for a new release
   const daily = () => { backupNow(); if (cfg.updateCheck) checkUpdates(); };
@@ -87,6 +95,15 @@ export function createSystemHandler(root, dataDir, { log = () => {} } = {}) {
     try {
       if (route === '/info' && req.method === 'GET') return send(res, 200, info());
       if (route === '/check-updates' && req.method === 'POST') { await checkUpdates(); return send(res, 200, info()); }
+      if (route === '/update' && req.method === 'POST') {
+        // a custom header can't be sent by another website without a CORS preflight, which we never allow —
+        // so a page you happen to have open can't start an update behind your back
+        if (req.headers['x-tj-update'] !== '1') return send(res, 403, { error: 'forbidden' });
+        const origin = req.headers.origin;
+        if (origin && new URL(origin).host !== req.headers.host) return send(res, 403, { error: 'forbidden' });
+        try { return send(res, 202, { ...info(), update: await updater.start() }); }
+        catch (e) { return send(res, e.code || 500, { ...info(), error: e.message }); }
+      }
       if (route === '/backup' && req.method === 'POST') return send(res, backupNow(true) ? 200 : 500, info());
       if (route === '/settings' && req.method === 'POST') {
         const b = await body(req);

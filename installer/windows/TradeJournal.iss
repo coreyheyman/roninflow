@@ -53,6 +53,8 @@ Name: "{localappdata}\TradeJournal\data"; Flags: uninsneveruninstall
 
 [Run]
 Filename: "{sys}\wscript.exe"; Parameters: """{app}\launch.vbs"" open"; Description: "Open RoninFlow now"; Flags: postinstall nowait skipifsilent
+; silent installs (the in-app "Update now") start RoninFlow again in the background; the open page reconnects
+Filename: "{sys}\wscript.exe"; Parameters: """{app}\launch.vbs"""; Flags: nowait runhidden; Check: WizardSilent
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\stop.ps1"""; Flags: runhidden; RunOnceId: "StopServer"
@@ -61,7 +63,11 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Win
 procedure CurStepChanged(CurStep: TSetupStep);
 var R: Integer;
 begin
-  // stop a running copy before files are replaced during an update
+  // Stop a running copy before files are replaced during an update. Runs the new stop.ps1 from a temp copy (the one in
+  // {app} is the old version) and matches node.exe by its path inside {app}, wherever the app was installed.
   if CurStep = ssInstall then
-    Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Get-CimInstance Win32_Process -Filter ''Name=''''node.exe'''''' | Where-Object { $_.CommandLine -like ''*TradeJournal*server.js*'' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"', '', SW_HIDE, ewWaitUntilTerminated, R);
+  begin
+    ExtractTemporaryFile('stop.ps1');
+    Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + ExpandConstant('{tmp}\stop.ps1') + '" -AppDir "' + ExpandConstant('{app}') + '"', '', SW_HIDE, ewWaitUntilTerminated, R);
+  end;
 end;

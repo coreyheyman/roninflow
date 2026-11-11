@@ -221,7 +221,10 @@ function Backups() {
       <div className="panel col gap8" style={{ padding: 14 }}>
         <div className="row between"><b style={{ fontWeight: 600 }}>Updates</b><span className="muted no-i18n" style={{ fontSize: 12.5 }}>You have v{info.version}</span></div>
         {info.updateAvailable
-          ? <div className="badge pos-soft" style={{ padding: '8px 10px', whiteSpace: 'normal' }}>Version {info.latest} is available. <a className="accent" href={info.updateUrl} target="_blank" rel="noreferrer">See what’s new & download</a></div>
+          ? <div className="col gap8">
+              <div className="badge pos-soft" style={{ padding: '8px 10px', whiteSpace: 'normal' }}>Version {info.latest} is available. <a className="accent" href={info.updateUrl} target="_blank" rel="noreferrer">See what’s new</a></div>
+              <button className="btn xs primary" style={{ alignSelf: 'flex-start' }} onClick={() => window.dispatchEvent(new Event('tj:open-update'))}><Download size={12} /> {info.update?.canAutoUpdate ? 'Update now' : 'How to update'}</button>
+            </div>
           : <div className="muted" style={{ fontSize: 12.5 }}>{info.repo ? (info.checkedAt ? `Up to date · checked ${fmtDate(info.checkedAt)} ${fmtTime12(info.checkedAt)}` : 'Not checked yet.') : 'Update checks start once this copy knows where it was published (repository in package.json).'}</div>}
         <label className="row gap8" style={{ fontSize: 13 }}><Switch on={!!info.updateCheck} onChange={(v) => call('settings', { updateCheck: v })} /> Check for new versions once a day</label>
         {info.repo && <button className="btn xs" style={{ alignSelf: 'flex-start' }} disabled={busy} onClick={() => call('check-updates', {})}><RefreshCw size={12} /> Check now</button>}

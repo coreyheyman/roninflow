@@ -53,7 +53,7 @@ export function ModalHead({ title, sub, onClose }) {
         <div className="modal-title">{title}</div>
         {sub && <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{sub}</div>}
       </div>
-      <CloseX onClick={onClose} />
+      {onClose && <CloseX onClick={onClose} />}
     </div>
   );
 }

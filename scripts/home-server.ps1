@@ -74,7 +74,7 @@ Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $tmp | Out-Null
 @{ upstreams = $upstreams; key = $key; port = 5173 } | ConvertTo-Json | Set-Content -Encoding ASCII (Join-Path $tmp "replica.json")
 $pkg = Join-Path $tmp "tj-replica.tgz"
-& tar -czf $pkg -C $root replica.js local-api.js ai-proxy.js candles.js connect.js connect-apis.js connect-markets.js secrets.js system.js src/lib/pairing.js package.json dist scripts/server-setup.sh -C $tmp replica.json
+& tar -czf $pkg -C $root replica.js local-api.js ai-proxy.js candles.js connect.js connect-apis.js connect-markets.js secrets.js system.js updater.js src/lib/pairing.js package.json dist scripts/server-setup.sh -C $tmp replica.json
 if ($LASTEXITCODE -ne 0) { Fail "Packaging failed." }
 & scp @sshOpts -q $pkg "${Target}:tj-replica.tgz"
 if ($LASTEXITCODE -ne 0) { Fail "Copying to the server failed." }

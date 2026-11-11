@@ -17,6 +17,7 @@ import { TEMPLATES, findTheme, themeSettings } from '../lib/themes';
 import CurrencySettings, { useCurrencyAutoRate } from './CurrencySettings';
 import RegionSettings from './RegionSettings';
 import SettingsCenter from './SettingsCenter';
+import UpdateDialog from './UpdateDialog';
 import { PlaybookSettings } from './Playbook';
 import { vaultKeys, VAULT } from '../lib/ai';
 import { LANGS } from '../lib/i18n';
@@ -85,20 +86,25 @@ export default function Layout({ route, crumbs, children }) {
     window.addEventListener('tj:open-settings', h);
     return () => window.removeEventListener('tj:open-settings', h);
   }, []);
-  // a new RoninFlow release → one notification per version (the server checks GitHub daily)
+  // a new RoninFlow release → one notification per version (the server checks GitHub daily), with "Update now"
+  const [sysInfo, setSysInfo] = useState(null);
+  const [updOpen, setUpdOpen] = useState(false);
   useEffect(() => {
     if (storage.mode !== 'server') return;
     const look = () => fetch('/api/system/info').then((r) => (r.ok ? r.json() : null)).then((j) => {
+      if (j) setSysInfo(j);
       if (!j?.updateAvailable || !j.latest) return;
       const id = `upd_${j.latest}`;
       update((st) => (st.notifications.some((n) => n.id === id) ? st : {
         ...st,
-        notifications: [{ id, title: `RoninFlow ${j.latest} is available`, body: `You have ${j.version}. Click to see what's new and download it — your journal data is kept when you update.`, date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19), read: false, link: j.updateUrl }, ...st.notifications],
+        notifications: [{ id, title: `RoninFlow ${j.latest} is available`, body: `You have ${j.version}. Your journal, settings and connections are kept when you update.`, date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19), read: false, link: j.updateUrl }, ...st.notifications],
       }));
     }).catch(() => {});
     look();
     const t = setInterval(look, 6 * 3600e3);
-    return () => clearInterval(t);
+    const openUpd = () => { setSettingsTab(null); look(); setUpdOpen(true); }; // from Settings → Backups & updates
+    window.addEventListener('tj:open-update', openUpd);
+    return () => { clearInterval(t); window.removeEventListener('tj:open-update', openUpd); };
   }, [storage.mode, update]);
   // AI keys typed before the vault existed move into it (encrypted on the server, out of the journal file)
   useEffect(() => {
@@ -319,13 +325,14 @@ export default function Layout({ route, crumbs, children }) {
         </div>
         <div style={{ overflow: 'auto', flex: 1 }}>
           {state.notifications.length === 0 && <div className="empty">You're all caught up.</div>}
-          {state.notifications.map((n) => (
-            <a
+          {state.notifications.map((n) => {
+            const isUpd = !!sysInfo?.updateAvailable && n.id === `upd_${sysInfo.latest}`; // the current update: a button, not a link
+            const Tag = isUpd ? 'div' : 'a';
+            return (
+            <Tag
               key={n.id}
-              href={n.link || '#'}
-              target={n.link?.startsWith('http') ? '_blank' : undefined}
-              rel="noreferrer"
-              onClick={() => { markRead(n.id); setNotifOpen(false); }}
+              {...(isUpd ? {} : { href: n.link || '#', target: n.link?.startsWith('http') ? '_blank' : undefined, rel: 'noreferrer' })}
+              onClick={() => { markRead(n.id); if (!isUpd) setNotifOpen(false); }}
               className="row gap12"
               style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', alignItems: 'flex-start', background: n.read ? undefined : 'var(--card-2)' }}
             >
@@ -334,9 +341,15 @@ export default function Layout({ route, crumbs, children }) {
                 <div style={{ fontWeight: 500 }}>{n.title}</div>
                 <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>{n.body}</div>
                 <div className="muted2" style={{ fontSize: 12, marginTop: 6 }}>{fmtDate(n.date)} · {fmtTime12(n.date)}</div>
+                {isUpd && (
+                  <button className="btn xs primary notif-update" onClick={(e) => { e.stopPropagation(); markRead(n.id); setNotifOpen(false); setUpdOpen(true); }}>
+                    <Download size={12} /> {sysInfo.update?.canAutoUpdate ? 'Update now' : 'How to update'}
+                  </button>
+                )}
               </div>
-            </a>
-          ))}
+            </Tag>
+            );
+          })}
         </div>
       </Drawer>
       <NetworkAccess open={netOpen} onClose={() => setNetOpen(false)} />
@@ -345,6 +358,7 @@ export default function Layout({ route, crumbs, children }) {
       <SettingsCenter open={!!settingsTab} tab={settingsTab || 'general'} onClose={() => setSettingsTab(null)}
         onNetwork={() => { setSettingsTab(null); setNetOpen(true); }} onCurrency={() => { setSettingsTab(null); setCurOpen(true); }} onPlaybook={() => { setSettingsTab(null); setPbOpen(true); }} />
       <PlaybookSettings open={pbOpen} onClose={() => setPbOpen(false)} />
+      <UpdateDialog open={updOpen} info={sysInfo} onClose={() => setUpdOpen(false)} />
       {studio.ui}
       {dayPopup && <DiaryDayModal date={dayPopup} onClose={() => setDayPopup(null)} />}
       <Confirm

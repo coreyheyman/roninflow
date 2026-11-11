@@ -38,7 +38,7 @@ jobs:
         run: |
           mkdir -p build/app/src/lib
           cp -r dist docs scripts LICENSE NOTICE.md README.md package.json build/app/
-          cp server.js local-api.js candles.js connect.js connect-apis.js connect-markets.js secrets.js system.js ai-proxy.js atas-sync.js replica.js build/app/
+          cp server.js local-api.js candles.js connect.js connect-apis.js connect-markets.js secrets.js system.js updater.js ai-proxy.js atas-sync.js replica.js build/app/
           cp src/lib/pairing.js build/app/src/lib/
           for d in atas-addon ninjatrader-addon metatrader-addon ctrader-addon quantower-addon sierrachart-addon; do cp -r "$d" build/app/; done
       - uses: actions/upload-artifact@v4
@@ -112,6 +112,11 @@ jobs:
           name: app
           path: roninflow
       - run: cd roninflow && zip -qr ../RoninFlow-${{ needs.build.outputs.version }}.zip .
+      - name: Checksums (the in-app updater refuses to run an installer without them)
+        run: |
+          (cd out && sha256sum *.exe) > SHA256SUMS.txt
+          sha256sum RoninFlow-${{ needs.build.outputs.version }}.zip >> SHA256SUMS.txt
+          cat SHA256SUMS.txt
       - uses: actions/checkout@v4
         with:
           path: src
@@ -130,3 +135,4 @@ jobs:
           files: |
             out/*.exe
             RoninFlow-${{ needs.build.outputs.version }}.zip
+            SHA256SUMS.txt

@@ -564,6 +564,11 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .demo-b a { color: var(--fg); text-decoration: underline; }
 .demo-b .demo-cta { background: var(--primary); color: var(--primary-ink); text-decoration: none; padding: 4px 10px; font-weight: 600; }
 .demo-b button:last-child { text-decoration: underline; }
+.upd-notes, .upd-cmd { margin: 0; padding: 12px 14px; background: var(--card-2); border: 1px solid var(--border); font: 12.5px/1.55 var(--font, ui-monospace, monospace); white-space: pre-wrap; max-height: 220px; overflow: auto; color: var(--fg-2); }
+.upd-cmd { color: var(--fg); user-select: all; }
+.upd-bar { height: 6px; background: var(--card-3); overflow: hidden; }
+.upd-bar i { display: block; height: 100%; background: var(--primary); transition: width 0.4s ease; }
+.notif-update { margin-top: 10px; }
 .demo-note { border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border)); background: color-mix(in srgb, var(--primary) 8%, transparent); padding: 12px 14px; font-size: 13px; line-height: 1.5; color: var(--fg-2); }
 .demo-note a { color: var(--fg); text-decoration: underline; }
 .storage-banner.pos-b { background: var(--pos-bg); color: var(--pos); }
