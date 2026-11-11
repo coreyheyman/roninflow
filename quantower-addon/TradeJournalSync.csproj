@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Built by install.ps1, which passes the Quantower paths and target framework it found on this PC. -->
+  <PropertyGroup>
+    <TargetFramework>$(QtFramework)</TargetFramework>
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net8.0-windows</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AssemblyName>TradeJournalSync</AssemblyName>
+    <RootNamespace>TradeJournal</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="TradeJournalSync.cs" />
+    <Reference Include="TradingPlatform.BusinessLayer">
+      <HintPath>$(QtBin)\TradingPlatform.BusinessLayer.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

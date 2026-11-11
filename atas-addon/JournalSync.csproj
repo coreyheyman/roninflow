@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Journal Sync add-on for ATAS X.
+       Build and install from the RoninFlow folder with: npm run addon
+       (it runs atas-addon\install.ps1, which finds ATAS X and passes its folder as ATAS_BASE). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>JournalSync</AssemblyName>
+    <RootNamespace>TradeJournal</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS8618;CS8602;CS8604</NoWarn>
+    <ATAS_BASE Condition=" '$(ATAS_BASE)' == '' ">C:\Program Files\ATAS X</ATAS_BASE>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="JournalSync.cs" />
+  </ItemGroup>
+
+  <!-- Platform assemblies come from the installed ATAS X and are not copied to the output. -->
+  <ItemGroup>
+    <Reference Include="ATAS.Indicators">
+      <HintPath>$(ATAS_BASE)\ATAS.Indicators.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="ATAS.DataFeedsCore">
+      <HintPath>$(ATAS_BASE)\ATAS.DataFeedsCore.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OFT.Rendering">
+      <HintPath>$(ATAS_BASE)\OFT.Rendering.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Utils.Common">
+      <HintPath>$(ATAS_BASE)\Utils.Common.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

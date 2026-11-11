@@ -1,0 +1,48 @@
+{
+  "name": "roninflow",
+  "version": "1.0.0",
+  "description": "Free, open-source, self-hosted trading journal with live platform sync, reviews, risk tiers and an AI coach.",
+  "license": "MIT",
+  "homepage": "https://github.com/coreyheyman/roninflow",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/coreyheyman/roninflow.git"
+  },
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "addon": "powershell -NoProfile -ExecutionPolicy Bypass -File atas-addon/install.ps1",
+    "addon:nt": "powershell -NoProfile -ExecutionPolicy Bypass -File ninjatrader-addon/install.ps1",
+    "addon:mt": "powershell -NoProfile -ExecutionPolicy Bypass -File metatrader-addon/install.ps1",
+    "addon:ctrader": "powershell -NoProfile -ExecutionPolicy Bypass -File ctrader-addon/install.ps1",
+    "addon:qt": "powershell -NoProfile -ExecutionPolicy Bypass -File quantower-addon/install.ps1",
+    "addon:sierra": "powershell -NoProfile -ExecutionPolicy Bypass -File sierrachart-addon/install.ps1",
+    "start": "node server.js",
+    "autostart:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-autostart.ps1",
+    "autostart:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restart-journal.ps1",
+    "autostart:remove": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/uninstall-autostart.ps1",
+    "phone:firewall": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/phone-firewall.ps1",
+    "phone:https": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/phone-https.ps1",
+    "server:deploy": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/home-server.ps1",
+    "test": "node --import ./tests/setup.mjs --test \"tests/*.test.mjs\""
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "autoprefixer": "^10.6.2",
+    "lucide-react": "^1.70.0",
+    "oxlint": "^1.90.0",
+    "postcss": "^8.5.32",
+    "tailwindcss": "^4.3.5",
+    "vite": "^8.3.6"
+  }
+}

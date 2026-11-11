@@ -1,0 +1,20 @@
+# RoninFlow on a home server / NAS:
+#   docker compose up -d
+#   docker compose logs roninflow      ← the one-time setup code is printed here on first start
+# Then open http://<server-ip>:5173, set your password, and follow the setup.
+# Update:  docker compose pull && docker compose up -d   (your data stays in the volume)
+services:
+  roninflow:
+    image: ghcr.io/coreyheyman/roninflow:latest
+    build: .                                     # …or build it from this folder
+    container_name: roninflow
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - tj-data:/data
+    environment:
+      - TZ=America/New_York          # your time zone (backups, logs)
+      # - TJ_SECRET_KEY=change-me    # optional: encryption key for saved API keys (otherwise kept in /data/secret.key)
+volumes:
+  tj-data:
