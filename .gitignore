@@ -1,19 +1,19 @@
-node_modules/
-dist/
-data/
-logs/
-_reverted/
-.iq-sync/
+/node_modules/
+/dist/
+/data/
+/logs/
+/_reverted/
+/.iq-sync/
 *.log
 .DS_Store
-build/
-_to_delete/
-setup-github/
-_fonttmp/
+/build/
+/_to_delete/
+/setup-github/
+/_fonttmp/
 # build output of the platform add-ons
 *-addon/bin/
 *-addon/obj/
 # machine-specific files written by the scripts
 scripts/home-server.json
 scripts/start-hidden.vbs
-replica.json
+/replica.json
