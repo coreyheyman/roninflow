@@ -38,6 +38,8 @@ import {
   REVIEW_TYPES, REVIEW_PROMPTS, reviewPrompts, commitmentField, periodFromId, periodOf, shiftPeriod, reviewKey, reviewHref, reviewStatus, inPeriod, dueReviews, withReviewNotifications,
 } from '../lib/reviews';
 
+const nTrades = (n) => `${n} trade${n === 1 ? '' : 's'}`;
+
 // ---------------------------------------------------------------- hooks used by the layout
 /** Adds "review due" notifications once the server/browser state has loaded. */
 export function useReviewWatcher() {
@@ -130,7 +132,7 @@ function Headline({ m }) {
       <div className="panel rv-hcard">
         <div className="rv-tile-l">EV <span className="muted2">· expectancy per trade</span></div>
         <div className={`rv-hval ${tone.money(m.ev)}`}><Private>{fmtMoney(m.ev, { sign: true })}</Private></div>
-        <div className="muted" style={{ fontSize: 12.5 }}>{m.count} trades · net ÷ trades</div>
+        <div className="muted" style={{ fontSize: 12.5 }}>{nTrades(m.count)} · net ÷ trades</div>
       </div>
       <div className="panel rv-hcard">
         <div className="rv-tile-l">Performance Ratio</div>
@@ -192,14 +194,14 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
               const day = out ? null : dayMap[k];
               const cls = `rv-day ${out ? 'out' : ''} ${day ? (day.net >= 0 ? 'win' : 'loss') : ''} ${k === today ? 'today' : ''}`;
               const heatBg = variant === 'heat' && day ? { background: `color-mix(in srgb, var(${day.net >= 0 ? '--pos-strong' : '--neg'}) ${Math.round(18 + 62 * Math.min(1, Math.abs(day.net) / maxAbs))}%, transparent)` } : undefined;
-              const tip = day ? `${fmtDate(k)} · ${fmtMoney(day.net, { sign: true })} · ${day.count} trades · ${wr(day)}% win` : out ? '' : fmtDate(k);
+              const tip = day ? `${fmtDate(k)} · ${fmtMoney(day.net, { sign: true })} · ${nTrades(day.count)} · ${wr(day)}% win` : out ? '' : fmtDate(k);
               return (
                 <div key={k} className={cls} style={heatBg} title={tip} onClick={() => !out && onDay?.(k)}>
                   {variant !== 'heat' && !out && <span className="dn">{d.getDate()}</span>}
                   {day && variant === 'full' && (
                     <>
                       <div className={`pv ${day.net >= 0 ? 'pos' : 'neg'}`}><span className={`pv-full ${priv ? 'hidden-val' : ''}`}>{fmtMoney(day.net, { sign: true, dp: 0 })}</span><span className={`pv-short ${priv ? 'hidden-val' : ''}`}>{short(day.net)}</span></div>
-                      <div className="rv-day-meta"><span>{day.count} trades</span><span>{wr(day)}%</span></div>
+                      <div className="rv-day-meta"><span>{nTrades(day.count)}</span><span>{wr(day)}%</span></div>
                     </>
                   )}
                   {day && variant === 'mini' && <div className={`pv ${day.net >= 0 ? 'pos' : 'neg'}`}><span className={priv ? 'hidden-val' : ''}>{short(day.net)}</span></div>}
@@ -395,13 +397,13 @@ function WeekDays({ period, dayMap }) {
           <div className={`rv-wday-v ${day ? (day.net >= 0 ? 'pos' : 'neg') : 'muted2'}`}>
             {day ? <span className={priv ? 'hidden-val' : ''}>{fmtMoney(day.net, { sign: true, dp: 0 })}</span> : '—'}
           </div>
-          <div className="rv-wday-f">{day ? <><span>{day.count} trades</span><span>{wr(day)}%</span></> : <span className="muted2">No trades</span>}</div>
+          <div className="rv-wday-f">{day ? <><span>{nTrades(day.count)}</span><span>{wr(day)}%</span></> : <span className="muted2">No trades</span>}</div>
         </div>
       ))}
       <div className={`rv-wday total ${list.length ? (net >= 0 ? 'win' : 'loss') : ''}`}>
         <div className="rv-wday-h"><span>Week</span></div>
         <div className={`rv-wday-v ${list.length ? (net >= 0 ? 'pos' : 'neg') : 'muted2'}`}>{list.length ? <span className={priv ? 'hidden-val' : ''}>{fmtMoney(net, { sign: true, dp: 0 })}</span> : '—'}</div>
-        <div className="rv-wday-f">{list.length ? <><span>{n} trades</span><span>WR {Math.round((w / n) * 100)}%</span></> : <span className="muted2">—</span>}</div>
+        <div className="rv-wday-f">{list.length ? <><span>{nTrades(n)}</span><span>WR {Math.round((w / n) * 100)}%</span></> : <span className="muted2">—</span>}</div>
       </div>
     </div>
   );

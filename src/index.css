@@ -672,7 +672,10 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-wday-f { display: flex; justify-content: space-between; padding: 8px 14px; font-size: 12px; color: var(--fg-2); border-top: 1px solid var(--border); margin-top: auto; }
 .rv-wday.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 18%, transparent), color-mix(in srgb, var(--pos-strong) 5%, transparent)); }
 .rv-wday.loss { background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 13%, transparent), color-mix(in srgb, var(--neg) 4%, transparent)); }
-.rv-wday.today .rv-wday-h span:first-child::after { content: ' · Today'; color: var(--primary); }
+.rv-wday-h span { white-space: nowrap; }
+.rv-wday-h span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* today: a small accent dot after the day name (no text, so the header never wraps) */
+.rv-wday.today .rv-wday-h span:first-child::after { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--primary); margin-left: 7px; vertical-align: 2px; }
 .rv-wday:not(.total):hover { filter: brightness(1.15); }
 .rv-wday.total { box-shadow: inset 2px 0 0 var(--border-2); aspect-ratio: auto; max-height: none; }
 .rv-wday.total.win { box-shadow: inset 2px 0 0 var(--pos-strong); }
