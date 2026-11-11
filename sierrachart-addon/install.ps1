@@ -18,5 +18,5 @@ Write-Host "  1. Analysis -> Build Custom Studies DLL -> pick TradeJournalSync.c
 Write-Host "  2. Open the chart you trade from: Analysis -> Studies -> Add Custom Study -> RoninFlow Sync -> Add -> OK."
 Write-Host "  3. Message Log shows 'RoninFlow Sync started'. Fills reach the journal within ~10 seconds."
 Write-Host "  Add it to each symbol's chart you trade (it reads that chart's symbol + trade account)."
-Write-Host "If the build shows errors, copy them and send them to Claude." -ForegroundColor DarkGray
+Write-Host "If the build shows errors, copy them into an issue at https://github.com/coreyheyman/roninflow/issues" -ForegroundColor DarkGray
 Write-Host ""

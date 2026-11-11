@@ -37,7 +37,7 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 Push-Location $PSScriptRoot
 try {
   & dotnet build "TradeJournalSync.csproj" -c Release -o "$out" "-p:QtBin=$bin" "-p:QtFramework=$fw" -nologo -v q
-  if ($LASTEXITCODE -ne 0) { Fail "The build failed. Copy the errors above and send them to Claude." }
+  if ($LASTEXITCODE -ne 0) { Fail "The build failed. Copy the errors above into an issue at https://github.com/coreyheyman/roninflow/issues" }
 } finally { Pop-Location }
 Ok "Built into $out"
 
@@ -46,5 +46,5 @@ Write-Host "Next, in Quantower:" -ForegroundColor Cyan
 Write-Host "  1. Restart Quantower (it loads strategies at start)."
 Write-Host "  2. Open Strategies Manager, pick 'RoninFlow Sync' and press Run."
 Write-Host "  3. Its log shows '[RoninFlow] started'. Fills appear in the journal within ~15 seconds."
-Write-Host "This connector is in beta - if something looks off, send Claude the strategy log." -ForegroundColor DarkGray
+Write-Host "This connector is in beta - if something looks off, open an issue at https://github.com/coreyheyman/roninflow/issues with the strategy log" -ForegroundColor DarkGray
 Write-Host ""

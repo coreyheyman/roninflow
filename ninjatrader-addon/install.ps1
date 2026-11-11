@@ -41,5 +41,5 @@ Write-Host "Next, in NinjaTrader 8:" -ForegroundColor Cyan
 Write-Host "  1. Control Center -> New -> NinjaScript Editor, then press F5 (compile)."
 Write-Host "  2. Open New -> NinjaScript Output to see '[RoninFlow] started'."
 Write-Host "  3. Place a trade (Sim101 is fine) - it shows up in the journal within ~15 seconds."
-Write-Host "If compiling shows errors, copy them and send them to Claude." -ForegroundColor DarkGray
+Write-Host "If compiling shows errors, copy them into an issue at https://github.com/coreyheyman/roninflow/issues" -ForegroundColor DarkGray
 Write-Host ""

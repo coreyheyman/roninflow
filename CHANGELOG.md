@@ -5,6 +5,8 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
 ## 1.1.1
 
 - **Today's market events in the top bar:** a small note at the top right shows the next high-impact release today with a countdown (it turns red 15 minutes before), or a market holiday. Click it for today's list; hide it until tomorrow from there, or switch it off at the bottom of the Economic Calendar. It follows the calendar's currency filter.
+- **ATAS add-on installer finds ATAS X in more places:** any drive, renamed or versioned folders, per-user installs, the Apps list, Start-menu shortcuts or a running ATAS. If it still can't, it asks you to paste the folder (with directions to find it) instead of stopping with a command meant for source-code installs.
+- Add-on installers point to GitHub issues for build errors.
 
 ## 1.1.0
 

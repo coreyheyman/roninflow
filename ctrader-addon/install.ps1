@@ -12,5 +12,5 @@ Write-Host "  1. Algo (left bar) -> cBots -> New -> name it TradeJournalSync."
 Write-Host "  2. Select all the template code, paste over it (Ctrl+A, Ctrl+V), then Build (Ctrl+B)."
 Write-Host "  3. Add an instance (any symbol), press Start. The log shows '[RoninFlow] started'."
 Write-Host "  Run one instance for each account you want synced. It never places trades."
-Write-Host "If building shows errors, copy them and send them to Claude." -ForegroundColor DarkGray
+Write-Host "If building shows errors, copy them into an issue at https://github.com/coreyheyman/roninflow/issues" -ForegroundColor DarkGray
 Write-Host ""
