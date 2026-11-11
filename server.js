@@ -23,6 +23,7 @@ import { createCandleHandler } from './candles.js';
 import { createConnectHandler } from './connect.js';
 import { createVault } from './secrets.js';
 import { createSystemHandler } from './system.js';
+import { createMacroHandler } from './macro.js';
 import { createDataHandler, createNetHandler, createConfig, isLocalPc, cookieToken, lanUrls, loginPage } from './local-api.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -111,6 +112,7 @@ const vaultApi = async (req, res) => {
     return sendJson(res, 405, { error: 'method' });
   } catch (e) { return sendJson(res, 400, { error: e.message }); }
 };
+const macroApi = createMacroHandler(DATA_DIR, { log }); // economic calendar + COT report (Macro pages)
 const connectApi = createConnectHandler(DATA_DIR, { log, vault });
 const candleApi = createCandleHandler(DATA_DIR, { readTrades, log, vault, tokenOk: (req) => connectApi.tokenOk(req, isLocalPc(req)) });
 const netApi = createNetHandler({ config, port: PORT, mode: 'server', onLanChange: (on) => setImmediate(() => bind(on)) });
@@ -193,6 +195,7 @@ function handle(req, res) {
     if (req.url.startsWith('/api/candles')) return candleApi(req, res);
     if (req.url.startsWith('/api/connect')) return connectApi(req, res, { trusted: true, loopback });
     if (req.url.startsWith('/api/system')) return isReplica ? sendJson(res, 403, { error: 'forbidden' }) : systemApi(req, res);
+    if (req.url.startsWith('/api/macro')) return macroApi(req, res);
     if (req.url.startsWith('/api/vault')) return isReplica ? sendJson(res, 403, { error: 'forbidden' }) : vaultApi(req, res);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.statusCode = 405; return res.end(); }
     return serveStatic(req, res);

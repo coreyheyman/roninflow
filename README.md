@@ -24,9 +24,11 @@ reviews and screenshots stay on your own machine.
 - **Daily diary** with pre/post-session routines, market conditions, edge blockers and execution charts.
 - **Risk tiers** that move you between risk levels based on drawdown and recent days, prop-firm account rules
   (profit target, static / intraday / EOD trailing drawdown) and payouts / ROI.
+- **Macro:** an economic calendar (list, week and month views, in your time zone, with forecasts and actuals) and the
+  CFTC **COT report** — who's long, who's short and who's crowded across index, rates, FX, metals, energy and crypto futures.
 - **Weekly → yearly reviews** with your own questions, and an **AI coach** (your own key, a free local model, or offline).
 - **Private by design:** password protection, encrypted API keys, daily backups — nothing leaves your machine unless you
-  connect a service yourself.
+  connect a service yourself. (The Macro pages download public calendar and COT data when you open them; they send nothing about you.)
 - 16 languages, themes, works on your phone, update notifications.
 
 ## Screenshots
@@ -81,6 +83,8 @@ so installed copies can check for updates.
 | `#/review/weekly` · `monthly` · `quarterly` · `yearly` | Periodic reviews. Each page has a calendar of daily P&L for the period (Mon–Fri strip, month grid, three months, or a 12-month heat map), review stats (EV, Performance Ratio, ROMAD, P&L, win rate, PF, Sharpe, biggest drawdown, avg winning/losing day, best/worst day, max consecutive winning/losing days, winning-day %, disciplined trades %, size management %) and the review prompts. ‹ › steps to past periods; answers save automatically; **Mark … reviewed** completes it. A review becomes due at 1:00 PM on the last weekday of the period: you get a notification and a **Due** badge in the sidebar until it's done. Last period's commitment is shown at the top. |
 | `#/notebook` | Free-form notebook (not in the sidebar; open it at this address). |
 | `#/strategy` | **Trading strategies** and **Market conditions** tabs: performance of each strategy and each market condition. 3-step strategy builder (Basics, Rules Engine, Media & Education). Strategy pages show stats from linked trades, equity curve and a pre-trade checklist. |
+| `#/macro/calendar` | **Economic Calendar**: List (today / this week / next week), Week and Month views in your time zone, impact and currency filters, search, a countdown to the next release and the next high-impact event, beat / miss colouring, and earlier releases of each event. Data: ForexFactory's public weekly feed (this week and next; every week fetched is kept, so history builds up) plus official US release dates (Fed, BLS) for the months ahead. Fetched by RoninFlow's server at most every 30 minutes. |
+| `#/macro/cot` | **COT Report**: about 30 futures markets from the CFTC's weekly Commitments of Traders (Legacy, futures only, ~3 years): large speculators' net position and weekly change, % long, COT index over 6M / 1Y / 3Y with *crowded long / short* flags, commercials, open interest and a trend line. Click a market for its chart and recent weeks; **Add market** searches every market in the report. Updates after each Friday release. |
 | `#/accounts` | Account cards with equity charts, status menu, add / edit / delete, detail modal with profit-target / drawdown / daily-limit progress. |
 
 Global: account switcher, notifications drawer, privacy mode (eye icon blurs all $ values), themes, language,

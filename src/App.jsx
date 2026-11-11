@@ -16,6 +16,8 @@ import Risk from './views/Risk';
 import { fmtDate } from './lib/stats';
 import Payouts from './views/Payouts';
 import Connections from './views/Connections';
+import EconCalendar from './views/EconCalendar';
+import Cot from './views/Cot';
 
 function Router() {
   const route = useRoute();
@@ -61,6 +63,10 @@ function Router() {
     case 'payouts':
       crumbs = [{ label: 'Payouts' }];
       view = <Payouts />;
+      break;
+    case 'macro':
+      crumbs = [{ label: 'Macro', href: '#/macro/calendar' }, { label: sub === 'cot' ? 'COT Report' : 'Economic Calendar' }];
+      view = sub === 'cot' ? <Cot /> : <EconCalendar />;
       break;
     case 'connections':
       crumbs = [{ label: 'Connections' }];

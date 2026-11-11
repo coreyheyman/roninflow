@@ -13,6 +13,7 @@
 
 import fs from 'node:fs';
 import { createCandleHandler } from './candles.js';
+import { createMacroHandler } from './macro.js';
 import { createConnectHandler } from './connect.js';
 import { createVault } from './secrets.js';
 import path from 'node:path';
@@ -391,11 +392,13 @@ export default function localApiPlugin() {
   const vault = createVault(dataDir);
   const connect = createConnectHandler(dataDir, { vault });
   const candles = createCandleHandler(dataDir, { vault, tokenOk: () => true });
+  const macro = createMacroHandler(dataDir);
   const ctx = (req) => ({ loopback: isLocalPc(req) });
   const mount = (server) => {
     server.middlewares.use('/api/data', (req, res, next) => data(req, res, next, ctx(req)));
     server.middlewares.use('/api/net', (req, res, next) => net(req, res, next, ctx(req)));
     server.middlewares.use('/api/candles', (req, res) => candles(req, res));
+    server.middlewares.use('/api/macro', (req, res) => macro(req, res));
     server.middlewares.use('/api/connect', (req, res) => connect(req, res, { trusted: true, loopback: true }));
   };
   return { name: 'tj-local-api', configureServer: mount, configurePreviewServer: mount };

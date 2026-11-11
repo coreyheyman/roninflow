@@ -20,7 +20,7 @@ WORKDIR /app
 # the server needs no npm packages at runtime — just Node, the built app and these files
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/package.json /app/LICENSE /app/NOTICE.md ./
-COPY --from=build /app/server.js /app/local-api.js /app/candles.js /app/connect.js /app/connect-apis.js /app/connect-markets.js /app/secrets.js /app/system.js /app/updater.js /app/ai-proxy.js /app/atas-sync.js /app/replica.js ./
+COPY --from=build /app/server.js /app/local-api.js /app/candles.js /app/connect.js /app/connect-apis.js /app/connect-markets.js /app/secrets.js /app/system.js /app/updater.js /app/ai-proxy.js /app/atas-sync.js /app/replica.js /app/macro.js ./
 COPY --from=build /app/src/lib/pairing.js ./src/lib/pairing.js
 COPY --from=build /app/docs ./docs
 RUN mkdir -p /data && chown -R node:node /data /app

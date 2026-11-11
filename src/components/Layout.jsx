@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard, FileText, Bot, Book, ClipboardCheck, Target, Users, Bell, PanelLeft, Eye, EyeOff, SunMoon,
   ChevronsUpDown, Download, Upload, RefreshCw, Settings, ChevronRight, Sparkles, X, ShieldCheck, Smartphone, Menu, Coins, HandCoins, Palette, Cable,
-  Languages,
+  Languages, Globe,
 } from 'lucide-react';
 import { useStore, navigate } from '../store/store';
 import { IS_DEMO, DOWNLOAD_URL, REPO_URL } from '../lib/demoMode';
@@ -56,6 +56,7 @@ const NAV = [
   { id: 'diary', label: 'Daily Diary', icon: Book },
   { id: 'review', label: 'Review', icon: ClipboardCheck, path: 'review/weekly' },
   { id: 'strategy', label: 'Strategy', icon: Target },
+  { id: 'macro', label: 'Macro', icon: Globe, path: 'macro/calendar' },
   { id: 'risk', label: 'Risk Management', icon: ShieldCheck },
   { id: 'accounts', label: 'Accounts', icon: Users },
   { id: 'payouts', label: 'Payouts', icon: HandCoins },
@@ -188,6 +189,12 @@ export default function Layout({ route, crumbs, children }) {
                   ))}
                 </div>
               )}
+              {n.id === 'macro' && section === 'macro' && (
+                <div className="nav-sub">
+                  <a href="#/macro/calendar" className={route[1] !== 'cot' ? 'active' : ''}>Economic Calendar</a>
+                  <a href="#/macro/cot" className={route[1] === 'cot' ? 'active' : ''}>COT Report</a>
+                </div>
+              )}
               {n.id === 'journal' && section === 'journal' && (
                 <div className="nav-sub">
                   <a href="#/journal/database" className={route[1] !== 'inbox' ? 'active' : ''}>Database</a>
@@ -300,7 +307,7 @@ export default function Layout({ route, crumbs, children }) {
       </main>
 
       <nav className="mobile-nav">
-        {[NAV[0], NAV[1], NAV[3], NAV[6], NAV[2]].map((n) => (
+        {['dashboard', 'journal', 'diary', 'risk', 'coach'].map((id) => NAV.find((x) => x.id === id)).map((n) => (
           <a key={n.id} href={`#/${n.path || n.id}`} className={section === n.id ? 'on' : ''}><n.icon size={20} strokeWidth={1.7} />{n.label.replace('Trading ', '').replace('Daily ', '').replace(' Management', '')}</a>
         ))}
         <a href="#" onClick={(e) => { e.preventDefault(); setMobileMenu(true); }}><Menu size={20} strokeWidth={1.7} />More</a>
