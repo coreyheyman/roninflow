@@ -34,3 +34,11 @@ test('the home-server copy ships every file the replica imports', () => {
   const missing = [...serverFiles('replica.js')].filter((f) => !text.includes(f));
   assert.deepEqual(missing, [], `home-server.ps1 is missing: ${missing.join(', ')}`);
 });
+
+import { execFileSync } from 'node:child_process';
+test('the macOS / Linux scripts parse, and the release packages the roninflow command', () => {
+  for (const f of ['install.sh', 'installer/unix/roninflow']) execFileSync('bash', ['-n', path.join(root, f)]);
+  const rel = lists['release.yml'];
+  assert.ok(rel.includes('installer/unix/roninflow'), 'release.yml must copy installer/unix/roninflow into the packages');
+  for (const t of ['linux-x64', 'linux-arm64', 'darwin-x64', 'darwin-arm64']) assert.ok(rel.includes(t), `release.yml builds ${t}`);
+});

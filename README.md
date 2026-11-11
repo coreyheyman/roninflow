@@ -1,6 +1,6 @@
 # RoninFlow
 
-**A free, open-source trading journal you run yourself** — on your Windows PC, a home server or a NAS. A self-hosted
+**A free, open-source trading journal you run yourself** — on Windows, macOS, Linux, a home server or a NAS. A self-hosted
 alternative to TradeZella, Tradervue and Edgewonk for futures, stocks, forex and crypto traders. Your trades, diary,
 reviews and screenshots stay on your own machine.
 
@@ -11,6 +11,7 @@ reviews and screenshots stay on your own machine.
 
 **[▶ Try the live demo](https://coreyheyman.github.io/roninflow/)** (made-up data, runs in your browser) ·
 **[⬇ Download for Windows](https://github.com/coreyheyman/roninflow/releases/latest)** ·
+**[🍎🐧 macOS & Linux](docs/install.md#macos-and-linux)** ·
 **[🐳 Docker](docs/install.md#docker-home-server-nas-raspberry-pi-45)**
 
 ![RoninFlow dashboard](docs/screenshots/dashboard.png)
@@ -46,6 +47,7 @@ Licence: MIT (see `LICENSE`; third-party credits in `NOTICE.md`). Not financial 
 | | |
 |---|---|
 | **Windows** | Download `RoninFlow-Setup-x.y.z.exe` from the [Releases page](https://github.com/coreyheyman/roninflow/releases/latest) and run it. It starts with Windows and opens in your browser at http://localhost:5173. |
+| **macOS / Linux** | In Terminal: `curl -fsSL https://raw.githubusercontent.com/coreyheyman/roninflow/main/install.sh \| bash` — starts at login and opens at http://localhost:5173. Details: [docs/install.md](docs/install.md#macos-and-linux). |
 | **Docker / home server** | `docker compose up -d` (see `docker-compose.yml`), open `http://<server>:5173`, and set your password with the setup code from `docker compose logs`. |
 | **From source** | Node.js 20+: `npm install`, `npm run build`, `npm start` (or `npm run autostart:install` on Windows). |
 

@@ -13,7 +13,34 @@ RoninFlow is a web app that runs on your own machine. Pick one way to run it.
 - Your data: `%LOCALAPPDATA%\TradeJournal\data` (Start menu → RoninFlow → *Open data folder*). Updating or
   uninstalling never deletes it.
 - Platform add-ons: Start menu → RoninFlow → *Install platform add-ons*.
-- Update: download and run the new installer. Settings → Backups & updates tells you when one is out.
+- Update: click **Update now** when RoninFlow tells you a new version is out (or download and run the new installer).
+
+## macOS and Linux
+
+Paste this into Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/coreyheyman/roninflow/main/install.sh | bash
+```
+
+No administrator rights are needed and Node.js is included. RoninFlow starts in the background whenever you log in
+(launchd on macOS, a systemd user service on Linux) and opens in your browser at **http://localhost:5173**.
+
+- Apple Silicon and Intel Macs; Linux on x64 and arm64 (Raspberry Pi 4/5 with a 64-bit OS, ARM servers).
+- Your data: `~/Library/Application Support/RoninFlow/data` (macOS) or `~/.local/share/roninflow/data` (Linux).
+  Updating or uninstalling never deletes it.
+- The `roninflow` command: `roninflow open` · `status` · `logs` · `restart` · `update` · `uninstall` (add `--purge`
+  to delete your data too).
+- Update: click **Update now** in the app, or run `roninflow update`.
+- **Headless Linux server** (e.g. a mini PC in a cupboard): install with `| bash -s -- --lan` so other devices can
+  reach it, then open `http://<server>:5173` from another device and enter the setup code shown by `roninflow logs`.
+  To keep it running when you're logged out, run `sudo loginctl enable-linger $USER` once (the installer tries this).
+- Other options: `--port 8080`, `--no-service` (don't start at login).
+- The platform add-ons (ATAS, NinjaTrader, Sierra Chart…) are Windows programs. On a Mac, use broker connections,
+  file import, or run the platform in a Windows VM and point its add-on at this Mac's address.
+- Every download is checked against the release's `SHA256SUMS.txt`. To read the script before running it, download
+  [install.sh](../install.sh) first.
+
 
 ## Docker (home server, NAS, Raspberry Pi 4/5)
 

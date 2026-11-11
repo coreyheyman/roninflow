@@ -65,12 +65,14 @@ export default function UpdateDialog({ open, info, onClose }) {
           </>
         ) : (
           <>
-            <div>{info.update?.installType === 'docker'
-              ? 'This copy runs in Docker, which can’t replace itself from inside the app. On the server, in the folder with docker-compose.yml, run:'
-              : 'This copy runs from the source code. In the RoninFlow folder, run:'}</div>
-            <pre className="upd-cmd">{info.update?.installType === 'docker'
-              ? 'docker compose pull && docker compose up -d'
-              : 'git pull\nnpm install\nnpm run build\nnpm run autostart:restart   # or restart "npm start"'}</pre>
+            <div>{{
+              docker: 'This copy runs in Docker, which can’t replace itself from inside the app. On the server, in the folder with docker-compose.yml, run:',
+              unix: 'RoninFlow isn’t running as a background service right now, so it can’t restart itself. In a terminal, run:',
+            }[info.update?.installType] || 'This copy runs from the source code. In the RoninFlow folder, run:'}</div>
+            <pre className="upd-cmd">{{
+              docker: 'docker compose pull && docker compose up -d',
+              unix: 'roninflow update',
+            }[info.update?.installType] || 'git pull\nnpm install\nnpm run build\nnpm run autostart:restart   # or restart "npm start"'}</pre>
             <div className="muted" style={{ fontSize: 12.5 }}>Your journal and settings are kept.</div>
           </>
         ))}

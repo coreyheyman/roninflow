@@ -97,8 +97,43 @@ jobs:
           name: windows-installer
           path: build/out/*.exe
 
+  unix:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: app
+          path: build/app
+      - name: macOS and Linux packages (official Node.js builds, checked against nodejs.org's SHASUMS256.txt)
+        run: |
+          set -euo pipefail
+          V="${{ needs.build.outputs.version }}"
+          mkdir -p out nodes
+          curl -fsSL "https://nodejs.org/dist/$NODE_WIN/SHASUMS256.txt" -o nodes/SHASUMS256.txt
+          for t in linux-x64 linux-arm64 darwin-x64 darwin-arm64; do
+            n="node-$NODE_WIN-$t"
+            curl -fsSL "https://nodejs.org/dist/$NODE_WIN/$n.tar.gz" -o "nodes/$n.tar.gz"
+            (cd nodes && grep " $n.tar.gz\$" SHASUMS256.txt | sha256sum -c -)
+            tar -xzf "nodes/$n.tar.gz" -C nodes
+            os="${t%%-*}"; [ "$os" = darwin ] && os=macos; arch="${t#*-}"
+            rm -rf pkg && mkdir -p pkg/roninflow/node/bin pkg/roninflow/bin
+            cp -r build/app/. pkg/roninflow/
+            cp "nodes/$n/bin/node" pkg/roninflow/node/bin/node
+            cp "nodes/$n/LICENSE" pkg/roninflow/node/LICENSE
+            cp installer/unix/roninflow pkg/roninflow/bin/roninflow
+            chmod +x pkg/roninflow/node/bin/node pkg/roninflow/bin/roninflow
+            tar -czf "out/RoninFlow-$V-$os-$arch.tar.gz" -C pkg roninflow
+          done
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unix-packages
+          path: out/*.tar.gz
+
   release:
-    needs: [build, docker, windows]
+    needs: [build, docker, windows, unix]
     runs-on: ubuntu-latest
     # a tag push, or started by hand from the Actions tab (then the tag v<package.json version> is created here)
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
@@ -109,12 +144,16 @@ jobs:
           path: out
       - uses: actions/download-artifact@v4
         with:
+          name: unix-packages
+          path: out
+      - uses: actions/download-artifact@v4
+        with:
           name: app
           path: roninflow
       - run: cd roninflow && zip -qr ../RoninFlow-${{ needs.build.outputs.version }}.zip .
       - name: Checksums (the in-app updater refuses to run an installer without them)
         run: |
-          (cd out && sha256sum *.exe) > SHA256SUMS.txt
+          (cd out && sha256sum *.exe *.tar.gz) > SHA256SUMS.txt
           sha256sum RoninFlow-${{ needs.build.outputs.version }}.zip >> SHA256SUMS.txt
           cat SHA256SUMS.txt
       - uses: actions/checkout@v4
@@ -125,7 +164,7 @@ jobs:
         run: |
           awk -v v="## ${{ needs.build.outputs.version }}" '$0==v{f=1;next} /^## /{f=0} f' src/CHANGELOG.md > notes.md
           [ -s notes.md ] || echo "RoninFlow ${{ needs.build.outputs.version }}" > notes.md
-          printf '\n---\n**Windows:** download `RoninFlow-Setup-${{ needs.build.outputs.version }}.exe` and run it — it updates in place and keeps your journal. **Docker:** `docker compose pull && docker compose up -d`.\n' >> notes.md
+          printf '\n---\n**Windows:** download `RoninFlow-Setup-${{ needs.build.outputs.version }}.exe` and run it — it updates in place and keeps your journal. **macOS / Linux:** `roninflow update` (new install: see the README). **Docker:** `docker compose pull && docker compose up -d`. Or use **Update now** in the app.\n' >> notes.md
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.build.outputs.version }}
@@ -134,5 +173,6 @@ jobs:
           body_path: notes.md
           files: |
             out/*.exe
+            out/*.tar.gz
             RoninFlow-${{ needs.build.outputs.version }}.zip
             SHA256SUMS.txt
