@@ -46,7 +46,7 @@ export default function MacroPill() {
     : <b className="truncate">{hol.short} — {HOL[hol.holiday]}</b>;
 
   return (
-    <Popover align="right" width={360} trigger={({ toggle }) => (
+    <Popover className="mp-wrap" align="right" width={360} trigger={({ toggle }) => (
       <button className={`btn sm ghost macro-pill ${soon ? 'soon' : ''} ${!next ? 'hol' : ''}`} onClick={toggle} title="Today’s market events">
         <i className={`mp-dot ${next ? 'high' : hol.holiday}`} />
         <span className="mp-lbl row gap6">{label}</span>
