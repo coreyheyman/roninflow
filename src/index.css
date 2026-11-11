@@ -325,7 +325,8 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
 .cal-cell.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 20%, transparent), color-mix(in srgb, var(--pos-strong) 8%, transparent)); cursor: pointer; }
 .cal-cell.loss { background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 14%, transparent), color-mix(in srgb, var(--neg) 5%, transparent)); cursor: pointer; }
 .cal-cell.win:hover, .cal-cell.loss:hover { filter: brightness(1.2); }
-.cal-cell .today { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1.5px solid var(--fg); border-radius: 50%; }
+.cal-cell.today, .rv-day.today { box-shadow: inset 0 0 0 1.5px var(--primary); }
+.cal-cell.today .d { color: var(--primary); font-weight: 700; }
 .cal-cell .pnl { white-space: nowrap; font-size: clamp(13px, 1.15vw, 20px); font-weight: 500; margin-top: auto; letter-spacing: -0.02em; }
 .cal-cell .pv-short { display: none; }
 .cal-cell .pnl small { font-size: 9px; color: var(--muted); margin-left: 6px; }
@@ -578,8 +579,9 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
   .hold-card .v { font-size: 18px; }
   .dash-grid.thirds, .dash-grid { grid-template-columns: 1fr !important; }
   .tbl thead th, .tbl tbody td { padding: 0 10px; }
-  .cal-cell { padding: 5px 3px !important; }
-  .cal-cell .pnl { font-size: 10.5px !important; letter-spacing: -0.04em; overflow: hidden; }
+  .cal-cell { padding: 5px 3px !important; min-height: 40px; }
+  .cal-cell .d { font-size: 11.5px; line-height: 1.25; }
+  .cal-cell .pnl { font-size: clamp(8.5px, 2.6vw, 10.5px) !important; letter-spacing: -0.04em; overflow: hidden; flex-shrink: 0; }
   .cal-cell .pv-full { display: none; }
   .cal-cell .pv-short { display: inline; }
   .cal-cell .sc, .cal-cell .meta, .cal-wk { display: none; }
@@ -689,7 +691,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-day.loss { background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 14%, transparent), color-mix(in srgb, var(--neg) 5%, transparent)); cursor: pointer; }
 .rv-day.win:hover, .rv-day.loss:hover { filter: brightness(1.2); }
 .rv-day .dn { font-size: 12px; font-weight: 500; color: var(--fg-2); }
-.rv-day.today .dn { color: var(--primary); }
+.rv-day.today .dn { color: var(--primary); font-weight: 700; }
 .rv-day .pv, .rv-wk .pv { font-size: clamp(14px, 1.3vw, 20px); font-weight: 500; letter-spacing: -0.02em; margin-top: auto; white-space: nowrap; text-align: center; }
 .rv-day-meta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--fg-2); margin-top: 8px; gap: 4px; }
 .rv-wk { padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--card); display: flex; flex-direction: column; min-width: 0; }
@@ -756,9 +758,10 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
   .rv-week { grid-template-columns: 1fr 1fr; }
   .rv-wday { border-bottom: 1px solid var(--border); aspect-ratio: 1.5; }
   .rv-wday-v { padding: 8px 6px; }
-  .rv-day { padding: 5px; }
+  .rv-day { padding: 5px 3px; min-height: 40px; }
+  .rv-day .dn { font-size: 11.5px; line-height: 1.25; }
   .rv-day-meta { display: none; }
-  .rv-day .pv, .rv-wk .pv { font-size: 11px; letter-spacing: -0.04em; }
+  .rv-day .pv, .rv-wk .pv { font-size: clamp(8.5px, 2.6vw, 11px); letter-spacing: -0.04em; flex-shrink: 0; }
   .rv-cal.full .rv-cal-row.head div { font-size: 0; }
   .rv-cal.full .rv-cal-row.head div::first-letter { font-size: 11px; }
   .rv-period { min-width: 0; font-size: 15px; }
@@ -1100,8 +1103,8 @@ div:hover > .shot-ask, .shot-ask:focus { opacity: 1; }
   .cal-top { flex-wrap: wrap; row-gap: 10px; gap: 10px !important; }
 }
 @container (max-width: 720px) {
-  .cal-cell { padding: 6px 4px !important; }
-  .cal-cell .pnl { font-size: 11.5px !important; letter-spacing: -0.03em; overflow: hidden; }
+  .cal-cell { padding: 6px 4px !important; min-height: 40px; }
+  .cal-cell .pnl { font-size: clamp(8.5px, 1.7cqw, 11.5px) !important; letter-spacing: -0.03em; overflow: hidden; flex-shrink: 0; }
   .cal-cell .pv-full { display: none; }
   .cal-cell .pv-short { display: inline; }
   .cal-cell .sc, .cal-wk { display: none; }

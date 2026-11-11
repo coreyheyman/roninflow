@@ -59,11 +59,11 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
                 return (
                   <div
                     key={k}
-                    className={`cal-cell ${out ? 'out' : ''} ${day ? (day.net >= 0 ? 'win' : 'loss') : ''}`}
+                    className={`cal-cell ${out ? 'out' : ''} ${k === today ? 'today' : ''} ${day ? (day.net >= 0 ? 'win' : 'loss') : ''}`}
                     style={compact ? { padding: 8 } : undefined}
                     onClick={() => !out && onDay?.(k)}
                   >
-                    <span className="d">{k === today ? <span className="today">{d.getDate()}</span> : d.getDate()}</span>
+                    <span className="d">{d.getDate()}</span>
                     {day && (
                       <>
                         {!compact && <span className="sc"><ScoreBox v={day.score} /></span>}
