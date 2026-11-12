@@ -1780,3 +1780,14 @@ button.ec-row:hover { background: var(--hover); }
 .dgrid.editing .gw-body .panel-head > :not(.card-title), .dgrid.editing .gw-body .kpi-head > :not(:first-child), .dgrid.editing .gw-body .blocker-panel > .row > :not(.card-title) { visibility: hidden; }
 .acct-btn { max-width: 260px; font-weight: 500; color: var(--fg); }
 .day-other-acct { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; padding: 10px 14px; margin-bottom: 18px; border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--border)); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); font-size: 13px; }
+.macro-switch { display: inline-flex; align-items: center; gap: 8px; text-align: left; white-space: nowrap; margin: 4px 0 4px; padding: 2px 8px 2px 0; background: none; border: 0; color: var(--fg); cursor: pointer; font-family: inherit; border-radius: 4px; }
+.macro-switch:hover svg, .macro-switch.on svg { color: var(--fg); }
+.macro-switch svg { transition: transform 0.15s; }
+.macro-switch.on svg { transform: rotate(180deg); }
+.macro-item { align-items: flex-start; }
+.macro-item > svg:first-child { margin-top: 2px; }
+.macro-item b { display: block; font-weight: 500; }
+.macro-item small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+/* the editing bar stays at the top of the page while you scroll */
+.dedit-bar { position: sticky; top: 8px; z-index: 30; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); background: color-mix(in srgb, var(--primary) 10%, var(--panel)); }
+@media (max-width: 760px) { .macro-switch { font-size: 22px; } }

@@ -194,12 +194,6 @@ export default function Layout({ route, crumbs, children }) {
                   ))}
                 </div>
               )}
-              {n.id === 'macro' && section === 'macro' && (
-                <div className="nav-sub">
-                  <a href="#/macro/calendar" className={route[1] !== 'cot' ? 'active' : ''}>Economic Calendar</a>
-                  <a href="#/macro/cot" className={route[1] === 'cot' ? 'active' : ''}>COT Report</a>
-                </div>
-              )}
               {n.id === 'journal' && section === 'journal' && (
                 <div className="nav-sub">
                   <a href="#/journal/database" className={route[1] !== 'inbox' ? 'active' : ''}>Database</a>

@@ -1,4 +1,5 @@
 // Macro → COT Report: who's long, who's short and who's crowded, from the CFTC's weekly Commitments of Traders.
+import MacroSwitch from '../components/MacroSwitch';
 import { useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Search, Plus, X, Info, TriangleExclamationPoint as TriangleAlert } from 'lucide-react';
 import { useStore } from '../store/store';
@@ -194,7 +195,7 @@ export default function Cot() {
     <div className="page cot-page">
       <div className="row gap12 wrap" style={{ alignItems: 'flex-end', marginBottom: 16 }}>
         <div className="grow">
-          <div className="page-title" style={{ margin: '4px 0 4px' }}>COT Report</div>
+          <MacroSwitch current="cot" />
           <div className="muted" style={{ fontSize: 13.5 }}>
             Who’s long, who’s short, and who’s crowded in futures.
             {data?.reportDate && <> Positions as of <b className="no-i18n">{fmtDay(data.reportDate)}</b>{data.nextRelease && <> · next report <span className="no-i18n">{weekday(data.nextRelease)}</span></>}.</>}

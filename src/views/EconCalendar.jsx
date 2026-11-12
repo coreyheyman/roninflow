@@ -1,4 +1,5 @@
 // Macro → Economic Calendar: every scheduled release in your time zone, as a list, a week or a month.
+import MacroSwitch from '../components/MacroSwitch';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw, Search, CalendarDays, TriangleExclamationPoint as TriangleAlert } from 'lucide-react';
 import { useStore } from '../store/store';
@@ -275,7 +276,7 @@ export default function EconCalendar() {
     <div className="page ec-page">
       <div className="row gap12 wrap" style={{ alignItems: 'flex-end', marginBottom: 14 }}>
         <div className="grow">
-          <div className="page-title" style={{ margin: '4px 0 4px' }}>Economic Calendar</div>
+          <MacroSwitch current="calendar" />
           <div className="muted" style={{ fontSize: 13.5 }}>Every release in your time zone, with forecasts and actuals.</div>
         </div>
         <div className="ec-clock no-i18n"><b>{fmtTime12(wallClock(clock))}</b> <span className="muted">{tzLabel()}</span></div>
