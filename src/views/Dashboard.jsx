@@ -367,8 +367,12 @@ function EquityW({ c }) {
   const now = initial + (curve.at(-1)?.y || 0) + gap;
   return (
     <Frame title="Equity Chart" right={<span className="muted" style={{ fontSize: 12.5 }}>from <Private>{money0(initial)}</Private></span>}>
-      <div className="row gap16" style={{ marginBottom: 10 }}><span className="wbig"><Private>{fmtMoney(now)}</Private></span></div>
-      <FillChart data={[{ label: data[0]?.label || '', y: initial, tip: 'Start' }, ...data]} mode="area" startAtZero={false} showZero={false} />
+      <div className="row gap16 wrap" style={{ marginBottom: 10, rowGap: 4 }}>
+        <span className="wbig"><Private>{fmtMoney(now)}</Private></span>
+        <TrendBadge value={((now - initial) / initial) * 100} label={<><Private>{fmtMoney(now - initial, { sign: true, dp: 0 })}</Private> from start</>} />
+        {gap ? <span className="muted" style={{ fontSize: 12 }} title="The chart follows your trades; the balance also includes what the journal's trades don't account for (missing fills, account fees…).">incl. <Private>{fmtMoney(gap, { sign: true })}</Private> balance adj.</span> : null}
+      </div>
+      <FillChart data={data} mode="area" base={initial} />
     </Frame>
   );
 }

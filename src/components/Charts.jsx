@@ -38,7 +38,9 @@ const linePath = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).j
  * Generic P&L chart. data: [{ label, y, tip? }]
  * mode: 'area' | 'line' | 'bar'
  */
-export function PnlChart({ data, mode = 'area', height = 300, smooth = false, compact = false, yFmt, xLabels = 8, padLeft = 56, showZero = true, startAtZero = true, dotted = true }) {
+/** P&L over time. `base` is the level the chart is measured from (0 for P&L; the starting balance for an
+ *  equity curve): above it is green, below it red, and the axis fits the data around it. */
+export function PnlChart({ data, mode = 'area', height = 300, smooth = false, compact = false, yFmt, xLabels = 8, padLeft = 56, showZero = true, startAtZero = true, dotted = true, base: base0 = 0 }) {
   const [ref, { w }] = useSize();
   const [hover, setHover] = useState(null);
   const { state } = useStore();
@@ -47,12 +49,13 @@ export function PnlChart({ data, mode = 'area', height = 300, smooth = false, co
   const width = Math.max(w, 50);
   const pl = compact ? 2 : padLeft, pr = compact ? 2 : 12, pt = compact ? 4 : 14, pb = compact ? 4 : 30;
   const rate = currency().rate; // plot in the display currency so axis ticks are round numbers
+  const base = base0 * rate;
   const series = useMemo(() => {
     const conv = rate === 1 ? data : data.map((d) => ({ ...d, y: d.y * rate }));
-    return startAtZero && mode !== 'bar' && conv.length ? [{ label: conv[0].label, y: 0, start: true }, ...conv] : conv;
-  }, [data, startAtZero, mode, rate]);
+    return startAtZero && mode !== 'bar' && conv.length ? [{ label: conv[0].label, y: base, start: true }, ...conv] : conv;
+  }, [data, startAtZero, mode, rate, base]);
   const ys = series.map((d) => d.y);
-  const ticks = niceTicks(Math.min(0, ...ys), Math.max(0, ...ys), compact ? 3 : 5);
+  const ticks = niceTicks(Math.min(base, ...ys), Math.max(base, ...ys), compact ? 3 : 5);
   const yMin = ticks[0], yMax = ticks[ticks.length - 1];
   const H = height;
   const sy = (v) => pt + (1 - (v - yMin) / (yMax - yMin || 1)) * (H - pt - pb);
@@ -60,10 +63,13 @@ export function PnlChart({ data, mode = 'area', height = 300, smooth = false, co
   const bw = mode === 'bar' ? (width - pl - pr) / Math.max(n, 1) : 0;
   const sx = (i) => (mode === 'bar' ? pl + bw * i + bw / 2 : pl + (n <= 1 ? 0 : (i / (n - 1)) * (width - pl - pr)));
   const pts = series.map((d, i) => [sx(i), sy(d.y)]);
-  const zy = sy(0);
+  const zy = sy(base);
   const path = smooth ? smoothPath(pts) : linePath(pts);
   const area = n ? `${path}L${pts[n - 1][0]},${zy}L${pts[0][0]},${zy}Z` : '';
-  const fmt = yFmt || ((v) => (priv ? '•••' : fmtCompact(v, { raw: true })));
+  // short labels ($51k) unless that would make two ticks look the same, e.g. on a balance chart ($50,500)
+  const short = ticks.map((t) => fmtCompact(t, { raw: true }));
+  const fullTicks = new Set(short).size < short.length;
+  const fmt = yFmt || ((v) => (priv ? '•••' : fullTicks ? fmtMoney(v, { dp: 0, raw: true }) : fmtCompact(v, { raw: true })));
   const idxs = n <= xLabels ? series.map((_, i) => i) : Array.from({ length: xLabels }, (_, k) => Math.round((k / (xLabels - 1)) * (n - 1)));
   const uniq = [];
   let lastX = -1e9, lastL = null;
@@ -108,7 +114,7 @@ export function PnlChart({ data, mode = 'area', height = 300, smooth = false, co
                 </g>
               ))}
               {uniq.map((i) => (
-                <text key={i} x={Math.min(Math.max(sx(i), pl + 24), width - 30)} y={H - 8} textAnchor="middle">{series[i].label}</text>
+                <text key={i} x={Math.min(Math.max(sx(i), pl + 24), width - pr - String(series[i].label).length * 3.3)} y={H - 8} textAnchor="middle">{series[i].label}</text>
               ))}
             </g>
           )}
@@ -135,7 +141,7 @@ export function PnlChart({ data, mode = 'area', height = 300, smooth = false, co
           {hover !== null && !compact && (
             <>
               <line x1={pts[hover][0]} x2={pts[hover][0]} y1={pt} y2={H - pb} stroke="var(--muted-2)" strokeDasharray="3 3" />
-              {mode !== 'bar' && <circle cx={pts[hover][0]} cy={pts[hover][1]} r={4} style={{ fill: series[hover].y >= 0 ? 'var(--pos)' : 'var(--neg)' }} stroke="var(--bg)" strokeWidth={2} />}
+              {mode !== 'bar' && <circle cx={pts[hover][0]} cy={pts[hover][1]} r={4} style={{ fill: series[hover].y >= base ? 'var(--pos)' : 'var(--neg)' }} stroke="var(--bg)" strokeWidth={2} />}
             </>
           )}
         </svg>
@@ -143,7 +149,12 @@ export function PnlChart({ data, mode = 'area', height = 300, smooth = false, co
       {hover !== null && !compact && series[hover] && (
         <div className="chart-tip" style={{ left: pts[hover][0], top: pts[hover][1] }}>
           <div className="muted" style={{ marginBottom: 2 }}>{series[hover].tip || series[hover].label}</div>
-          <b className={series[hover].y >= 0 ? 'pos' : 'neg'} style={{ fontWeight: 600, filter: priv ? 'blur(5px)' : undefined }}>{fmtMoney(series[hover].y, { sign: true, raw: true })}</b>
+          {base ? (
+            <div style={{ filter: priv ? 'blur(5px)' : undefined }}>
+              <b style={{ fontWeight: 600 }}>{fmtMoney(series[hover].y, { raw: true })}</b>
+              <span className={series[hover].y >= base ? 'pos' : 'neg'} style={{ marginLeft: 8 }}>{fmtMoney(series[hover].y - base, { sign: true, raw: true })}</span>
+            </div>
+          ) : <b className={series[hover].y >= 0 ? 'pos' : 'neg'} style={{ fontWeight: 600, filter: priv ? 'blur(5px)' : undefined }}>{fmtMoney(series[hover].y, { sign: true, raw: true })}</b>}
         </div>
       )}
     </div>
