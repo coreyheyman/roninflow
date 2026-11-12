@@ -2,6 +2,16 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.2.0
+
+- **Build your own dashboard:** click **Edit layout**, then drag widgets anywhere (the others move out of the way, and dropping on a widget the same size swaps them), drag a corner to resize, or use the arrow keys on a widget's handle (Shift + arrows resizes). Undo, reset, and changes save as you go. The editing bar stays at the top while you scroll.
+- **Add widgets** from a library with search and categories (Charts, Tables, KPIs, Calendar) — 26 in all. Every KPI is now its own widget, plus new ones: Long vs Short, Total Payouts, Equity Chart (your balance from the starting balance), Max Drawdown, Performance by Hold Duration, Strategy Performance and Performance by Tag. Some have options (the "Performance by…" widgets show P&L, win rate or trade count).
+- My Dashboard, Performance, Risk and Psychology each keep their own layout. Your current dashboard opens as it was, including any widgets you'd hidden.
+- On a phone the widgets stack in one column; you can still add, remove and configure them there.
+- **Account selector on the Daily Diary** — on the sessions list (with each account's session count) and on each day's page. If the chosen account didn't trade that day but another did, the day says so.
+- **Macro:** switch between the Economic Calendar and the COT Report from the page title instead of the sidebar.
+- A change made just before closing or reloading the page is no longer lost — it's saved when the page opens again.
+
 ## 1.1.5
 
 - **The update notice lists everything you'd get:** if you're several versions behind, it shows the notes of every release since yours (newest first), not just the latest — one update still installs them all.
