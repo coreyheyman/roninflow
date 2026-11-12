@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Play, List, LayoutGrid, Calendar, EllipsisVertical, X, Maximize2, CircleCheck, Circle, Quote, Sunrise, TrendingUp, TrendingDown, ArrowLeft, ChevronLeft, ChevronRight, Clock, Settings, ChartArea, ChartColumn, ChevronDown } from 'lucide-react';
 import { useStore, useAccountTrades, navigate } from '../store/store';
-import { DateRange, Seg, Popover, ScoreBox, Money, Private, useToast } from '../components/ui';
+import { AccountPicker, DateRange, Seg, Popover, ScoreBox, Money, Private, useToast } from '../components/ui';
 import { PnlChart } from '../components/Charts';
 import { PnlCalendar } from '../components/Calendar';
 import { useOpenDay } from '../lib/dayPopup';
@@ -109,6 +109,13 @@ function DiaryIndex() {
   const commitment = useMemo(() => lastTomorrowNote(state.diary, currentDay), [state.diary, currentDay]);
   const acct = state.accounts.find((a) => a.id === state.settings.account);
   const initial = acct?.initial || 50000;
+  // sessions per account (shown in the account menu)
+  const sessionCounts = useMemo(() => {
+    const hidden = new Set(state.settings.hideBreached ? state.accounts.filter((a) => a.status === 'Breached').map((a) => a.id) : []);
+    const out = { all: groupByDay(state.trades.filter((t) => !hidden.has(t.accountId))).length };
+    for (const a of state.accounts) out[a.id] = groupByDay(state.trades.filter((t) => t.accountId === a.id)).length;
+    return out;
+  }, [state.trades, state.accounts, state.settings.hideBreached]);
 
   return (
     <div className="page">
@@ -141,6 +148,7 @@ function DiaryIndex() {
         </button>
       </div>
       <div className="toolbar" style={{ marginBottom: 24 }}>
+        <AccountPicker compact counts={sessionCounts} />
         <DateRange value={range} onChange={setRange} />
         <div className="grow" />
         <Seg value={view} onChange={setView} options={[{ value: 'list', label: 'List', icon: List }, { value: 'grid', label: 'Grid', icon: LayoutGrid }, { value: 'calendar', label: 'Calendar', icon: Calendar }]} />
@@ -291,6 +299,7 @@ function DayPage({ date, embedded = false, onDate, onClose }) {
     return { prev: [...sorted].reverse().find((k) => k < date) || null, next: sorted.find((k) => k > date) || null };
   }, [days, state.diary, date]);
   const commitment = useMemo(() => lastTomorrowNote(state.diary, date), [state.diary, date]);
+  const otherAcct = useMemo(() => (state.settings.account === 'all' ? 0 : groupByDay(state.trades).find((x) => x.date === date)?.count || 0), [state.trades, state.settings.account, date]);
 
   return (
     <div className={embedded ? 'day-modal-body' : 'page'}>
@@ -298,6 +307,7 @@ function DayPage({ date, embedded = false, onDate, onClose }) {
         {embedded
           ? <button className="btn sm" onClick={() => { onClose?.(); navigate(`diary/${date}`); }} title="Open this day in the Daily Diary"><Maximize2 size={14} /> <span className="hide-sm">Open in Daily Diary</span></button>
           : <button className="btn sm" onClick={() => navigate('diary')}><ArrowLeft size={15} /> All sessions</button>}
+        {!embedded && <AccountPicker compact />}
         <div className="grow" />
         <button className="btn sm" disabled={!nav.prev} onClick={() => go(nav.prev)} title={nav.prev ? fmtDate(nav.prev) : undefined}><ChevronLeft size={15} /> <span className={embedded ? 'hide-sm' : ''}>Previous</span></button>
         <button className="btn sm" disabled={!nav.next} onClick={() => go(nav.next)} title={nav.next ? fmtDate(nav.next) : undefined}><span className={embedded ? 'hide-sm' : ''}>Next</span> <ChevronRight size={15} /></button>
@@ -319,6 +329,12 @@ function DayPage({ date, embedded = false, onDate, onClose }) {
         </div>
       )}
 
+      {!d && otherAcct > 0 && (
+        <div className="day-other-acct">
+          <span>No trades on <b>{state.settings.account}</b> this day — {otherAcct} trade{otherAcct === 1 ? '' : 's'} on other accounts.</span>
+          <button className="btn xs" onClick={() => setSetting('account', 'all')}>Show all accounts</button>
+        </div>
+      )}
       {d ? (
         <>
           <div className="kpis day-kpis" style={{ gridTemplateColumns: 'repeat(5,minmax(0,1fr))' }}>

@@ -193,24 +193,34 @@ export function RateBar({ pct, width = '100%' }) {
 }
 
 /** Horizontal labeled bars (weekday / hour / symbol breakdowns). */
-export function HBars({ rows }) {
+/** Horizontal bars. Money by default (diverging around zero); pass `fmt` for other numbers and
+ *  `mid` to colour against a midpoint (e.g. 50 for a win rate) with bars growing from the left. */
+export function HBars({ rows, fmt, mid, oneSided = false }) {
   const { state } = useStore();
   const max = Math.max(1, ...rows.map((r) => Math.abs(r.value)));
+  const money = !fmt;
+  const tone = (v) => (mid !== undefined ? (v >= mid ? 'pos' : 'neg') : v >= 0 ? 'pos' : 'neg');
   return (
     <div className="col gap8">
       {rows.map((r) => (
         <div key={r.label} className="row gap12" style={{ fontSize: 13 }}>
-          <div style={{ width: 86 }} className="muted truncate">{r.label}</div>
-          <div className="grow" style={{ position: 'relative', height: 18, display: 'flex' }}>
-            <div style={{ width: '50%', display: 'flex', justifyContent: 'flex-end' }}>
-              {r.value < 0 && <div style={{ width: `${(Math.abs(r.value) / max) * 100}%`, background: 'var(--neg)', opacity: 0.85, borderRadius: 2 }} />}
+          <div style={{ width: 86 }} className="muted truncate" title={r.label}>{r.label}</div>
+          {oneSided ? (
+            <div className="grow" style={{ position: 'relative', height: 18 }}>
+              <div style={{ width: `${(Math.abs(r.value) / max) * 100}%`, height: '100%', background: tone(r.value) === 'pos' ? 'var(--pos-strong)' : 'var(--neg)', opacity: tone(r.value) === 'pos' ? 1 : 0.85, borderRadius: 2 }} />
             </div>
-            <div style={{ width: 1, background: 'var(--border-2)' }} />
-            <div style={{ width: '50%' }}>
-              {r.value > 0 && <div style={{ width: `${(r.value / max) * 100}%`, height: '100%', background: 'var(--pos-strong)', borderRadius: 2 }} />}
+          ) : (
+            <div className="grow" style={{ position: 'relative', height: 18, display: 'flex' }}>
+              <div style={{ width: '50%', display: 'flex', justifyContent: 'flex-end' }}>
+                {r.value < 0 && <div style={{ width: `${(Math.abs(r.value) / max) * 100}%`, background: 'var(--neg)', opacity: 0.85, borderRadius: 2 }} />}
+              </div>
+              <div style={{ width: 1, background: 'var(--border-2)' }} />
+              <div style={{ width: '50%' }}>
+                {r.value > 0 && <div style={{ width: `${(r.value / max) * 100}%`, height: '100%', background: 'var(--pos-strong)', borderRadius: 2 }} />}
+              </div>
             </div>
-          </div>
-          <div style={{ width: 92, textAlign: 'right' }} className={`${r.value >= 0 ? 'pos' : 'neg'} ${state.settings.privacy ? 'hidden-val' : ''}`}>{fmtMoney(r.value, { sign: true })}</div>
+          )}
+          <div style={{ width: 92, textAlign: 'right' }} className={`${mid === null ? '' : tone(r.value)} ${money && state.settings.privacy ? 'hidden-val' : ''}`}>{money ? fmtMoney(r.value, { sign: true }) : fmt(r.value)}</div>
           {r.extra !== undefined && <div style={{ width: 70, textAlign: 'right' }} className="muted">{r.extra}</div>}
         </div>
       ))}

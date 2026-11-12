@@ -11,6 +11,7 @@ import { buildShowcase } from '../data/showcase';
 
 const KEY = IS_DEMO ? 'roninflow-demo-v1' : 'trade-journal-state-v1';
 const OLD_KEY = 'iq-journal-state-v1'; // earlier versions
+const UNSAVED_KEY = `${KEY}:unsaved`; // a change the tab was closed/reloaded on before it reached the server
 const Ctx = createContext(null);
 
 /** Apply one-time migrations and fill in defaults for state from storage or the server. */
@@ -119,6 +120,10 @@ export function StoreProvider({ children }) {
           applyRemote(j.state, j.version);
           srv.current.mode = 'server';
           setStorage((x) => ({ ...x, mode: 'server' }));
+          // the page was closed or reloaded just after a change: if nothing else has saved since, save it now
+          let unsaved = null;
+          try { unsaved = JSON.parse(localStorage.getItem(UNSAVED_KEY)); localStorage.removeItem(UNSAVED_KEY); } catch { /* none */ }
+          if (unsaved?.state && unsaved.v === j.version) { const next = normalize(unsaved.state); stateRef.current = next; setState(next); }
         } else {
           // First run with the server: move this browser's journal into data/journal.json (PC only).
           const put = await fetch('/api/data/state', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ state: stateRef.current, baseVersion: 0 }) });
@@ -172,6 +177,24 @@ export function StoreProvider({ children }) {
     }, 700);
     return () => clearTimeout(id);
   }, [state, pull]);
+
+  // closing or reloading the tab within a moment of a change: send that save straight away
+  useEffect(() => {
+    const flush = () => {
+      const s0 = srv.current;
+      if (s0.mode !== 'server' || !s0.dirty || s0.inflight) return;
+      const json = JSON.stringify(stateRef.current);
+      if (json === s0.lastJson) return;
+      clearTimeout(s0.timer);
+      s0.dirty = false;
+      const body = `{"state":${json},"baseVersion":${s0.version}}`;
+      try { localStorage.setItem(UNSAVED_KEY, `{"v":${s0.version},"state":${json}}`); } catch { /* quota */ }
+      // keepalive lets the request outlive the page, but browsers cap it at 64 KB
+      try { fetch('/api/data/state', { method: 'PUT', headers: { 'content-type': 'application/json' }, body, keepalive: body.length < 60000 }).catch(() => {}); } catch { /* page is going away */ }
+    };
+    window.addEventListener('pagehide', flush);
+    return () => window.removeEventListener('pagehide', flush);
+  }, []);
 
   // pick up changes made on another device
   useEffect(() => {

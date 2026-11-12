@@ -1,6 +1,6 @@
 import { StatLabel } from './StatInfo';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { X, ChevronDown, CalendarDays, Check, TrendingUp, TrendingDown } from 'lucide-react';
+import { X, ChevronDown, CalendarDays, Check, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 import { useStore } from '../store/store';
 import { fmtMoney, fmtDate, datePresets, MONTHS_LONG, keyOf, pad } from '../lib/stats';
 
@@ -112,27 +112,31 @@ export function Seg({ options, value, onChange, icon = false }) {
 
 export const Switch = ({ on, onChange }) => <button className={`switch ${on ? 'on' : ''}`} onClick={() => onChange(!on)} aria-pressed={on} />;
 
-export function AccountPicker() {
+/** Pick the account the page shows. `compact` renders it as a toolbar button instead of a title. */
+export function AccountPicker({ compact = false, counts }) {
   const { state, setSetting } = useStore();
   const cur = state.settings.account;
   const hide = !!state.settings.hideBreached;
   const breached = state.accounts.filter((a) => a.status === 'Breached').length;
   const label = cur === 'all' ? 'All accounts' : cur;
   return (
-    <Popover
-      trigger={({ toggle }) => (
-        <div className="acct-title">
-          <button onClick={toggle}>
-            {label} <ChevronDown size={16} className="muted" />
-          </button>
-        </div>
-      )}
+    <Popover width={compact ? 280 : undefined}
+      trigger={({ toggle }) => (compact
+        ? <button className="btn acct-btn" onClick={toggle} title="Account"><Wallet size={14} className="muted" /> <span className="truncate">{label}</span> <ChevronDown size={14} className="muted" /></button>
+        : (
+          <div className="acct-title">
+            <button onClick={toggle}>
+              {label} <ChevronDown size={16} className="muted" />
+            </button>
+          </div>
+        ))}
     >
       {(close) => (
         <>
           {[{ id: 'all', status: '' }, ...state.accounts.filter((a) => !hide || a.status !== 'Breached' || a.id === cur)].map((a) => (
             <button key={a.id} className={`pop-item ${cur === a.id ? 'on' : ''}`} onClick={() => { setSetting('account', a.id); close(); }}>
               <span className="grow">{a.id === 'all' ? 'All accounts' : a.id}</span>
+              {counts && <span className="muted" style={{ fontSize: 11.5 }}>{counts[a.id] || 0}</span>}
               {a.status && <span className={`status ${a.status}`}>{a.status}</span>}
               {cur === a.id && <Check size={14} />}
             </button>
