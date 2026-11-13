@@ -2,6 +2,10 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.2.1
+
+- **Weekly review numbers fit their tiles:** each day's and the week's P&L shrinks just enough to fit, so five- and six-figure days no longer spill out on smaller screens. The week's "trades · WR" line no longer wraps.
+
 ## 1.2.0
 
 - **Build your own dashboard:** click **Edit layout**, then drag widgets anywhere (the others move out of the way, and dropping on a widget the same size swaps them), drag a corner to resize, or use the arrow keys on a widget's handle (Shift + arrows resizes). Undo, reset, and changes save as you go. The editing bar stays at the top while you scroll.
