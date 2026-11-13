@@ -650,7 +650,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-tile-v { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; margin-top: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rv-tile-v.big { font-size: 25px; }
 .rv-tile.pos .rv-tile-v { color: var(--pos); } .rv-tile.neg .rv-tile-v { color: var(--neg); } .rv-tile.warn .rv-tile-v { color: var(--warn); }
-.rv-tile-s { font-size: 11.5px; color: var(--muted-2); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-tile-s { font-size: 11.5px; color: var(--muted-2); margin-top: 4px;  }
 
 .rv-head3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .rv-hcard { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
@@ -705,7 +705,8 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-day.today .dn { color: var(--primary); font-weight: 700; }
 .rv-day .pv, .rv-wk .pv { font-size: clamp(14px, 1.3vw, 20px); font-weight: 500; letter-spacing: -0.02em; margin-top: auto; white-space: nowrap; text-align: center; }
 .rv-cal .pv-short { display: none; }
-.rv-day-meta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--fg-2); margin-top: 8px; gap: 4px; }
+.rv-day-meta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--fg-2); margin-top: 8px; gap: 0 6px; flex-wrap: wrap; }
+.rv-day-meta span { white-space: nowrap; }
 .rv-wk { padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--card); display: flex; flex-direction: column; min-width: 0; }
 .rv-wk.win { box-shadow: inset 2px 0 0 var(--pos-strong); background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 16%, transparent), color-mix(in srgb, var(--pos-strong) 4%, transparent)); }
 .rv-wk.loss { box-shadow: inset 2px 0 0 var(--neg-strong); background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 11%, transparent), color-mix(in srgb, var(--neg) 3%, transparent)); }
@@ -773,7 +774,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
   .rv-day { padding: 5px 3px; min-height: 40px; }
   .rv-day .dn { font-size: 11.5px; line-height: 1.25; }
   .rv-day-meta { display: none; }
-  .rv-day .pv, .rv-wk .pv { font-size: clamp(8.5px, 2.6vw, 11px); letter-spacing: -0.04em; flex-shrink: 0; }
+  .rv-day .pv, .rv-wk .pv { font-size: 11.5px; letter-spacing: -0.04em; flex-shrink: 0; }
   .rv-cal .pv-full { display: none; }
   .rv-cal .pv-short { display: inline; }
   .rv-cal.full .rv-cal-row.head div { font-size: 0; }
@@ -1021,7 +1022,7 @@ button.chip.blk:not(.neg-on):hover { border-color: var(--border-2); color: var(-
 /* dashboard: average trade + streaks */
 .dash-grid.thirds > .panel { display: flex; flex-direction: column; }
 .avgt, .stk { flex: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 18px; }
-.avgt-pair { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: start; }
+.avgt-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 18px; align-items: start; }
 .avgt-sep { width: 1px; align-self: stretch; background: var(--border); }
 .avgt-k { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
 .avgt-v { font-size: 26px; font-weight: 500; letter-spacing: -0.02em; white-space: nowrap; }
@@ -1734,7 +1735,7 @@ button.ec-row:hover { background: var(--hover); }
 
 /* long vs short */
 .ls { flex: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; }
-.ls-pair { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; }
+.ls-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 16px; }
 .ls-k { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
 .ls-k.long { color: var(--pos); }
 .ls-k.short { color: var(--neg); }
@@ -1793,3 +1794,8 @@ button.ec-row:hover { background: var(--hover); }
 /* the editing bar stays at the top of the page while you scroll */
 .dedit-bar { position: sticky; top: 8px; z-index: 30; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); background: color-mix(in srgb, var(--primary) 10%, var(--panel)); }
 @media (max-width: 760px) { .macro-switch { font-size: 22px; } }
+/* <Fit>: a number that keeps itself inside its box */
+.fit { position: relative; display: inline-block; white-space: nowrap; max-width: 100%; vertical-align: bottom; line-height: inherit; }
+.fit-m { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; white-space: nowrap; }
+.avgt-pair > div, .ls-col { min-width: 0; }
+.cal-cell .pnl, .cal-wk .wk-pnl, .rv-day .pv, .rv-wk .pv { min-width: 0; max-width: 100%; }

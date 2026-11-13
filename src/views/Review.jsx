@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { createPortal } from 'react-dom';
 import { X, Maximize2, ChevronLeft, ChevronRight, ChartArea, ChartColumn, ChartColumnStacked, CircleCheck, CircleDashed, Clock3, Flag, Quote, RotateCcw, TriangleExclamationPoint as TriangleAlert, ArrowRight, Pencil, ChevronUp, ChevronDown, Trash, Plus, Check } from 'lucide-react';
 import { useStore, useAccountTrades, navigate } from '../store/store';
-import { AccountPicker, Seg, Private, Modal, ModalHead, useToast } from '../components/ui';
+import { AccountPicker, Fit, Seg, Private, Modal, ModalHead, useToast } from '../components/ui';
 import { PnlChart, MarkerScale } from '../components/Charts';
 import { RegimeCards } from '../components/Playbook';
 import { playbookOf } from '../lib/playbook';
@@ -94,7 +94,7 @@ function Tile({ label, value, t = '', sub, title, big }) {
   return (
     <div className={`rv-tile ${t}`} title={key ? undefined : title}>
       <div className="rv-tile-l">{key ? <StatLabel k={key} v={key === 'trades' ? m.count : m[key]} ctx={m}>{label}</StatLabel> : label}</div>
-      <div className={`rv-tile-v ${big ? 'big' : ''}`}>{value}</div>
+      <div className={`rv-tile-v ${big ? 'big' : ''}`}><Fit>{value}</Fit></div>
       {sub && <div className="rv-tile-s">{sub}</div>}
     </div>
   );
@@ -211,11 +211,11 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
                   {variant !== 'heat' && !out && <span className="dn">{d.getDate()}</span>}
                   {day && variant === 'full' && (
                     <>
-                      <div className={`pv ${day.net >= 0 ? 'pos' : 'neg'}`}><span className={`pv-full ${priv ? 'hidden-val' : ''}`}>{fmtMoney(day.net, { sign: true, dp: 0 })}</span><span className={`pv-short ${priv ? 'hidden-val' : ''}`}>{short(day.net)}</span></div>
+                      <div className={`pv ${day.net >= 0 ? 'pos' : 'neg'}`}><Fit className={priv ? 'hidden-val' : ''} short={short(day.net)}>{fmtMoney(day.net, { sign: true, dp: 0 })}</Fit></div>
                       <div className="rv-day-meta"><span>{nTrades(day.count)}</span><span>{wr(day)}%</span></div>
                     </>
                   )}
-                  {day && variant === 'mini' && <div className={`pv ${day.net >= 0 ? 'pos' : 'neg'}`}><span className={priv ? 'hidden-val' : ''}>{short(day.net)}</span></div>}
+                  {day && variant === 'mini' && <div className={`pv ${day.net >= 0 ? 'pos' : 'neg'}`}><Fit className={priv ? 'hidden-val' : ''}>{short(day.net)}</Fit></div>}
                 </div>
               );
             })}
@@ -224,7 +224,7 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
                 {variant === 'full' && <span className="muted" style={{ fontSize: 11.5 }}>W{wi + 1}</span>}
                 {inWeek.length > 0 && (
                   <>
-                    <div className={`pv ${wNet >= 0 ? 'pos' : 'neg'}`}>{variant === 'mini' ? <span className={priv ? 'hidden-val' : ''}>{short(wNet)}</span> : <><span className={`pv-full ${priv ? 'hidden-val' : ''}`}>{fmtMoney(wNet, { sign: true, dp: 0 })}</span><span className={`pv-short ${priv ? 'hidden-val' : ''}`}>{short(wNet)}</span></>}</div>
+                    <div className={`pv ${wNet >= 0 ? 'pos' : 'neg'}`}>{variant === 'mini' ? <Fit className={priv ? 'hidden-val' : ''}>{short(wNet)}</Fit> : <Fit className={priv ? 'hidden-val' : ''} short={short(wNet)}>{fmtMoney(wNet, { sign: true, dp: 0 })}</Fit>}</div>
                     {variant === 'full' && <div className="rv-day-meta"><span>{wCount}t</span><span>WR {Math.round((wWins / wCount) * 100)}%</span></div>}
                   </>
                 )}

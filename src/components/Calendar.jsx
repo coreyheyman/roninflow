@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Clock, ChevronRight as Chev } from 'lucide-react';
 import { useStore } from '../store/store';
-import { ScoreBox } from './ui';
+import { Fit, ScoreBox } from './ui';
 import { MONTHS_LONG, keyOf, fmtMoney, fmtCompact, fmtDuration, startOfCalWeek, toDate } from '../lib/stats';
 import { periodOf } from '../lib/reviews';
 import { useOpenReview } from '../lib/dayPopup';
@@ -70,7 +70,7 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
                       <>
                         {!compact && <span className="sc"><ScoreBox v={day.score} ctx={day} /></span>}
                         <div className={`pnl ${day.net >= 0 ? 'pos' : 'neg'}`}>
-                          <span className={`pv-full ${priv ? 'hidden-val' : ''}`}>{fmtMoney(day.net, { sign: true })}</span><span className={`pv-short ${priv ? 'hidden-val' : ''}`}>{day.net > 0 ? '+' : ''}{fmtCompact(day.net)}</span>
+                          <Fit className={priv ? 'hidden-val' : ''} short={`${day.net > 0 ? '+' : ''}${fmtCompact(day.net)}`}>{fmtMoney(day.net, { sign: true })}</Fit>
                         </div>
                         <div className="meta">
                           <Clock size={12} />
@@ -86,7 +86,7 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
                 {wd.length > 0 && (
                   <>
                     <div className={`wk-pnl ${wNet >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 16, fontWeight: 500, marginTop: 'auto', marginBottom: 6, filter: priv ? 'blur(6px)' : undefined }}>
-                      <span className="pv-full">{fmtMoney(wNet, { sign: true })}</span><span className="pv-short">{wNet > 0 ? "+" : ""}{fmtCompact(wNet)}</span>
+                      <Fit short={`${wNet > 0 ? '+' : ''}${fmtCompact(wNet)}`}>{fmtMoney(wNet, { sign: true })}</Fit>
                     </div>
                     <div className="muted" style={{ fontWeight: 500 }}>{wTrades}t · {Math.round((wWins / wTrades) * 100)}%</div>
                   </>

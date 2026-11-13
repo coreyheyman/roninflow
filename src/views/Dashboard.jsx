@@ -2,7 +2,7 @@ import { StatLabel } from '../components/StatInfo';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChartArea, ChartLine, ChartColumn, Trophy, Minus, TrendingDown, TrendingUp, Check, LayoutGrid, Plus, RotateCcw, Search, Undo2, X, ArrowUpRight } from 'lucide-react';
 import { useStore, useAccountTrades, navigate } from '../store/store';
-import { AccountPicker, DateRange, Popover, Seg, TrendBadge, Private, useSize } from '../components/ui';
+import { AccountPicker, DateRange, Fit, Popover, Seg, TrendBadge, Private, useSize } from '../components/ui';
 import { PnlChart, Sparkline, Gauge, RateBar, HBars, MarkerScale } from '../components/Charts';
 import { FilterButton, applyFilters, EMPTY_FILTERS } from '../components/Filters';
 import { PnlCalendar } from '../components/Calendar';
@@ -547,13 +547,13 @@ function AvgWinLoss({ title, unit, win, loss, wins, losses, total, winRate, avg,
         <div className="avgt-pair">
           <div>
             <div className="avgt-k pos">W</div>
-            <div className="avgt-v pos"><Private>{fmtMoney(win)}</Private></div>
+            <div className="avgt-v pos"><Fit><Private>{fmtMoney(win)}</Private></Fit></div>
             <div className="avgt-s">{wins} {noun[0]}{wins === 1 ? '' : 's'}</div>
           </div>
           <div className="avgt-sep" />
           <div>
             <div className="avgt-k neg">L</div>
-            <div className="avgt-v neg"><Private>{fmtMoney(-loss)}</Private></div>
+            <div className="avgt-v neg"><Fit><Private>{fmtMoney(-loss)}</Private></Fit></div>
             <div className="avgt-s">{losses} {noun[1]}{losses === 1 ? '' : 's'}</div>
           </div>
         </div>

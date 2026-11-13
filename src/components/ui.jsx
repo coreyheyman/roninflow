@@ -1,5 +1,5 @@
 import { StatLabel } from './StatInfo';
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X, ChevronDown, CalendarDays, Check, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 import { useStore } from '../store/store';
 import { fmtMoney, fmtDate, datePresets, MONTHS_LONG, keyOf, pad } from '../lib/stats';
@@ -300,4 +300,44 @@ export function fileToDataUrl(file, max = 1400) {
     };
     r.readAsDataURL(file);
   });
+}
+
+/** Keeps a number inside its box: shows `children` if it fits, else `short` (e.g. +$143k) if given and it
+ *  fits, else whichever is shorter, scaled down until it fits (never below `min` of the normal size).
+ *  The box is the parent element, so the parent needs a definite width (min-width: 0 in flex/grid). */
+export function Fit({ children, short, min = 0.5, className = '', title }) {
+  const outer = useRef(null), full = useRef(null), alt = useRef(null);
+  const [fit, setFit] = useState({ useShort: false, scale: 1 });
+  useLayoutEffect(() => {
+    const el = outer.current, box = el?.parentElement;
+    if (!el || !box) return undefined;
+    const measure = () => {
+      const cs = getComputedStyle(box);
+      const avail = box.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0) - 1;
+      if (avail <= 0) return;
+      const fw = full.current?.offsetWidth || 0, sw = alt.current?.offsetWidth || 0;
+      let next;
+      if (fw <= avail) next = { useShort: false, scale: 1 };
+      else if (short != null && sw <= avail) next = { useShort: true, scale: 1 };
+      else {
+        const useShort = short != null && sw && sw < fw;
+        next = { useShort, scale: Math.max(min, Math.floor((avail / (useShort ? sw : fw)) * 100) / 100) };
+      }
+      setFit((f) => (f.useShort === next.useShort && f.scale === next.scale ? f : next));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    // web fonts can arrive after the first measurement
+    document.fonts?.ready?.then(measure).catch(() => {});
+    return () => ro.disconnect();
+  });
+  return (
+    <span ref={outer} className={`fit ${className}`} title={title} style={fit.scale < 1 ? { fontSize: `${fit.scale}em` } : undefined}>
+      {fit.useShort ? short : children}
+      {/* invisible copies at full size, for measuring */}
+      <span className="fit-m" aria-hidden="true" ref={full} style={fit.scale < 1 ? { fontSize: `${1 / fit.scale}em` } : undefined}>{children}</span>
+      {short != null && <span className="fit-m" aria-hidden="true" ref={alt} style={fit.scale < 1 ? { fontSize: `${1 / fit.scale}em` } : undefined}>{short}</span>}
+    </span>
+  );
 }
