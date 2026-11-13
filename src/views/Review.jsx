@@ -412,7 +412,7 @@ function WeekDays({ period, dayMap }) {
       {days.map(({ d, k, day }) => (
         <div key={k} className={`rv-wday ${day ? (day.net >= 0 ? 'win' : 'loss') : ''} ${k === today ? 'today' : ''}`} onClick={() => openDay(k)} title="Open this day's diary">
           <div className="rv-wday-h"><span>{WEEKDAYS[d.getDay()]}</span><span className="muted">{MONTHS[d.getMonth()]} {d.getDate()}</span></div>
-          <div className={`rv-wday-v ${day ? (day.net >= 0 ? 'pos' : 'neg') : 'muted2'}`}>
+          <div className={`rv-wday-v ${day ? (day.net >= 0 ? 'pos' : 'neg') : 'muted2'}`} style={day ? { '--len': fmtMoney(day.net, { sign: true, dp: 0 }).length } : undefined}>
             {day ? <span className={priv ? 'hidden-val' : ''}>{fmtMoney(day.net, { sign: true, dp: 0 })}</span> : '—'}
           </div>
           <div className="rv-wday-f">{day ? <><span>{nTrades(day.count)}</span><span>{wr(day)}%</span></> : <span className="muted2">No trades</span>}</div>
@@ -420,7 +420,7 @@ function WeekDays({ period, dayMap }) {
       ))}
       <div className={`rv-wday total ${list.length ? (net >= 0 ? 'win' : 'loss') : ''}`}>
         <div className="rv-wday-h"><span>Week</span></div>
-        <div className={`rv-wday-v ${list.length ? (net >= 0 ? 'pos' : 'neg') : 'muted2'}`}>{list.length ? <span className={priv ? 'hidden-val' : ''}>{fmtMoney(net, { sign: true, dp: 0 })}</span> : '—'}</div>
+        <div className={`rv-wday-v ${list.length ? (net >= 0 ? 'pos' : 'neg') : 'muted2'}`} style={list.length ? { '--len': fmtMoney(net, { sign: true, dp: 0 }).length } : undefined}>{list.length ? <span className={priv ? 'hidden-val' : ''}>{fmtMoney(net, { sign: true, dp: 0 })}</span> : '—'}</div>
         <div className="rv-wday-f">{list.length ? <><span>{nTrades(n)}</span><span>WR {Math.round((w / n) * 100)}%</span></> : <span className="muted2">—</span>}</div>
       </div>
     </div>

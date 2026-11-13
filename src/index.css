@@ -669,8 +669,10 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-wday { display: flex; flex-direction: column; border-right: 1px solid var(--border); cursor: pointer; min-width: 0; width: 100%; aspect-ratio: var(--tile-ar); max-height: var(--tile-max); }
 .rv-wday:last-child { border-right: 0; cursor: default; }
 .rv-wday-h { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; font-size: 13px; font-weight: 500; border-bottom: 1px solid var(--border); background: var(--card); }
-.rv-wday-v { flex: 1; display: grid; place-items: center; font-size: clamp(18px, 2vw, 28px); font-weight: 500; letter-spacing: -0.02em; text-align: center; padding: 10px 8px; white-space: nowrap; min-height: 0; }
-.rv-wday-f { display: flex; justify-content: space-between; padding: 8px 14px; font-size: 12px; color: var(--fg-2); border-top: 1px solid var(--border); margin-top: auto; }
+.rv-wday { container-type: inline-size; }
+/* the number shrinks to fit its tile: ~0.62em per character, after the tile's side padding */
+.rv-wday-v { flex: 1; display: grid; place-items: center; font-size: clamp(11px, calc((100cqi - 18px) / (var(--len, 4) * 0.62)), clamp(18px, 2vw, 28px)); font-weight: 500; letter-spacing: -0.02em; text-align: center; padding: 10px 8px; white-space: nowrap; min-height: 0; }
+.rv-wday-f { display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; padding: 8px 14px; font-size: 12px; color: var(--fg-2); border-top: 1px solid var(--border); margin-top: auto; }
 .rv-wday.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 18%, transparent), color-mix(in srgb, var(--pos-strong) 5%, transparent)); }
 .rv-wday.loss { background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 13%, transparent), color-mix(in srgb, var(--neg) 4%, transparent)); }
 .rv-wday-h span { white-space: nowrap; }
