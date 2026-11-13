@@ -2,6 +2,11 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.2.2
+
+- **Big numbers fit their boxes everywhere:** the calendars (dashboard, monthly and quarterly reviews), review stat tiles and the Average Trade / Average Day widget now show a number in full when it fits, switch to the short form ($143k) when it doesn't, and shrink only if needed, based on the space each box actually has rather than the window size. Large days and weeks no longer spill out or get cut off with "…".
+- The line under "Disciplined trades" wraps instead of hiding the cost of flagged trades, and the month review's "7 trades · 29%" no longer breaks across lines.
+
 ## 1.2.1
 
 - **Weekly review numbers fit their tiles:** each day's and the week's P&L shrinks just enough to fit, so five- and six-figure days no longer spill out on smaller screens. The week's "trades · WR" line no longer wraps.
