@@ -2,6 +2,14 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.3.0
+
+- **Risk rules per account:** Risk rules now has a "Rules for" picker — the default plan or any account. Accounts use the default plan until you give them their own, either as a copy of the default or scaled to the account's max drawdown (with daily loss limits capped at the firm's). The Risk page, sidebar risk box and diary follow the plan of the account you're viewing, and the Start/Peak switch only changes that plan.
+- **Add, remove and reorder tiers**, and choose which tier is Normal. Tiers above Normal stay locked until unlocked; losing streaks step you down one tier at a time.
+- **Each tier sets the drawdown it kicks in at**, right in its row (leave it empty for streak-only tiers). Your existing two thresholds carry over. The Risk page's drawdown bar shows every threshold, how much room is left before the next one, and what it takes to climb out.
+- Warnings in the editor when a daily loss limit is above the firm's, when tiers or thresholds are out of order, and each threshold as a % of the firm's max drawdown.
+- **Profit target and max-loss lines on account charts.** The max-loss line follows the account's drawdown type — flat for static, stepping up after each best close for EOD trailing, and with the highest point reached for intraday trailing — and stops at the starting balance if the account is set to. Hover a day for its floor and the room left; daily bars show the daily loss limit instead. A Limits button hides them.
+
 ## 1.2.2
 
 - **Big numbers fit their boxes everywhere:** the calendars (dashboard, monthly and quarterly reviews), review stat tiles and the Average Trade / Average Day widget now show a number in full when it fits, switch to the short form ($143k) when it doesn't, and shrink only if needed, based on the space each box actually has rather than the window size. Large days and weeks no longer spill out or get cut off with "…".
