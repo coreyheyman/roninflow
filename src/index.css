@@ -1822,3 +1822,9 @@ button.ec-row:hover { background: var(--hover); }
 .risk-plan-tag b { color: var(--fg-2); font-weight: 500; }
 .risk-cols { background: none !important; border-color: transparent !important; padding-top: 0; padding-bottom: 0; font-size: 11.5px; color: var(--muted); min-height: 0; }
 .risk-cols > span { flex-shrink: 0; padding-left: 2px; }
+.tier-normal { width: 56px; display: grid; place-items: center; flex-shrink: 0; cursor: pointer; }
+.tier-normal input { accent-color: var(--primary); width: 15px; height: 15px; cursor: pointer; }
+.rule.is-normal { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
+.rule.is-above { opacity: 0.88; }
+.tier-acts { display: flex; gap: 0; flex-shrink: 0; width: 96px; justify-content: flex-end; }
+.tier-acts .icon-btn:disabled { opacity: 0.25; cursor: default; }

@@ -71,6 +71,23 @@ export function suggestRisk(base, account) {
   return { ...JSON.parse(JSON.stringify(base)), tiers, damageDD: round(maxDD * 0.5, 50), riskOffDD: round(maxDD * 0.25, 50) };
 }
 
+/** Index of a plan's Normal tier. */
+export function normalIndex(risk) {
+  const tiers = risk?.tiers || [];
+  const i = tiers.findIndex((t) => t.id === risk.normalTier);
+  return i >= 0 ? i : Math.max(0, Math.min(2, tiers.length - 1));
+}
+
+let tierSeq = 0;
+/** A new tier one step above `top` (or a starter tier). */
+export function newTier(top) {
+  const r5 = (v) => Math.max(5, Math.round(v / 5) * 5);
+  tierSeq += 1;
+  return top
+    ? { id: `t${Date.now().toString(36)}${tierSeq}`, name: 'New tier', dailyLL: r5(top.dailyLL * 1.25), riskMin: r5(top.riskMin * 1.25), riskMax: r5(top.riskMax * 1.25), note: '', color: '#7fb6d9' }
+    : { id: `t${Date.now().toString(36)}${tierSeq}`, name: 'New tier', dailyLL: 200, riskMin: 50, riskMax: 100, note: '', color: '#7fb6d9' };
+}
+
 const daysAgoKey = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return keyOf(d); };
 
 /** Performance per market condition over the look-back window (sessions where a condition was logged). */
@@ -122,7 +139,10 @@ export function blockerStats(trades, blockers, lookback = 90) {
  */
 export function riskState(trades, account, risk) {
   const tiers = risk.tiers;
-  const normal = risk.unlockTop ? tiers.length - 1 : Math.min(2, tiers.length - 1);
+  // the Normal tier: chosen in the plan (normalTier), else the third tier as in the original four-tier plan.
+  // Tiers above it are locked until unlocked in a risk review; then green days can climb all the way up.
+  const base = normalIndex(risk);
+  const normal = risk.unlockTop ? tiers.length - 1 : base;
   const curve = equityCurve(trades);
   // account.balanceGap: what the live balance says the trades are missing (missing fills, fees…). We can't tell
   // when it happened, so it's applied from the start: the equity curve is shifted by it, and the drawdown is
@@ -175,7 +195,7 @@ export function riskState(trades, account, risk) {
   const recent = sessions.slice(-10);
   const nextDown = dd >= risk.damageDD ? null : risk.damageDD - dd;
   return {
-    level, ruleLevel, ddLevel, normal, tier, tiers, dd, peak, peakAt, current, ddMode: mode, reasons, history: history.slice(-12).reverse(),
+    level, ruleLevel, ddLevel, normal, base, tier, tiers, dd, peak, peakAt, current, ddMode: mode, reasons, history: history.slice(-12).reverse(),
     todayNet, remaining, stopNow: remaining <= 0, recent, toRiskOff: dd >= risk.riskOffDD ? null : risk.riskOffDD - dd, toDamage: nextDown,
     balance: (account?.initial || 0) + current,
   };

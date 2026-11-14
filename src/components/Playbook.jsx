@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Minus, Plus, Trash, ShieldCheck, TrendingDown, Lightbulb, Pencil, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Minus, Plus, Trash, ShieldCheck, TrendingDown, Lightbulb, Pencil, X } from 'lucide-react';
 import { balanceGap } from '../lib/balance';
 import { useStore, useAccountTrades, navigate } from '../store/store';
 import { Modal, ModalHead, Stars, useToast, Private, Switch, Seg } from './ui';
-import { DEFAULT_PLAYBOOK, playbookOf, riskOf, defaultRiskOf, suggestRisk, regimeStats, blockerStats, riskState, lastTomorrowNote, tradeBlockers } from '../lib/playbook';
+import { DEFAULT_PLAYBOOK, playbookOf, riskOf, defaultRiskOf, suggestRisk, normalIndex, newTier, regimeStats, blockerStats, riskState, lastTomorrowNote, tradeBlockers } from '../lib/playbook';
 import { fmtDate, fmtMoney, fmtTime12, pfText, todayKey, uid } from '../lib/stats';
 
 export const MOODS = ['😫', '😕', '😐', '🙂', '😄'];
@@ -68,7 +68,7 @@ export function CheckBox({ on, onChange, size = 20 }) {
 
 export function TierCards({ risk, compact = false }) {
   return (
-    <div className="tier-row" style={{ gridTemplateColumns: `repeat(${risk.tiers.length}, minmax(0,1fr))` }}>
+    <div className="tier-row" style={{ gridTemplateColumns: risk.tiers.length > 5 ? "repeat(auto-fit, minmax(150px, 1fr))" : `repeat(${risk.tiers.length}, minmax(0,1fr))` }}>
       {risk.tiers.map((t, i) => {
         const on = i === risk.level;
         const locked = i > risk.normal;
@@ -545,29 +545,43 @@ function RiskEditor({ rk, setRk, account }) {
   const firmDaily = Number(account?.dailyLossLimit) || 0;
   const firmDD = Number(account?.maxDrawdown) || 0;
   const overDaily = firmDaily > 0 && rk.tiers.some((t) => t.dailyLL > firmDaily);
+  const ni = normalIndex(rk);
+  const normalId = rk.tiers[ni]?.id;
+  // structural changes keep the Normal tier pinned by id, so it doesn't shift when tiers move around
+  const setTiers = (f) => setRk((r) => { const tiers = f(r.tiers); return { ...r, tiers, normalTier: tiers.some((t) => t.id === normalId) ? normalId : tiers[Math.min(2, tiers.length - 1)]?.id }; });
+  const move = (i, d) => setTiers((ts) => { const a = [...ts]; [a[i], a[i + d]] = [a[i + d], a[i]]; return a; });
   return (
     <>
-      <div className="rule risk-cols" aria-hidden="true"><span style={{ width: 34 }} /><span style={{ width: 150 }}>Tier</span><span style={{ width: 100 }}>Daily loss limit</span><span style={{ width: 100 }}>Risk / trade min</span><span style={{ width: 100 }}>Risk / trade max</span><span className="grow">Note</span></div>
+      <div className="muted" style={{ fontSize: 12.5 }}>Lowest risk at the top. Losing streaks step you down one tier at a time and green days step you back up to <b style={{ color: 'var(--fg-2)' }}>Normal</b>; tiers above Normal stay locked until you unlock them below.</div>
+      <div className="rule risk-cols" aria-hidden="true"><span style={{ width: 34 }} /><span style={{ width: 56 }}>Normal</span><span style={{ width: 150 }}>Tier</span><span style={{ width: 100 }}>Daily loss limit</span><span style={{ width: 100 }}>Risk / trade min</span><span style={{ width: 100 }}>Risk / trade max</span><span className="grow">Note</span><span style={{ width: 96 }} /></div>
       {rk.tiers.map((t, i) => (
-        <div key={t.id} className="rule">
+        <div key={t.id} className={`rule ${i === ni ? 'is-normal' : i > ni ? 'is-above' : ''}`}>
           <input type="color" value={t.color} onChange={(e) => setRk((r) => ({ ...r, tiers: r.tiers.map((x, j) => (j === i ? { ...x, color: e.target.value } : x)) }))} style={{ width: 34, height: 30, background: 'none', border: 0 }} />
+          <label className="tier-normal" title="Normal tier: where green days bring you back to"><input type="radio" name="normal-tier" checked={i === ni} onChange={() => setRk((r) => ({ ...r, normalTier: t.id }))} aria-label={`Make “${t.name}” the Normal tier`} /></label>
           {[['name', 'Name', 150, 'text'], ['dailyLL', 'Daily LL (USD)', 100, 'number'], ['riskMin', 'Risk min (USD)', 100, 'number'], ['riskMax', 'Risk max (USD)', 100, 'number'], ['note', 'Note', 0, 'text']].map(([f, ph, w, type]) => (
-            <input key={f} className={`input ${w ? '' : 'grow'} ${f === 'dailyLL' && firmDaily && t.dailyLL > firmDaily ? 'warn-input' : ''}`} title={ph} placeholder={ph} type={type} style={{ height: 32, width: w || undefined }} value={t[f]} onChange={(e) => setRk((r) => ({ ...r, tiers: r.tiers.map((x, j) => (j === i ? { ...x, [f]: type === 'number' ? Number(e.target.value) : e.target.value } : x)) }))} />
+            <input key={f} className={`input ${w ? '' : 'grow'} ${f === 'dailyLL' && firmDaily && t.dailyLL > firmDaily ? 'warn-input' : ''}`} title={ph} placeholder={ph} type={type} style={{ height: 32, width: w || undefined, minWidth: w ? undefined : 60 }} value={t[f]} onChange={(e) => setRk((r) => ({ ...r, tiers: r.tiers.map((x, j) => (j === i ? { ...x, [f]: type === 'number' ? Number(e.target.value) : e.target.value } : x)) }))} />
           ))}
+          <div className="tier-acts">
+            <button className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} title="Move up (less risk)" aria-label="Move up"><ChevronUp size={14} /></button>
+            <button className="icon-btn" disabled={i === rk.tiers.length - 1} onClick={() => move(i, 1)} title="Move down (more risk)" aria-label="Move down"><ChevronDown size={14} /></button>
+            <button className="icon-btn" disabled={rk.tiers.length <= 2} onClick={() => setTiers((ts) => ts.filter((_, j) => j !== i))} title={rk.tiers.length <= 2 ? 'A plan needs at least two tiers' : 'Remove tier'} aria-label="Remove tier"><Trash size={14} /></button>
+          </div>
         </div>
       ))}
+      <button className="btn sm" style={{ alignSelf: 'flex-start' }} onClick={() => setTiers((ts) => [...ts, newTier(ts[ts.length - 1])])}><Plus size={14} /> Add tier</button>
+      {rk.tiers.some((t, i) => i > 0 && Number(t.dailyLL) < Number(rk.tiers[i - 1].dailyLL)) && <div className="risk-warn">Daily loss limits usually go up from the top tier to the bottom one — check the order (a lower row should allow at least as much as the row above it).</div>}
       {overDaily && <div className="risk-warn">A daily loss limit here is above this account’s firm daily loss limit of {money0(firmDaily)}.</div>}
       <div className="form-grid" style={{ marginTop: 10 }}>
         <div className="field full"><label className="label">Measure drawdown from</label>
           <Seg value={rk.ddMode === 'start' ? 'start' : 'hwm'} onChange={(v) => setRk({ ...rk, ddMode: v })} options={[{ value: 'start', label: 'Starting balance' }, { value: 'hwm', label: 'High watermark (trailing)' }]} />
           <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{rk.ddMode === 'start' ? 'Drawdown only counts how far you are below where the account started — profits give you a cushion.' : 'Drawdown counts how far you are below your highest balance — like a trailing max-drawdown rule.'}</span>
         </div>
-        <div className="field"><label className="label">Drawdown for “{rk.tiers[0]?.name}” (USD)</label><input className={`input ${firmDD && rk.damageDD >= firmDD ? 'warn-input' : ''}`} type="number" value={rk.damageDD} onChange={(e) => setRk({ ...rk, damageDD: Number(e.target.value) })} />{firmDD > 0 && <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{Math.round((rk.damageDD / firmDD) * 100)}% of the firm’s {money0(firmDD)} max drawdown</span>}</div>
+        <div className="field"><label className="label">Drawdown for “{rk.tiers[0]?.name}” <span className="muted">(lowest tier)</span></label><input className={`input ${firmDD && rk.damageDD >= firmDD ? 'warn-input' : ''}`} type="number" value={rk.damageDD} onChange={(e) => setRk({ ...rk, damageDD: Number(e.target.value) })} />{firmDD > 0 && <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{Math.round((rk.damageDD / firmDD) * 100)}% of the firm’s {money0(firmDD)} max drawdown</span>}</div>
         <div className="field"><label className="label">Drawdown for “{rk.tiers[1]?.name}” (USD)</label><input className="input" type="number" value={rk.riskOffDD} onChange={(e) => setRk({ ...rk, riskOffDD: Number(e.target.value) })} />{firmDD > 0 && <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{Math.round((rk.riskOffDD / firmDD) * 100)}% of the max drawdown</span>}</div>
         <div className="field"><label className="label">Consecutive max-loss days before reducing</label><input className="input" type="number" min="1" value={rk.maxLossStreak} onChange={(e) => setRk({ ...rk, maxLossStreak: Math.max(1, Number(e.target.value)) })} /></div>
         <div className="field"><label className="label">Sizable green day = × daily loss limit</label><input className="input" type="number" step="0.25" value={rk.greenMultiple} onChange={(e) => setRk({ ...rk, greenMultiple: Number(e.target.value) })} /></div>
         <div className="field"><label className="label">Look-back for stats (days)</label><input className="input" type="number" value={rk.lookbackDays} onChange={(e) => setRk({ ...rk, lookbackDays: Number(e.target.value) })} /></div>
-        <label className="row gap8" style={{ fontSize: 13.5, marginTop: 22 }}><input type="checkbox" className="cbx" checked={!!rk.unlockTop} onChange={(e) => setRk({ ...rk, unlockTop: e.target.checked })} /> Unlock “{rk.tiers[rk.tiers.length - 1]?.name}” (approved in quarterly risk review)</label>
+        {ni < rk.tiers.length - 1 && <label className="row gap8" style={{ fontSize: 13.5, marginTop: 22 }}><input type="checkbox" className="cbx" checked={!!rk.unlockTop} onChange={(e) => setRk({ ...rk, unlockTop: e.target.checked })} /> Unlock {rk.tiers.length - 1 - ni === 1 ? `“${rk.tiers[rk.tiers.length - 1]?.name}”` : `the ${rk.tiers.length - 1 - ni} tiers above “${rk.tiers[ni]?.name}”`} (approved in quarterly risk review)</label>}
       </div>
     </>
   );

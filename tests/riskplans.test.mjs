@@ -49,3 +49,31 @@ test('suggested plan scales to the account and respects its daily loss limit', (
   assert.deepEqual(suggestRisk(base, {}), JSON.parse(JSON.stringify(base))); // no max drawdown: plain copy
   assert.notEqual(suggestRisk(base, {}).tiers, base.tiers); // a copy, not the same object
 });
+
+test('more tiers: you choose the Normal tier, and unlocking opens every tier above it', async () => {
+  const { normalIndex, newTier } = await import('../src/lib/playbook.js');
+  const T = (id, dailyLL) => ({ id, name: id, dailyLL, riskMin: dailyLL / 5, riskMax: dailyLL / 2.5, color: '#fff' });
+  const six = [T('dc', 100), T('off', 200), T('light', 350), T('normal', 500), T('up1', 700), T('up2', 900)];
+  const plan = { ...DEFAULT_RISK, tiers: six, normalTier: 'normal' };
+  assert.equal(normalIndex(plan), 3);
+  assert.equal(normalIndex({ ...plan, normalTier: 'gone' }), 2); // unknown → the third tier, as before
+  assert.equal(normalIndex(DEFAULT_RISK), 2); // the original four-tier plan is unchanged
+  const day = (date, pnl) => ({ id: date, entry: `${date}T10:00:00`, exit: `${date}T10:05:00`, pnl, qty: 1, symbol: 'MES' });
+  // no trades: you sit at Normal; tiers above are locked
+  let r = riskState([], {}, plan);
+  assert.equal(r.tier.name, 'normal');
+  assert.equal(r.normal, 3);
+  // two max-loss days step down one tier at a time through the extra tiers
+  const losing = [day('2026-10-01', -500), day('2026-10-02', -500), day('2026-10-05', -10)];
+  r = riskState(losing, {}, { ...plan, damageDD: 99999, riskOffDD: 99999 });
+  assert.equal(r.tier.name, 'off'); // normal → light (2 max-loss days) → off (another red day)
+  // unlocked: big green days climb past Normal to the very top
+  const green = [day('2026-10-01', 600), day('2026-10-02', 800), day('2026-10-05', 1000)];
+  r = riskState(green, {}, { ...plan, unlockTop: true });
+  assert.equal(r.normal, 5);
+  assert.equal(r.tier.name, 'up2');
+  // a new tier sits a step above the one given
+  const nt = newTier(six[5]);
+  assert.equal(nt.dailyLL, 1125);
+  assert.ok(nt.id && nt.id !== newTier(six[5]).id);
+});
