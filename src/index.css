@@ -1828,3 +1828,6 @@ button.ec-row:hover { background: var(--hover); }
 .rule.is-above { opacity: 0.88; }
 .tier-acts { display: flex; gap: 0; flex-shrink: 0; width: 96px; justify-content: flex-end; }
 .tier-acts .icon-btn:disabled { opacity: 0.25; cursor: default; }
+.tier-dd-na { flex-shrink: 0; height: 32px; display: grid; place-items: center; color: var(--muted-2); font-size: 12px; border: 1px dashed var(--border); }
+.dd-bar .mark.alt em { top: auto; bottom: 20px; }
+.dd-bar:has(.mark.alt) { margin-top: 28px; }

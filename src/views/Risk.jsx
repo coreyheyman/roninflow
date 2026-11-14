@@ -82,9 +82,10 @@ export default function Risk() {
       riskTier: { name: tier.name, dailyLossLimit: tier.dailyLL, riskPerTrade: `${tier.riskMin}-${tier.riskMax}`, riskMax: tier.riskMax, note: tier.note },
       tierReasons: risk.reasons,
       tiers: risk.tiers.map((x, i) => ({ level: i, name: x.name, dailyLossLimit: x.dailyLL, riskPerTrade: `${x.riskMin}-${x.riskMax}`, current: i === risk.level, locked: i > risk.normal })),
-      tierRules: `Drop to "${risk.tiers[1]?.name}" at ${cfg.riskOffDD} drawdown and to "${risk.tiers[0]?.name}" at ${cfg.damageDD}. Reduce a tier after ${cfg.maxLossStreak} consecutive max-loss days, then after every further red day. Move up a tier after a green day of at least ${cfg.greenMultiple}x the current daily loss limit, up to "${risk.tiers[risk.normal]?.name}".`,
+      tierRules: `${risk.steps.length ? risk.steps.map((st) => `Drop to "${st.name}" at ${st.at} drawdown`).join(', ') + '. ' : 'No drawdown thresholds. '}Reduce a tier after ${cfg.maxLossStreak} consecutive max-loss days, then after every further red day. Move up a tier after a green day of at least ${cfg.greenMultiple}x the current daily loss limit, up to "${risk.tiers[risk.normal]?.name}".`,
       toNextTierUp: next ? `A green day of +${Math.round(tier.dailyLL * cfg.greenMultiple)} or more moves you up to "${next.name}" (if drawdown allows)` : 'Already at the normal tier',
-      toRiskOff: risk.toRiskOff == null ? null : Math.round(risk.toRiskOff * 100) / 100, toDamageControl: risk.toDamage == null ? null : Math.round(risk.toDamage * 100) / 100,
+      nextDrawdownThreshold: risk.nextDrop ? { tier: risk.nextDrop.name, at: risk.nextDrop.at, roomLeft: Math.round(risk.nextDrop.left * 100) / 100 } : null,
+      toClimbOutOfDrawdownTier: risk.recover ? { tier: risk.recover.name, recover: Math.round(risk.recover.need * 100) / 100 } : null,
       tierHistory: risk.history,
       today: { net: Math.round(risk.todayNet * 100) / 100, roomBeforeDailyLossLimit: Math.round(risk.remaining * 100) / 100, shouldStop: risk.stopNow },
       currentRedStreakDays: redStreak,
@@ -98,7 +99,7 @@ export default function Risk() {
   const pv = POINT_VALUE[sym] || 1;
   const perContract = stop * pv + fee * 2;
   const qty = (r) => Math.max(0, Math.floor(r / perContract));
-  const maxScale = Math.max(cfg.damageDD * 1.25, risk.dd * 1.1, 1);
+  const maxScale = Math.max((risk.steps.at(-1)?.at || 0) * 1.25, risk.dd * 1.1, 1);
   const pct = (v) => `${Math.min(100, (v / maxScale) * 100)}%`;
 
   return (
@@ -164,11 +165,15 @@ export default function Risk() {
           <div className="label">Drawdown vs thresholds</div>
           <div className="dd-bar">
             <i style={{ width: pct(risk.dd) }} />
-            <span className="mark" style={{ left: pct(cfg.riskOffDD) }}><em>{risk.tiers[1]?.name} {money0(cfg.riskOffDD)}</em></span>
-            <span className="mark" style={{ left: pct(cfg.damageDD) }}><em>{risk.tiers[0]?.name} {money0(cfg.damageDD)}</em></span>
+            {risk.steps.map((st, k) => <span key={st.i} className={`mark ${k % 2 ? 'alt' : ''}`} style={{ left: pct(st.at), '--tier': risk.tiers[st.i].color }}><em>{st.name} {money0(st.at)}</em></span>)}
           </div>
           <div className="muted" style={{ fontSize: 12.5, marginTop: 30 }}>
-            {risk.toRiskOff !== null ? <>You can lose <Private>{money0(risk.toRiskOff)}</Private> more {fromStart ? 'below your starting balance' : 'from the peak'} before dropping to “{risk.tiers[1]?.name}”.</> : risk.toDamage !== null ? <><Private>{money0(risk.toDamage)}</Private> more drawdown puts you in “{risk.tiers[0]?.name}”.</> : <>Recover <Private>{money0(risk.dd - cfg.damageDD + 1)}</Private> to leave “{risk.tiers[0]?.name}”.</>}
+            {!risk.steps.length
+              ? <>No tier has a drawdown threshold — only losing streaks change your tier. Set them in Risk rules.</>
+              : <>
+                {risk.recover && <>Recover <Private>{money0(risk.recover.need)}</Private> to climb out of “{risk.recover.name}”. </>}
+                {risk.nextDrop ? <>You can lose <Private>{money0(risk.nextDrop.left)}</Private> more {fromStart ? 'below your starting balance' : 'from the peak'} before dropping to “{risk.nextDrop.name}”.</> : !risk.recover ? null : <>You’re at the lowest threshold.</>}
+              </>}
           </div>
           <div className="label" style={{ marginTop: 22 }}>Last 10 sessions</div>
           <div className="row gap6 wrap">

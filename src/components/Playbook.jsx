@@ -3,7 +3,7 @@ import { Check, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Minus, Plus, 
 import { balanceGap } from '../lib/balance';
 import { useStore, useAccountTrades, navigate } from '../store/store';
 import { Modal, ModalHead, Stars, useToast, Private, Switch, Seg } from './ui';
-import { DEFAULT_PLAYBOOK, playbookOf, riskOf, defaultRiskOf, suggestRisk, normalIndex, newTier, regimeStats, blockerStats, riskState, lastTomorrowNote, tradeBlockers } from '../lib/playbook';
+import { DEFAULT_PLAYBOOK, playbookOf, riskOf, defaultRiskOf, suggestRisk, normalIndex, newTier, tierDD, withTierDD, regimeStats, blockerStats, riskState, lastTomorrowNote, tradeBlockers } from '../lib/playbook';
 import { fmtDate, fmtMoney, fmtTime12, pfText, todayKey, uid } from '../lib/stats';
 
 export const MOODS = ['😫', '😕', '😐', '🙂', '😄'];
@@ -421,7 +421,8 @@ export function PlaybookSettings({ open, onClose, initialTab = 'pre' }) {
     if (open) {
       setTab(initialTab);
       setPb(JSON.parse(JSON.stringify(playbookOf(state))));
-      setPlans({ default: JSON.parse(JSON.stringify(defaultRiskOf(state))), own: JSON.parse(JSON.stringify(state.settings.riskByAccount || {})) });
+      const own = Object.fromEntries(Object.entries(state.settings.riskByAccount || {}).map(([id, v]) => [id, v ? withTierDD(riskOf(state, id)) : v]));
+      setPlans({ default: withTierDD(JSON.parse(JSON.stringify(defaultRiskOf(state)))), own: JSON.parse(JSON.stringify(own)) });
       setWho(state.settings.account !== 'all' && state.accounts.some((a) => a.id === state.settings.account) ? state.settings.account : 'default');
     }
   }
@@ -438,7 +439,7 @@ export function PlaybookSettings({ open, onClose, initialTab = 'pre' }) {
   const del = (k, i) => setPb((p) => ({ ...p, [k]: p[k].filter((_, j) => j !== i) }));
   const TABS = [['pre', 'Pre-market routine'], ['post', 'Post-market routine'], ['regimes', 'Market conditions'], ['blockers', 'Edge blockers'], ['risk', 'Risk tiers']];
   return (
-    <Modal open={open} onClose={onClose} width={900}>
+    <Modal open={open} onClose={onClose} width={1040}>
       <ModalHead title="Playbook settings" sub="Edit your routines, market conditions, edge blockers and risk rules" onClose={onClose} />
       <div className="row gap6 wrap" style={{ padding: '6px 24px 0' }}>
         {TABS.map(([k, l]) => <button key={k} className={`chip ${tab === k ? 'on' : ''}`} style={{ padding: '6px 12px' }} onClick={() => setTab(k)}>{l}</button>)}
@@ -530,8 +531,10 @@ export function PlaybookSettings({ open, onClose, initialTab = 'pre' }) {
         <button className="btn" onClick={onClose}>Cancel</button>
         <button className="btn white" onClick={() => {
           setSetting('playbook', pb);
-          setSetting('risk', plans.default);
-          const own = Object.fromEntries(Object.entries(plans.own).filter(([id, v]) => v && state.accounts.some((a) => a.id === id)));
+          // damageDD / riskOffDD mirror the first two tiers' thresholds, for older versions of the app
+          const legacy = (pl) => { const d = tierDD(pl); return { ...pl, damageDD: d[0] ?? pl.damageDD, riskOffDD: d[1] ?? pl.riskOffDD }; };
+          setSetting('risk', legacy(plans.default));
+          const own = Object.fromEntries(Object.entries(plans.own).filter(([id, v]) => v && state.accounts.some((a) => a.id === id)).map(([id, v]) => [id, legacy(v)]));
           setSetting('riskByAccount', Object.keys(own).length ? own : null);
           toast('Playbook saved'); onClose();
         }}><Check size={15} /> Save</button>
@@ -552,14 +555,17 @@ function RiskEditor({ rk, setRk, account }) {
   const move = (i, d) => setTiers((ts) => { const a = [...ts]; [a[i], a[i + d]] = [a[i + d], a[i]]; return a; });
   return (
     <>
-      <div className="muted" style={{ fontSize: 12.5 }}>Lowest risk at the top. Losing streaks step you down one tier at a time and green days step you back up to <b style={{ color: 'var(--fg-2)' }}>Normal</b>; tiers above Normal stay locked until you unlock them below.</div>
-      <div className="rule risk-cols" aria-hidden="true"><span style={{ width: 34 }} /><span style={{ width: 56 }}>Normal</span><span style={{ width: 150 }}>Tier</span><span style={{ width: 100 }}>Daily loss limit</span><span style={{ width: 100 }}>Risk / trade min</span><span style={{ width: 100 }}>Risk / trade max</span><span className="grow">Note</span><span style={{ width: 96 }} /></div>
+      <div className="muted" style={{ fontSize: 12.5 }}>Lowest risk at the top. A drawdown past a tier’s threshold drops you to that tier; losing streaks step you down one tier at a time, and green days step you back up to <b style={{ color: 'var(--fg-2)' }}>Normal</b>. Tiers above Normal stay locked until you unlock them below.</div>
+      <div className="rule risk-cols" aria-hidden="true"><span style={{ width: 34 }} /><span style={{ width: 56 }}>Normal</span><span style={{ width: 156 }}>Tier</span><span style={{ width: 96 }}>Kicks in at drawdown</span><span style={{ width: 88 }}>Daily loss limit</span><span style={{ width: 88 }}>Risk / trade min</span><span style={{ width: 88 }}>Risk / trade max</span><span className="grow">Note</span><span style={{ width: 96 }} /></div>
       {rk.tiers.map((t, i) => (
         <div key={t.id} className={`rule ${i === ni ? 'is-normal' : i > ni ? 'is-above' : ''}`}>
           <input type="color" value={t.color} onChange={(e) => setRk((r) => ({ ...r, tiers: r.tiers.map((x, j) => (j === i ? { ...x, color: e.target.value } : x)) }))} style={{ width: 34, height: 30, background: 'none', border: 0 }} />
           <label className="tier-normal" title="Normal tier: where green days bring you back to"><input type="radio" name="normal-tier" checked={i === ni} onChange={() => setRk((r) => ({ ...r, normalTier: t.id }))} aria-label={`Make “${t.name}” the Normal tier`} /></label>
-          {[['name', 'Name', 150, 'text'], ['dailyLL', 'Daily LL (USD)', 100, 'number'], ['riskMin', 'Risk min (USD)', 100, 'number'], ['riskMax', 'Risk max (USD)', 100, 'number'], ['note', 'Note', 0, 'text']].map(([f, ph, w, type]) => (
-            <input key={f} className={`input ${w ? '' : 'grow'} ${f === 'dailyLL' && firmDaily && t.dailyLL > firmDaily ? 'warn-input' : ''}`} title={ph} placeholder={ph} type={type} style={{ height: 32, width: w || undefined, minWidth: w ? undefined : 60 }} value={t[f]} onChange={(e) => setRk((r) => ({ ...r, tiers: r.tiers.map((x, j) => (j === i ? { ...x, [f]: type === 'number' ? Number(e.target.value) : e.target.value } : x)) }))} />
+          {[['name', 'Name', 156, 'text'], ['capDD', 'Drawdown', 96, 'dd'], ['dailyLL', 'Daily LL (USD)', 88, 'number'], ['riskMin', 'Risk min (USD)', 88, 'number'], ['riskMax', 'Risk max (USD)', 88, 'number'], ['note', 'Note', 0, 'text']].map(([f, ph, w, type]) => (type === 'dd'
+            ? i < ni
+              ? <input key={f} className={`input ${firmDD && Number(t.capDD) >= firmDD ? 'warn-input' : ''}`} type="number" min="0" placeholder="none" title={`Drawdown (USD) at which you drop to “${t.name}”. Leave empty for no drawdown trigger (losing streaks only).${firmDD && Number(t.capDD) > 0 ? ` ${Math.round((Number(t.capDD) / firmDD) * 100)}% of the firm’s ${money0(firmDD)} max drawdown.` : ''}`} aria-label={`Drawdown for ${t.name}`} style={{ height: 32, width: w }} value={t.capDD ?? ''} onChange={(e) => setRk((r) => ({ ...r, tiers: r.tiers.map((x, j) => (j === i ? { ...x, capDD: e.target.value === '' ? null : Number(e.target.value) } : x)) }))} />
+              : <span key={f} className="tier-dd-na" style={{ width: w }} title={i === ni ? 'Normal: where you are with no drawdown' : 'Above Normal: reached with green days once unlocked'}>{i === ni ? '—' : 'locked'}</span>
+            : <input key={f} className={`input ${w ? '' : 'grow'} ${f === 'dailyLL' && firmDaily && t.dailyLL > firmDaily ? 'warn-input' : ''}`} title={ph} placeholder={ph} type={type} style={{ height: 32, width: w || undefined, minWidth: w ? undefined : 60 }} value={t[f]} onChange={(e) => setRk((r) => ({ ...r, tiers: r.tiers.map((x, j) => (j === i ? { ...x, [f]: type === 'number' ? Number(e.target.value) : e.target.value } : x)) }))} />
           ))}
           <div className="tier-acts">
             <button className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} title="Move up (less risk)" aria-label="Move up"><ChevronUp size={14} /></button>
@@ -570,14 +576,23 @@ function RiskEditor({ rk, setRk, account }) {
       ))}
       <button className="btn sm" style={{ alignSelf: 'flex-start' }} onClick={() => setTiers((ts) => [...ts, newTier(ts[ts.length - 1])])}><Plus size={14} /> Add tier</button>
       {rk.tiers.some((t, i) => i > 0 && Number(t.dailyLL) < Number(rk.tiers[i - 1].dailyLL)) && <div className="risk-warn">Daily loss limits usually go up from the top tier to the bottom one — check the order (a lower row should allow at least as much as the row above it).</div>}
+      {(() => {
+        const dds = tierDD(rk).slice(0, ni);
+        const set = dds.map((v, i) => [v, i]).filter(([v]) => v != null);
+        const bad = set.some(([v], k) => k > 0 && v >= set[k - 1][0]);
+        return (
+          <>
+            {bad && <div className="risk-warn">Drawdown thresholds should get bigger towards the top: the lowest-risk tier kicks in at the deepest drawdown.</div>}
+            {firmDD > 0 && set.length > 0 && <div className="muted" style={{ fontSize: 12 }}>Against the firm’s {money0(firmDD)} max drawdown: {set.map(([v, i]) => `“${rk.tiers[i].name}” at ${Math.round((v / firmDD) * 100)}%`).join(' · ')}</div>}
+          </>
+        );
+      })()}
       {overDaily && <div className="risk-warn">A daily loss limit here is above this account’s firm daily loss limit of {money0(firmDaily)}.</div>}
       <div className="form-grid" style={{ marginTop: 10 }}>
         <div className="field full"><label className="label">Measure drawdown from</label>
           <Seg value={rk.ddMode === 'start' ? 'start' : 'hwm'} onChange={(v) => setRk({ ...rk, ddMode: v })} options={[{ value: 'start', label: 'Starting balance' }, { value: 'hwm', label: 'High watermark (trailing)' }]} />
           <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{rk.ddMode === 'start' ? 'Drawdown only counts how far you are below where the account started — profits give you a cushion.' : 'Drawdown counts how far you are below your highest balance — like a trailing max-drawdown rule.'}</span>
         </div>
-        <div className="field"><label className="label">Drawdown for “{rk.tiers[0]?.name}” <span className="muted">(lowest tier)</span></label><input className={`input ${firmDD && rk.damageDD >= firmDD ? 'warn-input' : ''}`} type="number" value={rk.damageDD} onChange={(e) => setRk({ ...rk, damageDD: Number(e.target.value) })} />{firmDD > 0 && <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{Math.round((rk.damageDD / firmDD) * 100)}% of the firm’s {money0(firmDD)} max drawdown</span>}</div>
-        <div className="field"><label className="label">Drawdown for “{rk.tiers[1]?.name}” (USD)</label><input className="input" type="number" value={rk.riskOffDD} onChange={(e) => setRk({ ...rk, riskOffDD: Number(e.target.value) })} />{firmDD > 0 && <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{Math.round((rk.riskOffDD / firmDD) * 100)}% of the max drawdown</span>}</div>
         <div className="field"><label className="label">Consecutive max-loss days before reducing</label><input className="input" type="number" min="1" value={rk.maxLossStreak} onChange={(e) => setRk({ ...rk, maxLossStreak: Math.max(1, Number(e.target.value)) })} /></div>
         <div className="field"><label className="label">Sizable green day = × daily loss limit</label><input className="input" type="number" step="0.25" value={rk.greenMultiple} onChange={(e) => setRk({ ...rk, greenMultiple: Number(e.target.value) })} /></div>
         <div className="field"><label className="label">Look-back for stats (days)</label><input className="input" type="number" value={rk.lookbackDays} onChange={(e) => setRk({ ...rk, lookbackDays: Number(e.target.value) })} /></div>

@@ -60,7 +60,7 @@ export function suggestRisk(base, account) {
   const daily = Number(account?.dailyLossLimit) || 0;
   if (!maxDD) return JSON.parse(JSON.stringify(base));
   // the default plan's thresholds as a share of its own worst case, applied to this account's max drawdown
-  const ref = Math.max(base.damageDD, 1) / 0.5; // by default "damage control" starts at half the max drawdown
+  const ref = Math.max(tierDD(base)[0] || base.damageDD || 1, 1) / 0.5; // by default the lowest tier starts at half the max drawdown
   const k = maxDD / ref;
   const round = (v, step = 5) => Math.max(step, Math.round(v / step) * step);
   const tiers = base.tiers.map((t) => {
@@ -68,7 +68,12 @@ export function suggestRisk(base, account) {
     if (daily) dailyLL = Math.min(dailyLL, daily); // never above the firm's daily loss limit
     return { ...t, dailyLL, riskMin: round(t.riskMin * k), riskMax: round(t.riskMax * k) };
   });
-  return { ...JSON.parse(JSON.stringify(base)), tiers, damageDD: round(maxDD * 0.5, 50), riskOffDD: round(maxDD * 0.25, 50) };
+  // thresholds scale the same way: by default the lowest tier kicks in at 50% of the max drawdown, the next at 25%
+  const dds = tierDD(base);
+  const scaled = tiers.map((t, i) => (i < normalIndex(base) ? { ...t, capDD: dds[i] == null ? null : round(dds[i] * k, 50) } : t));
+  const out = { ...JSON.parse(JSON.stringify(base)), tiers: scaled };
+  out.damageDD = scaled[0]?.capDD ?? out.damageDD; out.riskOffDD = scaled[1]?.capDD ?? out.riskOffDD;
+  return out;
 }
 
 /** Index of a plan's Normal tier. */
@@ -78,14 +83,37 @@ export function normalIndex(risk) {
   return i >= 0 ? i : Math.max(0, Math.min(2, tiers.length - 1));
 }
 
+/** The drawdown each tier kicks in at (null = none). Only tiers below Normal have one. Plans from before
+ *  per-tier thresholds keep their two: damageDD for the lowest tier and riskOffDD for the second. */
+export function tierDD(risk) {
+  const base = normalIndex(risk);
+  return (risk?.tiers || []).map((t, i) => {
+    if (i >= base) return null;
+    if (t.capDD !== undefined) { const v = Number(t.capDD); return t.capDD !== null && t.capDD !== '' && v > 0 ? v : null; }
+    const legacy = i === 0 ? risk.damageDD : i === 1 ? risk.riskOffDD : null;
+    return Number(legacy) > 0 ? Number(legacy) : null;
+  });
+}
+
+/** The plan with every tier's threshold written on the tier itself (so they travel with tiers that move). */
+export function withTierDD(risk) {
+  const dds = tierDD(risk);
+  return { ...risk, tiers: risk.tiers.map((t, i) => (i < normalIndex(risk) ? { ...t, capDD: dds[i] } : t)) };
+}
+
+/** Drawdown thresholds, smallest first: [{ i, name, at }]. */
+export function ddSteps(risk) {
+  return tierDD(risk).map((at, i) => ({ i, name: risk.tiers[i].name, at })).filter((x) => x.at != null).sort((a, b) => a.at - b.at || b.i - a.i);
+}
+
 let tierSeq = 0;
 /** A new tier one step above `top` (or a starter tier). */
 export function newTier(top) {
   const r5 = (v) => Math.max(5, Math.round(v / 5) * 5);
   tierSeq += 1;
   return top
-    ? { id: `t${Date.now().toString(36)}${tierSeq}`, name: 'New tier', dailyLL: r5(top.dailyLL * 1.25), riskMin: r5(top.riskMin * 1.25), riskMax: r5(top.riskMax * 1.25), note: '', color: '#7fb6d9' }
-    : { id: `t${Date.now().toString(36)}${tierSeq}`, name: 'New tier', dailyLL: 200, riskMin: 50, riskMax: 100, note: '', color: '#7fb6d9' };
+    ? { id: `t${Date.now().toString(36)}${tierSeq}`, name: 'New tier', dailyLL: r5(top.dailyLL * 1.25), riskMin: r5(top.riskMin * 1.25), riskMax: r5(top.riskMax * 1.25), note: '', color: '#7fb6d9', capDD: null }
+    : { id: `t${Date.now().toString(36)}${tierSeq}`, name: 'New tier', dailyLL: 200, riskMin: 50, riskMax: 100, note: '', color: '#7fb6d9', capDD: null };
 }
 
 const daysAgoKey = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return keyOf(d); };
@@ -181,10 +209,13 @@ export function riskState(trades, account, risk) {
     }
   }
   const ruleLevel = L;
-  const ddLevel = dd >= risk.damageDD ? 0 : dd >= risk.riskOffDD ? Math.min(1, normal) : normal;
+  // drawdown caps the tier: past a tier's threshold you can be no higher than that tier
+  const steps = ddSteps(risk);
+  let ddLevel = normal, hit = null;
+  for (const st of steps) if (dd >= st.at && st.i < ddLevel) { ddLevel = st.i; hit = st; }
   const level = Math.min(ruleLevel, ddLevel);
   const reasons = [];
-  if (ddLevel < normal) reasons.push(`Drawdown of ${money0(dd)} is at or beyond ${money0(dd >= risk.damageDD ? risk.damageDD : risk.riskOffDD)}`);
+  if (hit) reasons.push(`Drawdown of ${money0(dd)} is at or beyond ${money0(hit.at)} (“${hit.name}”)`);
   if (ruleLevel < normal) reasons.push(history.length ? `${history[history.length - 1].why} on ${history[history.length - 1].date}` : 'Recent losing streak');
   if (!reasons.length) reasons.push(dd > 0 ? `Drawdown ${money0(dd)} is inside your limits and no losing streak is active` : mode === 'start' ? 'Account is at or above its starting balance' : 'Account is at its equity high');
 
@@ -193,10 +224,14 @@ export function riskState(trades, account, risk) {
   const tier = tiers[level];
   const remaining = tier.dailyLL + Math.min(0, todayNet);
   const recent = sessions.slice(-10);
-  const nextDown = dd >= risk.damageDD ? null : risk.damageDD - dd;
+  // the next threshold that would lower the tier, and what it takes to climb out of the current one
+  const next = steps.find((st) => st.at > dd && st.i < ddLevel) || null;
+  const nextDrop = next ? { ...next, left: next.at - dd } : null;
+  const recover = hit ? { ...hit, need: dd - hit.at + 0.01 } : null;
+  const nextDown = nextDrop?.left ?? null;
   return {
     level, ruleLevel, ddLevel, normal, base, tier, tiers, dd, peak, peakAt, current, ddMode: mode, reasons, history: history.slice(-12).reverse(),
-    todayNet, remaining, stopNow: remaining <= 0, recent, toRiskOff: dd >= risk.riskOffDD ? null : risk.riskOffDD - dd, toDamage: nextDown,
+    todayNet, remaining, stopNow: remaining <= 0, recent, steps, nextDrop, recover, toDamage: nextDown,
     balance: (account?.initial || 0) + current,
   };
 }

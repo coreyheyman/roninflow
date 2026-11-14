@@ -77,3 +77,31 @@ test('more tiers: you choose the Normal tier, and unlocking opens every tier abo
   assert.equal(nt.dailyLL, 1125);
   assert.ok(nt.id && nt.id !== newTier(six[5]).id);
 });
+
+test('each tier below Normal can kick in at its own drawdown', async () => {
+  const { tierDD, withTierDD, ddSteps } = await import('../src/lib/playbook.js');
+  const T = (id, dailyLL, capDD) => ({ id, name: id, dailyLL, riskMin: 10, riskMax: 20, color: '#fff', ...(capDD !== undefined ? { capDD } : {}) });
+  // older plans: the two plan-wide thresholds become the first two tiers' thresholds
+  assert.deepEqual(tierDD(DEFAULT_RISK), [2000, 1000, null, null]);
+  const migrated = withTierDD(DEFAULT_RISK);
+  assert.deepEqual(migrated.tiers.map((t) => t.capDD), [2000, 1000, undefined, undefined]);
+  // five tiers below Normal, one with no threshold (streak rules only)
+  const plan = { ...DEFAULT_RISK, normalTier: 'normal', tiers: [T('dc', 50, 900), T('off', 100, 600), T('light', 150, null), T('easy', 200, 200), T('normal', 300), T('up', 400, 5)] };
+  assert.deepEqual(tierDD(plan), [900, 600, null, 200, null, null]); // Normal and above never have one
+  assert.deepEqual(ddSteps(plan).map((x) => [x.name, x.at]), [['easy', 200], ['off', 600], ['dc', 900]]);
+  const day = (date, pnl) => ({ id: date, entry: `${date}T10:00:00`, exit: `${date}T10:05:00`, pnl, qty: 1, symbol: 'MES' });
+  const at = (ddAmount) => riskState([day('2026-10-01', 1000), day('2026-10-02', -ddAmount)], {}, plan);
+  let r = at(100);
+  assert.equal(r.tier.name, 'normal');
+  assert.deepEqual([r.nextDrop.name, Math.round(r.nextDrop.left)], ['easy', 100]);
+  r = at(250);
+  assert.equal(r.ddLevel, 3); // capped at "easy"
+  assert.deepEqual([r.nextDrop.name, Math.round(r.nextDrop.left)], ['off', 350]);
+  assert.equal(r.recover.name, 'easy');
+  assert.match(r.reasons[0], /“easy”/);
+  r = at(700);
+  assert.equal(r.ddLevel, 1);
+  r = at(950);
+  assert.equal(r.ddLevel, 0);
+  assert.equal(r.nextDrop, null);
+});

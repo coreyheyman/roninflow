@@ -401,7 +401,7 @@ const REVIEW_SHAPE = {
     ['Recent performance', 'The trend across the recent sessions: streaks, green/red days, days that hit the daily loss limit (dailyLossLimitHits), how today is going, and how this compares with the period before (previousPeriod).'],
     ['What is driving it', 'The specific causes in the data — edge blockers, trading after losses, quick re-entries, worst hours/setups/symbols, oversized losers — each with dollars and counts. Also the strengths worth protecting.'],
     ['Risk discipline', 'Did losses and sizing respect the current tier (riskPerTrade, dailyLossLimit)? Name the trades/days that broke it (lossesBiggerThanTierRisk, dailyLossLimitHits) and what that cost.'],
-    ['Plan', 'If off track or at risk: a step-by-step plan to get back on track — size to use, daily stop, max trades, what must happen to move up a tier (tierRules) and the dollar milestones (toNextTierUp / toRiskOff / toDamageControl / roomToFirmMaxDrawdown). If on track: how to protect the gains and what would justify sizing up.'],
+    ['Plan', 'If off track or at risk: a step-by-step plan to get back on track — size to use, daily stop, max trades, what must happen to move up a tier (tierRules) and the dollar milestones (toNextTierUp / nextDrawdownThreshold / toClimbOutOfDrawdownTier / roomToFirmMaxDrawdown). If on track: how to protect the gains and what would justify sizing up.'],
     ['Rules for the next sessions', '3–5 concrete, checkable rules with numbers.'],
   ] },
   day: { words: '400–550', next: 'session', sections: [
