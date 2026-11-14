@@ -1799,3 +1799,26 @@ button.ec-row:hover { background: var(--hover); }
 .fit-m { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; white-space: nowrap; }
 .avgt-pair > div, .ls-col { min-width: 0; }
 .cal-cell .pnl, .cal-wk .wk-pnl, .rv-day .pv, .rv-wk .pv { min-width: 0; max-width: 100%; }
+/* chart guide lines: profit target, max-loss floor, daily loss limit */
+.guide path { stroke: var(--neg); opacity: 0.85; }
+.guide text { fill: var(--neg); font-size: 11px; font-weight: 500; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
+.guide.pos path { stroke: var(--pos); }
+.guide.pos text { fill: var(--pos); }
+.guide.warn path { stroke: var(--warn); }
+.guide.warn text { fill: var(--warn); }
+.chart-tip-g { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 11.5px; white-space: nowrap; }
+.chart-tip-g i { width: 10px; border-top: 2px dashed var(--neg); }
+.chart-tip-g i.pos { border-color: var(--pos); }
+.chart-tip-g i.warn { border-color: var(--warn); }
+.limits-btn.on { border-color: var(--primary); color: var(--fg); }
+/* per-account risk plans */
+.risk-who { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+.risk-who .label { margin: 0; }
+.risk-who .select { width: auto; min-width: 280px; max-width: 100%; flex: 1 1 280px; }
+.risk-own-empty { display: flex; flex-direction: column; gap: 6px; padding: 16px; border: 1px dashed var(--border-2); background: var(--card); font-size: 13.5px; }
+.risk-warn { font-size: 12.5px; color: var(--warn); }
+.warn-input { border-color: color-mix(in srgb, var(--warn) 60%, var(--border)) !important; }
+.risk-plan-tag { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.risk-plan-tag b { color: var(--fg-2); font-weight: 500; }
+.risk-cols { background: none !important; border-color: transparent !important; padding-top: 0; padding-bottom: 0; font-size: 11.5px; color: var(--muted); min-height: 0; }
+.risk-cols > span { flex-shrink: 0; padding-left: 2px; }

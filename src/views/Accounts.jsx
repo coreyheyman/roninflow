@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Funnel, LayoutGrid, List, Plus, Upload, EllipsisVertical, RefreshCw, ChartArea, ChartLine, ChartColumn, Check, Pencil, Trash, Receipt, HandCoins } from 'lucide-react';
+import { Funnel, LayoutGrid, List, Plus, Upload, EllipsisVertical, RefreshCw, ChartArea, ChartLine, ChartColumn, Check, Pencil, Trash, Receipt, HandCoins, Target } from 'lucide-react';
 import { useStore, navigate } from '../store/store';
 import { Seg, Popover, Modal, ModalHead, Money, Private, TrendBadge, Confirm, useToast, CloseX, Switch, DateRange } from '../components/ui';
 import { PnlChart } from '../components/Charts';
@@ -8,7 +8,7 @@ import { useAtasSync } from '../components/AtasSync';
 import { summarize, equityCurve, fmtDate, fmtShortDate, fmtMoney, fmtCompact, groupByDay, fmtTime12, todayKey, inRange } from '../lib/stats';
 import { accountCost, accountBought, portfolioStats } from '../lib/accountStats';
 import { accountBalanceInfo } from '../lib/balance';
-import { accountDrawdown, DD_TYPES, ddTypeOf, ddTypeLabel } from '../lib/accountDD';
+import { accountDrawdown, DD_TYPES, ddTypeOf, ddTypeLabel, floorSeries } from '../lib/accountDD';
 
 const AcctLogo = ({ name = '' }) => <div className="acct-logo">{(name.match(/[A-Za-z]/) || ['A'])[0].toUpperCase()}</div>;
 const STATUSES = ['Active', 'Breached', 'Passed', 'Funded'];
@@ -20,9 +20,27 @@ function useAccountData(a) {
     const s = summarize(trades);
     const days = groupByDay(trades);
     let c = 0;
-    const daily = [...days].reverse().map((d) => { c += d.net; return { label: fmtShortDate(d.date), y: Math.round(c * 100) / 100, tip: fmtDate(d.date), net: d.net }; });
-    return { trades, s, days, daily };
-  }, [state.trades, a.id]);
+    const asc = [...days].reverse();
+    const daily = asc.map((d) => { c += d.net; return { label: fmtShortDate(d.date), y: Math.round(c * 100) / 100, tip: fmtDate(d.date), net: d.net }; });
+    // max-loss floor per day (P&L vs start). Intraday trailing: the live high from ATAS (open P&L included) can
+    // have lifted today's floor further than the closed trades show.
+    const floors = floorSeries(a, asc);
+    if (floors?.length && ddTypeOf(a) === 'intraday') {
+      const dd = accountDrawdown(state, a);
+      const gap = accountBalanceInfo(state, a.id)?.gap || 0;
+      floors[floors.length - 1] = Math.max(floors[floors.length - 1], Math.round((dd.floor - a.initial - gap) * 100) / 100);
+    }
+    return { trades, s, days, daily, floors };
+  }, [state.trades, state.settings.sync, a, state]);
+}
+
+/** Lines for an account's P&L chart: profit target and the max-loss floor (or the daily loss limit on daily bars). */
+function limitGuides(a, floors, bars = false) {
+  if (bars) return Number(a.dailyLossLimit) > 0 ? [{ label: 'Daily loss limit', value: -Number(a.dailyLossLimit), tone: 'warn' }] : [];
+  return [
+    Number(a.profitTarget) > 0 && { label: 'Profit target', value: Number(a.profitTarget), tone: 'pos' },
+    floors && { label: `Max loss · ${ddTypeLabel(a)}`, value: floors, tone: 'neg', start: -Number(a.maxDrawdown) },
+  ];
 }
 
 const cleanCost = (f) => ({ ...f, cost: f.cost === '' ? 0 : Number(f.cost) || 0, fees: f.fees === '' ? 0 : Number(f.fees) || 0 });
@@ -164,7 +182,7 @@ function DdLine({ a }) {
 }
 
 function AccountCard({ a, onOpen, onEdit, onDelete }) {
-  const { s, daily } = useAccountData(a);
+  const { s, daily, floors } = useAccountData(a);
   const { state, updateAccount } = useStore();
   const net = s.net + (accountBalanceInfo(state, a.id)?.gap || 0);
   return (
@@ -190,14 +208,15 @@ function AccountCard({ a, onOpen, onEdit, onDelete }) {
       </div>
       <LiveBalance a={a} />
       <DdLine a={a} />
-      {daily.length ? <PnlChart data={daily} smooth height={180} xLabels={6} padLeft={44} startAtZero={false} dotted={false} /> : <div className="muted" style={{ height: 180, display: 'grid', placeItems: 'center' }}>No trades yet</div>}
+      {daily.length ? <PnlChart data={daily} smooth height={180} xLabels={6} padLeft={44} startAtZero={false} dotted={false} guides={state.settings.acctLimits === false ? null : limitGuides(a, floors)} /> : <div className="muted" style={{ height: 180, display: 'grid', placeItems: 'center' }}>No trades yet</div>}
     </div>
   );
 }
 
 function AccountDetail({ a, onClose }) {
-  const { s, daily, days } = useAccountData(a);
-  const { state, updateAccount } = useStore();
+  const { s, daily, days, floors } = useAccountData(a);
+  const { state, updateAccount, setSetting } = useStore();
+  const showLimits = state.settings.acctLimits !== false;
   const net = s.net + (accountBalanceInfo(state, a.id)?.gap || 0);
   const toast = useToast();
   const [mode, setMode] = useState('area');
@@ -233,11 +252,12 @@ function AccountDetail({ a, onClose }) {
           <b style={{ fontWeight: 500 }}><Private>{fmtMoney(a.initial)}</Private></b>
           <div className="grow" />
           <button className="btn sm" onClick={sync} disabled={syncing}>{syncing ? <><RefreshCw size={13} className="spin" /> Syncing…</> : 'Sync Now'}</button>
+          <button className={`btn sm limits-btn ${showLimits ? 'on' : ''}`} onClick={() => setSetting('acctLimits', !showLimits)} title="Show the profit target and max-loss lines on the charts"><Target size={13} /> Limits</button>
           <Seg icon value={mode} onChange={setMode} options={[{ value: 'area', icon: ChartArea }, { value: 'line', icon: ChartLine }, { value: 'bar', icon: ChartColumn }]} />
         </div>
         <div style={{ margin: '-8px 0 18px' }}><LiveBalance a={a} big /></div>
         {daily.length ? (
-          <PnlChart data={mode === 'bar' ? daily.map((d) => ({ ...d, y: d.net })) : daily} mode={mode} height={340} xLabels={6} />
+          <PnlChart data={mode === 'bar' ? daily.map((d) => ({ ...d, y: d.net })) : daily} mode={mode} height={340} xLabels={6} guides={showLimits ? limitGuides(a, floors, mode === 'bar') : null} />
         ) : <div className="empty">No trades in this account yet.</div>}
         <div className="row gap24" style={{ marginTop: 26 }}>
           <Bar label="Profit target" v={Math.max(0, net)} max={a.profitTarget || 1} color="var(--pos-strong)" />

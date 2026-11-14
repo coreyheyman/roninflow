@@ -43,7 +43,33 @@ export const DEFAULT_RISK = {
 };
 
 export const playbookOf = (state) => { const pb = { ...DEFAULT_PLAYBOOK, ...(state.settings.playbook || {}) }; delete pb.nadro; delete pb.framework; return pb; };
-export const riskOf = (state) => ({ ...DEFAULT_RISK, ...(state.settings.risk || {}), tiers: state.settings.risk?.tiers || DEFAULT_RISK.tiers });
+/** The default risk plan (used by every account that doesn't have its own). */
+export const defaultRiskOf = (state) => ({ ...DEFAULT_RISK, ...(state.settings.risk || {}), tiers: state.settings.risk?.tiers || DEFAULT_RISK.tiers });
+/** An account's own risk plan, or null when it uses the default. */
+export const ownRiskOf = (state, id) => (id && id !== 'all' ? state.settings.riskByAccount?.[id] || null : null);
+/** The risk plan in force for an account (the selected account by default): its own plan, else the default. */
+export function riskOf(state, id = state.settings.account) {
+  const own = ownRiskOf(state, id);
+  const base = defaultRiskOf(state);
+  return own ? { ...DEFAULT_RISK, ...own, tiers: own.tiers?.length ? own.tiers : base.tiers } : base;
+}
+
+/** A starting point for an account's own plan, scaled from the default plan to the account's max drawdown. */
+export function suggestRisk(base, account) {
+  const maxDD = Number(account?.maxDrawdown) || 0;
+  const daily = Number(account?.dailyLossLimit) || 0;
+  if (!maxDD) return JSON.parse(JSON.stringify(base));
+  // the default plan's thresholds as a share of its own worst case, applied to this account's max drawdown
+  const ref = Math.max(base.damageDD, 1) / 0.5; // by default "damage control" starts at half the max drawdown
+  const k = maxDD / ref;
+  const round = (v, step = 5) => Math.max(step, Math.round(v / step) * step);
+  const tiers = base.tiers.map((t) => {
+    let dailyLL = round(t.dailyLL * k);
+    if (daily) dailyLL = Math.min(dailyLL, daily); // never above the firm's daily loss limit
+    return { ...t, dailyLL, riskMin: round(t.riskMin * k), riskMax: round(t.riskMax * k) };
+  });
+  return { ...JSON.parse(JSON.stringify(base)), tiers, damageDD: round(maxDD * 0.5, 50), riskOffDD: round(maxDD * 0.25, 50) };
+}
 
 const daysAgoKey = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return keyOf(d); };
 

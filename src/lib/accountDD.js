@@ -50,3 +50,38 @@ export function accountDrawdown(state, a) {
   const used = maxDD ? Math.min(maxDD, Math.max(0, maxDD - left)) : 0;
   return { type, maxDD, floor, balance, left, used, pct: maxDD ? (used / maxDD) * 100 : 0, peak: initial + peakNet, locked, openPnl, live: !!fresh, breached: maxDD > 0 && left <= 0 };
 }
+
+/**
+ * The max-loss floor for each trading day, as P&L relative to the starting balance (e.g. −2000), so it can be
+ * drawn on the account's cumulative P&L chart. `days` is oldest first: [{ net, trades }].
+ * The value for a day is the floor you had to stay above during that day:
+ *   static   — always −maxDD.
+ *   eod      — −maxDD + the highest end-of-day P&L before that day (it moves up after a day closes).
+ *   intraday — −maxDD + the highest P&L reached after any trade so far, that day included (closed trades:
+ *              open-P&L highs from the past aren't known).
+ * Trailing floors stop at 0 (the starting balance) unless the account's "stops trailing" box is unticked.
+ * Returns null when the account has no max drawdown set.
+ */
+export function floorSeries(a, days) {
+  const type = ddTypeOf(a);
+  const maxDD = Number(a?.maxDrawdown) || 0;
+  if (!maxDD) return null;
+  const lock = a.ddLock !== false;
+  let run = 0, eodPeak = 0, livePeak = 0;
+  const out = [];
+  for (const d of days) {
+    let floor = -maxDD;
+    if (type === 'eod') floor += eodPeak;
+    else if (type === 'intraday') {
+      let r = run;
+      const byExit = [...(d.trades || [])].sort((x, y) => String(x.exit || x.entry).localeCompare(String(y.exit || y.entry)));
+      for (const t of byExit) { r += t.pnl; livePeak = Math.max(livePeak, r); }
+      floor += livePeak;
+    }
+    if (type !== 'static' && lock) floor = Math.min(floor, 0);
+    out.push(Math.round(floor * 100) / 100);
+    run += d.net;
+    eodPeak = Math.max(eodPeak, run);
+  }
+  return out;
+}

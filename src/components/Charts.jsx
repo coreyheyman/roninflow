@@ -40,7 +40,10 @@ const linePath = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).j
  */
 /** P&L over time. `base` is the level the chart is measured from (0 for P&L; the starting balance for an
  *  equity curve): above it is green, below it red, and the axis fits the data around it. */
-export function PnlChart({ data, mode = 'area', height = 300, smooth = false, compact = false, yFmt, xLabels = 8, padLeft = 56, showZero = true, startAtZero = true, dotted = true, base: base0 = 0 }) {
+/** `guides`: reference lines, e.g. a profit target or a max-loss floor:
+ *    [{ label, value: number | number[] (one per data point, drawn as steps), tone: 'pos' | 'neg' | 'warn', start? }]
+ *  A per-point line's value for a point is what applied during the stretch leading up to that point. */
+export function PnlChart({ data, mode = 'area', height = 300, smooth = false, compact = false, yFmt, xLabels = 8, padLeft = 56, showZero = true, startAtZero = true, dotted = true, base: base0 = 0, guides: guides0 }) {
   const [ref, { w }] = useSize();
   const [hover, setHover] = useState(null);
   const { state } = useStore();
@@ -54,8 +57,16 @@ export function PnlChart({ data, mode = 'area', height = 300, smooth = false, co
     const conv = rate === 1 ? data : data.map((d) => ({ ...d, y: d.y * rate }));
     return startAtZero && mode !== 'bar' && conv.length ? [{ label: conv[0].label, y: base, start: true }, ...conv] : conv;
   }, [data, startAtZero, mode, rate, base]);
+  const added = series.length - data.length; // 1 when a start point was put in front
+  const guides = useMemo(() => (guides0 || []).filter(Boolean).map((gd) => {
+    const vals = Array.isArray(gd.value) ? gd.value.map((v) => v * rate) : null;
+    const flat = vals ? null : gd.value * rate;
+    const at = (i) => (vals ? vals[Math.max(0, Math.min(vals.length - 1, i - added))] : flat);
+    return { ...gd, vals, flat, at, start: gd.start != null ? gd.start * rate : null };
+  }).filter((gd) => (gd.vals ? gd.vals.length : Number.isFinite(gd.flat))), [guides0, rate, added]);
   const ys = series.map((d) => d.y);
-  const ticks = niceTicks(Math.min(base, ...ys), Math.max(base, ...ys), compact ? 3 : 5);
+  const gys = guides.flatMap((gd) => (gd.vals || [gd.flat]));
+  const ticks = niceTicks(Math.min(base, ...ys, ...gys), Math.max(base, ...ys, ...gys), compact ? 3 : 5);
   const yMin = ticks[0], yMax = ticks[ticks.length - 1];
   const H = height;
   const sy = (v) => pt + (1 - (v - yMin) / (yMax - yMin || 1)) * (H - pt - pb);
@@ -120,6 +131,29 @@ export function PnlChart({ data, mode = 'area', height = 300, smooth = false, co
           )}
           {!compact && dotted && <rect x={pl} y={pt} width={width - pl - pr} height={H - pt - pb} fill={`url(#${g}dots)`} />}
           {showZero && !compact && <line x1={pl} x2={width - pr} y1={zy} y2={zy} stroke="var(--border-2)" strokeDasharray="2 4" />}
+          {!compact && guides.map((gd, k) => {
+            const x0 = mode === 'bar' ? pl : sx(0), x1 = mode === 'bar' ? width - pr : sx(n - 1);
+            let d;
+            if (!gd.vals) d = `M${x0},${sy(gd.flat)}H${x1}`;
+            else {
+              // steps: the value for point i applies from the previous point up to point i
+              const v0 = added && gd.start != null ? gd.start : gd.at(added ? 1 : 0);
+              d = `M${x0},${sy(v0)}`;
+              for (let i = added ? 1 : 0; i < n; i++) {
+                const xa = mode === 'bar' ? sx(i) - bw / 2 : sx(Math.max(0, i - 1)), xb = mode === 'bar' ? sx(i) + bw / 2 : sx(i);
+                d += `L${xa},${sy(gd.at(i))}L${xb},${sy(gd.at(i))}`;
+              }
+            }
+            const lastV = gd.vals ? gd.at(n - 1) : gd.flat;
+            const ly = sy(lastV);
+            const below = ly - pt < 16; // too close to the top: put the label under the line
+            return (
+              <g key={k} className={`guide ${gd.tone || 'neg'}`}>
+                <path d={d} fill="none" strokeWidth={1.3} strokeDasharray="5 4" />
+                <text x={width - pr - 4} y={below ? ly + 13 : ly - 6} textAnchor="end">{gd.label}{' '}{priv ? '•••' : fmtMoney(lastV, { sign: true, dp: 0, raw: true })}</text>
+              </g>
+            );
+          })}
           {mode === 'bar' ? (
             series.map((d, i) => {
               const y0 = Math.min(zy, sy(d.y));
@@ -155,6 +189,10 @@ export function PnlChart({ data, mode = 'area', height = 300, smooth = false, co
               <span className={series[hover].y >= base ? 'pos' : 'neg'} style={{ marginLeft: 8 }}>{fmtMoney(series[hover].y - base, { sign: true, raw: true })}</span>
             </div>
           ) : <b className={series[hover].y >= 0 ? 'pos' : 'neg'} style={{ fontWeight: 600, filter: priv ? 'blur(5px)' : undefined }}>{fmtMoney(series[hover].y, { sign: true, raw: true })}</b>}
+          {guides.filter((gd) => gd.vals).map((gd, k) => {
+            const v = series[hover].start && gd.start != null ? gd.start : gd.at(hover);
+            return <div key={k} className="chart-tip-g" style={{ filter: priv ? 'blur(5px)' : undefined }}><i className={gd.tone || 'neg'} />{gd.label} {fmtMoney(v, { sign: true, dp: 0, raw: true })}{gd.room !== false && <span className="muted"> · {fmtMoney(series[hover].y - v, { dp: 0, raw: true })} room</span>}</div>;
+          })}
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@ import { Check, ChevronLeft, ChevronRight, Minus, Plus, Trash, ShieldCheck, Tren
 import { balanceGap } from '../lib/balance';
 import { useStore, useAccountTrades, navigate } from '../store/store';
 import { Modal, ModalHead, Stars, useToast, Private, Switch, Seg } from './ui';
-import { DEFAULT_PLAYBOOK, playbookOf, riskOf, regimeStats, blockerStats, riskState, lastTomorrowNote, tradeBlockers } from '../lib/playbook';
+import { DEFAULT_PLAYBOOK, playbookOf, riskOf, defaultRiskOf, suggestRisk, regimeStats, blockerStats, riskState, lastTomorrowNote, tradeBlockers } from '../lib/playbook';
 import { fmtDate, fmtMoney, fmtTime12, pfText, todayKey, uid } from '../lib/stats';
 
 export const MOODS = ['😫', '😕', '😐', '🙂', '😄'];
@@ -412,11 +412,28 @@ export function PlaybookSettings({ open, onClose, initialTab = 'pre' }) {
   const { state, setSetting } = useStore();
   const toast = useToast();
   const [pb, setPb] = useState(null);
-  const [rk, setRk] = useState(null);
+  const [plans, setPlans] = useState(null); // { default: plan, own: { [accountId]: plan | null } }
+  const [who, setWho] = useState('default'); // which plan the risk tab is editing
   const [tab, setTab] = useState(initialTab);
   const [was, setWas] = useState(open);
-  if (was !== open) { setWas(open); if (open) { setTab(initialTab); setPb(JSON.parse(JSON.stringify(playbookOf(state)))); setRk(JSON.parse(JSON.stringify(riskOf(state)))); } }
+  if (was !== open) {
+    setWas(open);
+    if (open) {
+      setTab(initialTab);
+      setPb(JSON.parse(JSON.stringify(playbookOf(state))));
+      setPlans({ default: JSON.parse(JSON.stringify(defaultRiskOf(state))), own: JSON.parse(JSON.stringify(state.settings.riskByAccount || {})) });
+      setWho(state.settings.account !== 'all' && state.accounts.some((a) => a.id === state.settings.account) ? state.settings.account : 'default');
+    }
+  }
   if (!open || !pb) return null;
+  const rk = who === 'default' ? plans.default : plans.own[who] || null;
+  const setRk = (f) => setPlans((p) => {
+    const cur = who === 'default' ? p.default : p.own[who];
+    const next = typeof f === 'function' ? f(cur) : f;
+    return who === 'default' ? { ...p, default: next } : { ...p, own: { ...p.own, [who]: next } };
+  });
+  const usesDefault = state.accounts.filter((a) => !plans.own[a.id]).length;
+  const whoAcct = state.accounts.find((a) => a.id === who);
   const upd = (k, i, f, v) => setPb((p) => ({ ...p, [k]: p[k].map((x, j) => (j === i ? { ...x, [f]: v } : x)) }));
   const del = (k, i) => setPb((p) => ({ ...p, [k]: p[k].filter((_, j) => j !== i) }));
   const TABS = [['pre', 'Pre-market routine'], ['post', 'Post-market routine'], ['regimes', 'Market conditions'], ['blockers', 'Edge blockers'], ['risk', 'Risk tiers']];
@@ -484,36 +501,75 @@ export function PlaybookSettings({ open, onClose, initialTab = 'pre' }) {
         )}
         {tab === 'risk' && (
           <>
-            {rk.tiers.map((t, i) => (
-              <div key={t.id} className="rule">
-                <input type="color" value={t.color} onChange={(e) => setRk((r) => ({ ...r, tiers: r.tiers.map((x, j) => (j === i ? { ...x, color: e.target.value } : x)) }))} style={{ width: 34, height: 30, background: 'none', border: 0 }} />
-                {[['name', 'Name', 150, 'text'], ['dailyLL', 'Daily LL (USD)', 100, 'number'], ['riskMin', 'Risk min (USD)', 100, 'number'], ['riskMax', 'Risk max (USD)', 100, 'number'], ['note', 'Note', 0, 'text']].map(([f, ph, w, type]) => (
-                  <input key={f} className={`input ${w ? '' : 'grow'}`} title={ph} placeholder={ph} type={type} style={{ height: 32, width: w || undefined }} value={t[f]} onChange={(e) => setRk((r) => ({ ...r, tiers: r.tiers.map((x, j) => (j === i ? { ...x, [f]: type === 'number' ? Number(e.target.value) : e.target.value } : x)) }))} />
-                ))}
-              </div>
-            ))}
-            <div className="form-grid" style={{ marginTop: 10 }}>
-              <div className="field full"><label className="label">Measure drawdown from</label>
-                <Seg value={rk.ddMode === 'start' ? 'start' : 'hwm'} onChange={(v) => setRk({ ...rk, ddMode: v })} options={[{ value: 'start', label: 'Starting balance' }, { value: 'hwm', label: 'High watermark (trailing)' }]} />
-                <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{rk.ddMode === 'start' ? 'Drawdown only counts how far you are below where the account started — profits give you a cushion.' : 'Drawdown counts how far you are below your highest balance — like a trailing max-drawdown rule.'}</span>
-              </div>
-              <div className="field"><label className="label">Drawdown for “{rk.tiers[0]?.name}” (USD)</label><input className="input" type="number" value={rk.damageDD} onChange={(e) => setRk({ ...rk, damageDD: Number(e.target.value) })} /></div>
-              <div className="field"><label className="label">Drawdown for “{rk.tiers[1]?.name}” (USD)</label><input className="input" type="number" value={rk.riskOffDD} onChange={(e) => setRk({ ...rk, riskOffDD: Number(e.target.value) })} /></div>
-              <div className="field"><label className="label">Consecutive max-loss days before reducing</label><input className="input" type="number" min="1" value={rk.maxLossStreak} onChange={(e) => setRk({ ...rk, maxLossStreak: Math.max(1, Number(e.target.value)) })} /></div>
-              <div className="field"><label className="label">Sizable green day = × daily loss limit</label><input className="input" type="number" step="0.25" value={rk.greenMultiple} onChange={(e) => setRk({ ...rk, greenMultiple: Number(e.target.value) })} /></div>
-              <div className="field"><label className="label">Look-back for stats (days)</label><input className="input" type="number" value={rk.lookbackDays} onChange={(e) => setRk({ ...rk, lookbackDays: Number(e.target.value) })} /></div>
-              <label className="row gap8" style={{ fontSize: 13.5, marginTop: 22 }}><input type="checkbox" className="cbx" checked={rk.unlockTop} onChange={(e) => setRk({ ...rk, unlockTop: e.target.checked })} /> Unlock “{rk.tiers[rk.tiers.length - 1]?.name}” (approved in quarterly risk review)</label>
+            <div className="risk-who">
+              <label className="label" htmlFor="risk-who">Rules for</label>
+              <select id="risk-who" className="select" value={who} onChange={(e) => setWho(e.target.value)}>
+                <option value="default">Default plan{state.accounts.length ? ` — used by ${usesDefault} account${usesDefault === 1 ? '' : 's'}` : ''}</option>
+                {state.accounts.map((a) => <option key={a.id} value={a.id}>{a.name || a.id}{a.status && a.status !== 'Active' ? ` (${a.status})` : ''} — {plans.own[a.id] ? 'own rules' : 'uses default'}</option>)}
+              </select>
+              {who !== 'default' && rk && <button className="btn sm" onClick={() => setPlans((p) => ({ ...p, own: { ...p.own, [who]: null } }))}>Use the default plan instead</button>}
             </div>
+            {who === 'default' && state.accounts.length > 0 && <div className="muted" style={{ fontSize: 12.5 }}>Every account follows these rules unless you give it its own. Pick an account above to set rules just for it.</div>}
+            {who !== 'default' && !rk && (
+              <div className="risk-own-empty">
+                <div><b>{whoAcct?.name || who}</b> follows the default plan.</div>
+                <div className="muted" style={{ fontSize: 12.5 }}>Give it its own rules to set different tiers, loss limits and drawdown thresholds for this account only.{whoAcct?.maxDrawdown ? <> Its firm limits: max drawdown {money0(whoAcct.maxDrawdown)}{whoAcct.dailyLossLimit ? <>, daily loss limit {money0(whoAcct.dailyLossLimit)}</> : null}.</> : null}</div>
+                <div className="row gap8 wrap" style={{ marginTop: 6 }}>
+                  {Number(whoAcct?.maxDrawdown) > 0 && <button className="btn white sm" onClick={() => setRk(suggestRisk(plans.default, whoAcct))} title="The default plan's tiers and thresholds, scaled to this account's max drawdown and capped at its daily loss limit">Start from this account’s limits</button>}
+                  <button className={`btn sm ${Number(whoAcct?.maxDrawdown) > 0 ? '' : 'white'}`} onClick={() => setRk(JSON.parse(JSON.stringify(plans.default)))}>Copy the default plan</button>
+                </div>
+              </div>
+            )}
+            {rk && <RiskEditor rk={rk} setRk={setRk} account={whoAcct} />}
           </>
         )}
       </div>
       <div className="modal-foot">
-        <button className="btn" onClick={() => { setSetting('playbook', null); setSetting('risk', null); toast('Playbook reset to defaults'); onClose(); }}>Reset to defaults</button>
+        <button className="btn" onClick={() => { setSetting('playbook', null); setSetting('risk', null); setSetting('riskByAccount', null); toast('Playbook reset to defaults'); onClose(); }}>Reset to defaults</button>
         <div className="grow" />
         <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn white" onClick={() => { setSetting('playbook', pb); setSetting('risk', rk); toast('Playbook saved'); onClose(); }}><Check size={15} /> Save</button>
+        <button className="btn white" onClick={() => {
+          setSetting('playbook', pb);
+          setSetting('risk', plans.default);
+          const own = Object.fromEntries(Object.entries(plans.own).filter(([id, v]) => v && state.accounts.some((a) => a.id === id)));
+          setSetting('riskByAccount', Object.keys(own).length ? own : null);
+          toast('Playbook saved'); onClose();
+        }}><Check size={15} /> Save</button>
       </div>
     </Modal>
+  );
+}
+
+/** Tiers, thresholds and rules of one risk plan. `account`: shown against its firm limits. */
+function RiskEditor({ rk, setRk, account }) {
+  const firmDaily = Number(account?.dailyLossLimit) || 0;
+  const firmDD = Number(account?.maxDrawdown) || 0;
+  const overDaily = firmDaily > 0 && rk.tiers.some((t) => t.dailyLL > firmDaily);
+  return (
+    <>
+      <div className="rule risk-cols" aria-hidden="true"><span style={{ width: 34 }} /><span style={{ width: 150 }}>Tier</span><span style={{ width: 100 }}>Daily loss limit</span><span style={{ width: 100 }}>Risk / trade min</span><span style={{ width: 100 }}>Risk / trade max</span><span className="grow">Note</span></div>
+      {rk.tiers.map((t, i) => (
+        <div key={t.id} className="rule">
+          <input type="color" value={t.color} onChange={(e) => setRk((r) => ({ ...r, tiers: r.tiers.map((x, j) => (j === i ? { ...x, color: e.target.value } : x)) }))} style={{ width: 34, height: 30, background: 'none', border: 0 }} />
+          {[['name', 'Name', 150, 'text'], ['dailyLL', 'Daily LL (USD)', 100, 'number'], ['riskMin', 'Risk min (USD)', 100, 'number'], ['riskMax', 'Risk max (USD)', 100, 'number'], ['note', 'Note', 0, 'text']].map(([f, ph, w, type]) => (
+            <input key={f} className={`input ${w ? '' : 'grow'} ${f === 'dailyLL' && firmDaily && t.dailyLL > firmDaily ? 'warn-input' : ''}`} title={ph} placeholder={ph} type={type} style={{ height: 32, width: w || undefined }} value={t[f]} onChange={(e) => setRk((r) => ({ ...r, tiers: r.tiers.map((x, j) => (j === i ? { ...x, [f]: type === 'number' ? Number(e.target.value) : e.target.value } : x)) }))} />
+          ))}
+        </div>
+      ))}
+      {overDaily && <div className="risk-warn">A daily loss limit here is above this account’s firm daily loss limit of {money0(firmDaily)}.</div>}
+      <div className="form-grid" style={{ marginTop: 10 }}>
+        <div className="field full"><label className="label">Measure drawdown from</label>
+          <Seg value={rk.ddMode === 'start' ? 'start' : 'hwm'} onChange={(v) => setRk({ ...rk, ddMode: v })} options={[{ value: 'start', label: 'Starting balance' }, { value: 'hwm', label: 'High watermark (trailing)' }]} />
+          <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{rk.ddMode === 'start' ? 'Drawdown only counts how far you are below where the account started — profits give you a cushion.' : 'Drawdown counts how far you are below your highest balance — like a trailing max-drawdown rule.'}</span>
+        </div>
+        <div className="field"><label className="label">Drawdown for “{rk.tiers[0]?.name}” (USD)</label><input className={`input ${firmDD && rk.damageDD >= firmDD ? 'warn-input' : ''}`} type="number" value={rk.damageDD} onChange={(e) => setRk({ ...rk, damageDD: Number(e.target.value) })} />{firmDD > 0 && <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{Math.round((rk.damageDD / firmDD) * 100)}% of the firm’s {money0(firmDD)} max drawdown</span>}</div>
+        <div className="field"><label className="label">Drawdown for “{rk.tiers[1]?.name}” (USD)</label><input className="input" type="number" value={rk.riskOffDD} onChange={(e) => setRk({ ...rk, riskOffDD: Number(e.target.value) })} />{firmDD > 0 && <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{Math.round((rk.riskOffDD / firmDD) * 100)}% of the max drawdown</span>}</div>
+        <div className="field"><label className="label">Consecutive max-loss days before reducing</label><input className="input" type="number" min="1" value={rk.maxLossStreak} onChange={(e) => setRk({ ...rk, maxLossStreak: Math.max(1, Number(e.target.value)) })} /></div>
+        <div className="field"><label className="label">Sizable green day = × daily loss limit</label><input className="input" type="number" step="0.25" value={rk.greenMultiple} onChange={(e) => setRk({ ...rk, greenMultiple: Number(e.target.value) })} /></div>
+        <div className="field"><label className="label">Look-back for stats (days)</label><input className="input" type="number" value={rk.lookbackDays} onChange={(e) => setRk({ ...rk, lookbackDays: Number(e.target.value) })} /></div>
+        <label className="row gap8" style={{ fontSize: 13.5, marginTop: 22 }}><input type="checkbox" className="cbx" checked={!!rk.unlockTop} onChange={(e) => setRk({ ...rk, unlockTop: e.target.checked })} /> Unlock “{rk.tiers[rk.tiers.length - 1]?.name}” (approved in quarterly risk review)</label>
+      </div>
+    </>
   );
 }
 
