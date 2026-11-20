@@ -2585,3 +2585,4 @@ button.nw-tone:hover { text-decoration: underline; }
 .shot-open { display: block; width: 100%; padding: 0; background: none; border: 0; cursor: zoom-in; }
 .gal-auto { margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; }
 .gal-auto:hover { color: var(--fg); text-decoration: underline; }
+.ec-quiet { font-size: 12px; color: var(--muted-2, var(--muted)); margin: -2px 0 10px; }

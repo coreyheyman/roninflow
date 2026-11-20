@@ -186,8 +186,33 @@ test('calendar: a rate-limit page is reported, the saved copy stays', async () =
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rf-macro-'));
   const h = createMacroHandler(dir, { fetchImpl: async () => reply(200, '<!DOCTYPE html><html>slow down</html>', 'text/html'), now: () => Date.parse('2026-11-11T12:00:00Z') });
   const r = await call(h, '/api/macro/calendar?from=2026-11-08&to=2026-11-14');
-  assert.match(r.body.error, /slow down/);
+  assert.match(r.body.error, /limiting requests/);
   assert.ok(Array.isArray(r.body.events));
+});
+
+test('calendar: an HTTP 429 with a recent saved copy is a quiet note, and the next tries back off', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rf-macro-'));
+  let t = Date.parse('2026-11-11T12:00:00Z'), calls = 0, limit = false;
+  const ev = [{ title: 'CPI m/m', country: 'USD', date: '2026-11-12T08:30:00-05:00', impact: 'High', forecast: '0.3%', previous: '0.2%' }];
+  const fetchImpl = async (url) => { if (!url.includes('faireconomy')) throw new Error('offline'); calls++; return limit ? reply(429, 'Too Many Requests', 'text/plain') : reply(200, ev); };
+  const h = createMacroHandler(dir, { fetchImpl, now: () => t });
+  await call(h, '/api/macro/calendar?from=2026-11-08&to=2026-11-14');
+  await new Promise((r) => setTimeout(r, 10));
+  limit = true; t += 40 * 60e3; const before = calls;
+  let r = await call(h, '/api/macro/calendar?from=2026-11-08&to=2026-11-14');
+  await new Promise((r2) => setTimeout(r2, 10));
+  r = await call(h, '/api/macro/calendar?from=2026-11-08&to=2026-11-14');
+  assert.ok(!/ForexFactory/.test(r.body.error || ''), 'no ForexFactory warning while the saved copy is recent');
+  assert.equal(r.body.notice?.kind, 'limited');
+  assert.ok(r.body.events.some((e) => e.title === 'CPI m/m'));
+  const n = calls;
+  t += 5 * 60e3; await call(h, '/api/macro/calendar?from=2026-11-08&to=2026-11-14'); await new Promise((r2) => setTimeout(r2, 10));
+  assert.equal(calls, n, 'waits before asking again');
+  t += 6 * 60e3; await call(h, '/api/macro/calendar?from=2026-11-08&to=2026-11-14'); await new Promise((r2) => setTimeout(r2, 10));
+  assert.ok(calls > n, 'tries again after the wait');
+  t += 15 * 60e3; const m = calls; await call(h, '/api/macro/calendar?from=2026-11-08&to=2026-11-14'); await new Promise((r2) => setTimeout(r2, 10));
+  assert.equal(calls, m, 'the second wait is longer (20 minutes)');
+  assert.ok(before >= 1);
 });
 
 test('COT: three years for new markets, picks the code that is still published, falls back when $select is refused', async () => {

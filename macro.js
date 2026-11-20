@@ -31,7 +31,8 @@ const FF_FEEDS = ['https://nfs.faireconomy.media/ff_calendar_thisweek.json', 'ht
 const CFTC = 'https://publicreporting.cftc.gov/resource/6dca-aqww.json'; // Legacy – Futures Only
 const MIN = 60e3, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const CAL_STALE = 30 * MIN;
-const CAL_RETRY = 10 * MIN; // after a failed or rate-limited fetch
+const CAL_RETRY = 10 * MIN; // after a failed or rate-limited fetch (doubling each time, up to 2 hours)
+const FF_GAP = 4000; // between this week's and next week's file
 const CAL_KEEP = 400 * DAY; // calendar history kept
 const COT_YEARS = 3;
 const COT_RETRY = 2 * HOUR;
@@ -261,34 +262,47 @@ export function createMacroHandler(dataDir, { log = () => {}, fetchImpl = (...a)
   async function get(url, { json = true, timeout = 20000, headers = {} } = {}) {
     const r = await fetchImpl(url, { headers: { 'User-Agent': UA, Accept: 'application/json', ...headers }, signal: AbortSignal.timeout(timeout) });
     const text = await r.text();
-    if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.status = r.status; e.body = text.slice(0, 300); throw e; }
+    if (!r.ok) {
+      const e = new Error(`HTTP ${r.status}`); e.status = r.status; e.body = text.slice(0, 300);
+      if (r.status === 429) { e.rateLimited = true; const ra = Number(r.headers?.get?.('retry-after')); if (ra > 0) e.retryAfter = Math.min(6 * HOUR, ra * 1000); }
+      throw e;
+    }
     if (!json) return text;
     if (/^\s*</.test(text)) { const e = new Error('rate limited'); e.rateLimited = true; throw e; } // ForexFactory answers too-frequent requests with a web page
     return JSON.parse(text);
   }
 
   // ---------- calendar ----------
+  // ForexFactory's feed allows only a few requests per IP; when it says slow down (HTTP 429 or a web page instead of
+  // JSON) we back off — 10, 20, 40… minutes, up to 2 hours, or as long as it asks — and keep showing what was saved.
+  // Next week's file changes slowly, so it's fetched every few hours, not every time.
   const refreshCalendar = () => once('cal', async () => {
     cal = { ...cal, lastTry: now() };
     let got = 0;
-    let error = null;
-    for (const [i, url] of FF_FEEDS.entries()) {
+    let error = null, limited = false, wait = 0;
+    const feeds = FF_FEEDS.filter((_, i) => i === 0 || !cal.nextWeekAt || now() - cal.nextWeekAt > 3 * HOUR);
+    for (const [i, url] of feeds.entries()) {
       try {
+        if (i > 0) await new Promise((r) => setTimeout(r, FF_GAP));
         const events = parseFF(await get(url));
         cal = mergeWeek(cal, events, now());
         got += events.length;
+        if (url === FF_FEEDS[1]) cal.nextWeekAt = now();
       } catch (e) {
-        if (e.status === 404 && i > 0) continue; // next week's feed appears later in the week
-        error = e.rateLimited ? 'ForexFactory asked us to slow down — trying again in a few minutes.' : `Couldn’t reach ForexFactory’s calendar feed (${e.message}).`;
+        if (e.status === 404 && url === FF_FEEDS[1]) { cal.nextWeekAt = now(); continue; } // next week's feed appears later in the week
+        limited = !!e.rateLimited; wait = e.retryAfter || 0;
+        error = limited ? 'ForexFactory is limiting requests' : `Couldn’t reach ForexFactory’s calendar feed (${e.message}).`;
         log('[macro] calendar:', e.message);
         break;
       }
     }
-    cal = { ...cal, error, ...(got ? { updatedAt: now() } : {}) };
+    const fails = error ? (cal.fails || 0) + 1 : 0;
+    const retryAt = error ? now() + Math.max(wait, Math.min(2 * HOUR, CAL_RETRY * 2 ** (fails - 1))) : null;
+    cal = { ...cal, error, limited, fails, retryAt, ...(got ? { updatedAt: now() } : {}) };
     save('calendar.json', cal);
     if (got) log(`[macro] calendar: ${got} events`);
   });
-  const calStale = () => !cal.lastTry || now() - (cal.updatedAt || 0) > CAL_STALE && now() - cal.lastTry > (cal.error ? CAL_RETRY : CAL_STALE);
+  const calStale = () => (cal.retryAt ? now() >= cal.retryAt : !cal.lastTry || (now() - (cal.updatedAt || 0) > CAL_STALE && now() - cal.lastTry > CAL_STALE));
 
   // TradingView, one stretch of days at a time; days near today are re-checked every few minutes for actuals
   const tvDue = (d) => {
@@ -378,11 +392,14 @@ export function createMacroHandler(dataDir, { log = () => {}, fetchImpl = (...a)
     const isDupHoliday = (e) => !e.actual && !e.forecast && (e.impact === 'holiday' || HOLIDAY_WORDS.test(e.title))
       && (holKeys.has(`${e.ccy}|${nyDay(Date.parse(e.t))}`) || holKeys.has(`${e.ccy}|${e.t.slice(0, 10)}`));
     const events = [...[...ff, ...tvOutside].filter((e) => !isDupHoliday(e)), ...sched, ...hol].sort((a, b) => a.t.localeCompare(b.t));
-    const errors = [cal.error, useTv && tvIn.length === 0 ? tv.error : null].filter(Boolean);
+    // a slow-down from ForexFactory while what's saved is recent isn't worth a warning — just a quiet note
+    const soft = cal.error && cal.limited && cal.updatedAt && now() - cal.updatedAt < 12 * HOUR;
+    const errors = [soft ? null : cal.error && cal.limited ? `${cal.error}.` : cal.error, useTv && tvIn.length === 0 ? tv.error : null].filter(Boolean);
     return {
       events, coverage: (cal.covered || []).map(([a, b]) => [new Date(a).toISOString(), new Date(b).toISOString()]),
       extended: useTv && tvIn.some((e) => !inCover(e)), // TradingView fills the weeks ForexFactory hasn't published
       updatedAt: cal.updatedAt || null, actualsAt: useTv ? tv.lastTry || null : null, error: errors.join(' ') || null, refreshing,
+      notice: soft ? { kind: 'limited', retryAt: cal.retryAt || null } : null, retryAt: cal.error ? cal.retryAt || null : null,
       source: useTv ? 'ForexFactory · TradingView (actuals, later weeks) · Federal Reserve · BLS' : 'ForexFactory · Federal Reserve · BLS',
     };
   }
@@ -493,7 +510,7 @@ export function createMacroHandler(dataDir, { log = () => {}, fetchImpl = (...a)
       if (req.method === 'GET' && route === '/cot/markets') return send(res, 200, { markets: await catalog() });
       if (req.method === 'POST' && route === '/refresh') {
         const b = await body(req);
-        if (b.what === 'calendar') { if (!cal.lastTry || now() - cal.lastTry > 2 * MIN) await refreshCalendar(); return send(res, 200, { ok: true, error: cal.error || null }); }
+        if (b.what === 'calendar') { if ((!cal.retryAt || now() >= cal.retryAt) && (!cal.lastTry || now() - cal.lastTry > 2 * MIN)) await refreshCalendar(); return send(res, 200, { ok: true, error: cal.limited ? null : cal.error || null, retryAt: cal.retryAt || null }); }
         if (b.what === 'cot') { if (!cot.lastTry || now() - cot.lastTry > 2 * MIN) await refreshCot(); return send(res, 200, { ok: true, error: cot.error || null }); }
         return send(res, 400, { error: 'what?' });
       }

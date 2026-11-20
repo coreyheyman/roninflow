@@ -323,7 +323,12 @@ export default function EconCalendar() {
       </div>
 
       {(error || data?.error) && (
-        <div className="ec-warn"><TriangleAlert size={15} /> {error || data.error}{data?.updatedAt ? ` Showing what was saved ${new Date(data.updatedAt).toLocaleString()}.` : ''}</div>
+        <div className="ec-warn"><TriangleAlert size={15} /> {error || data.error}{data?.updatedAt ? ` Showing what was saved ${new Date(data.updatedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.` : ''}{data?.retryAt ? ` Trying again around ${new Date(data.retryAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : ''}</div>
+      )}
+      {!error && !data?.error && data?.notice?.kind === 'limited' && (
+        <div className="ec-quiet" title="ForexFactory's free feed allows only a few requests an hour. The saved calendar is used meanwhile; actuals still come in from TradingView.">
+          Updated {new Date(data.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · ForexFactory is limiting requests, so this is the saved copy{data.notice.retryAt ? ` — next check around ${new Date(data.notice.retryAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}.
+        </div>
       )}
       {uncovered && view !== 'list' && <div className="ec-note"><CalendarDays size={15} /> ForexFactory publishes one week ahead, so later weeks show only the main US releases from the official calendars (Fed, BLS). The full list fills in as each week is published.</div>}
 

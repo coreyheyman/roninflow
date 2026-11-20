@@ -9,6 +9,7 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
 - **Automatic screenshot imports (Settings → Screenshots):** pick the folder your screenshots save to — Snipping Tool / Win+Shift+S, ShareX, your platform's screenshot folder, TradingView's downloads — and every new picture is filed by the time it was taken: on the trade that was open then (or closed within the last few minutes, 10 by default), otherwise on that day's diary with a market/timeframe caption. When several markets were open at once, the coach's AI (if set up) reads the instrument off the picture. A picture taken during a trade that hasn't synced yet waits for it. Pictures taken while RoninFlow was closed are filed when it opens; buttons pick up ones from the last 24 hours or 7 days.
 - Fix: pressing Esc in a full-screen chart closes only the chart, not the trade or diary behind it.
 - Fix: GEX data stopped loading ("Cboe has no options") — Cboe moved its free option quotes to a new address behind a firewall; RoninFlow now asks there, the way Cboe's own quote pages do.
+- Economic calendar: when ForexFactory's free feed says slow down (HTTP 429), RoninFlow backs off (10, 20, 40 minutes… up to 2 hours) and fetches next week's file only every few hours; while the saved copy is recent it shows a quiet "saved copy" note instead of a warning.
 - Fix: the screenshot viewer zooms where you click the picture (clicking outside closes it) and drags smoothly without running off the screen.
 
 ## 1.9.1
