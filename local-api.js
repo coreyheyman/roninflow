@@ -16,6 +16,7 @@ import { createCandleHandler } from './candles.js';
 import { createMacroHandler } from './macro.js';
 import { createGexHandler, futuresFromCandles } from './gex.js';
 import { createNewsHandler } from './news.js';
+import { createShotsHandler } from './shots.js';
 import { createConnectHandler } from './connect.js';
 import { createVault } from './secrets.js';
 import path from 'node:path';
@@ -399,11 +400,14 @@ export default function localApiPlugin() {
   const readJournal = () => { try { const j = JSON.parse(fs.readFileSync(path.join(dataDir, 'journal.json'), 'utf8')); return j.state || j; } catch { return {}; } };
   const news = createNewsHandler(dataDir, { vault, candles, macro, readTrades: () => readJournal().trades || [], readSettings: () => readJournal().settings || {} });
   news.start();
+  const shots = createShotsHandler(dataDir);
+  shots.start();
   const ctx = (req) => ({ loopback: isLocalPc(req) });
   const mount = (server) => {
     server.middlewares.use('/api/data', (req, res, next) => data(req, res, next, ctx(req)));
     server.middlewares.use('/api/net', (req, res, next) => net(req, res, next, ctx(req)));
     server.middlewares.use('/api/candles', (req, res) => candles(req, res));
+    server.middlewares.use('/api/shots', (req, res) => shots(Object.assign(req, { url: req.originalUrl }), res));
     server.middlewares.use('/api/macro', (req, res) => (req.originalUrl?.startsWith('/api/macro/gex') ? gex(Object.assign(req, { url: req.originalUrl }), res) : req.originalUrl?.startsWith('/api/macro/news') ? news(Object.assign(req, { url: req.originalUrl }), res) : macro(req, res)));
     server.middlewares.use('/api/connect', (req, res) => connect(req, res, { trusted: true, loopback: true }));
   };

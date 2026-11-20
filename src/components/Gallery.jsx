@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ImagePlus, X, ChevronLeft, ChevronRight, Trash, Download, Maximize, MessageCircle, ZoomIn, ZoomOut } from 'lucide-react';
+import { ImagePlus, X, ChevronLeft, ChevronRight, Trash, Download, Maximize, MessageCircle, ZoomIn, ZoomOut, FolderSync } from 'lucide-react';
 import { saveImage, imageUrl, deleteImage } from '../lib/imageStore';
+import { IS_VIEWER } from '../lib/shareMode';
+import { IS_DEMO } from '../lib/demoMode';
 import { useToast } from './ui';
 
 function Thumb({ img, onOpen, onDelete, onCaption, onAsk, reading }) {
@@ -211,6 +213,7 @@ export default function Gallery({ images = [], onChange, onAsk, autoCaption }) {
         </button>
       </div>
       <input ref={ref} type="file" accept="image/*" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
+      {!IS_VIEWER && !IS_DEMO && <button type="button" className="gal-auto" onClick={() => window.dispatchEvent(new CustomEvent('tj:open-settings', { detail: 'shots' }))}><FolderSync size={12} /> Import screenshots automatically from a folder</button>}
       {open >= 0 && <Lightbox images={images} index={open} onIndex={setOpen} onClose={() => setOpen(-1)} onAsk={onAsk} />}
     </div>
   );

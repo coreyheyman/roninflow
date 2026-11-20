@@ -2582,3 +2582,5 @@ button.nw-tone:hover { text-decoration: underline; }
 @media (max-width: 520px) { .ctx-grid { grid-template-columns: 1fr; } }
 .overlay:has(> .lle-modal) { z-index: 70; }
 .shot-open { display: block; width: 100%; padding: 0; background: none; border: 0; cursor: zoom-in; }
+.gal-auto { margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; }
+.gal-auto:hover { color: var(--fg); text-decoration: underline; }

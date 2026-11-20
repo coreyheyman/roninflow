@@ -25,6 +25,7 @@ import { createVault } from './secrets.js';
 import { createSystemHandler } from './system.js';
 import { createMacroHandler } from './macro.js';
 import { createGexHandler, futuresFromCandles } from './gex.js';
+import { createShotsHandler } from './shots.js';
 import { createNewsHandler } from './news.js';
 import { createShareHandler, isShareAsset } from './share.js';
 import { createDataHandler, createNetHandler, createConfig, isLocalPc, cookieToken, lanUrls, loginPage } from './local-api.js';
@@ -126,6 +127,8 @@ let settingsCache = null;
 const readSettings = () => { if (!settingsCache || Date.now() - settingsCache.at > 30e3) { try { const j = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'journal.json'), 'utf8')); settingsCache = { at: Date.now(), v: (j.state || j).settings || {} }; } catch { settingsCache = { at: Date.now(), v: {} }; } } return settingsCache.v; };
 const newsApi = createNewsHandler(DATA_DIR, { log, vault, readTrades, readConnTrades: () => connectApi.recentTrades(), readSettings, candles: candleApi, macro: macroApi }); // Macro → News Flow / Heat Map / Agents
 newsApi.start();
+const shotsApi = createShotsHandler(DATA_DIR, { log }); // automatic screenshot imports from a folder
+shotsApi.start();
 connectApi.barsSink = (body) => (Array.isArray(body?.ticks) ? candleApi.ticks.store(body) : candleApi.ingestBars(body)); // a .bars.jsonl line can carry ticks too
 const shareApi = createShareHandler({ dataDir: DATA_DIR, distDir: DIST, port: PORT, readState, candles: candleApi });
 const netApi = createNetHandler({ config, port: PORT, mode: 'server', onLanChange: (on) => setImmediate(() => bind(on)) });
@@ -229,6 +232,7 @@ function handle(req, res) {
     if (req.url.startsWith('/api/candles')) return candleApi(req, res);
     if (req.url.startsWith('/api/connect')) return connectApi(req, res, { trusted: true, loopback });
     if (req.url.startsWith('/api/system')) return isReplica ? sendJson(res, 403, { error: 'forbidden' }) : systemApi(req, res);
+    if (req.url.startsWith('/api/shots')) return isReplica ? sendJson(res, 403, { error: 'forbidden' }) : shotsApi(req, res);
     if (req.url.startsWith('/api/macro/gex')) return gexApi(req, res);
     if (req.url.startsWith('/api/macro/news')) return newsApi(req, res);
     if (req.url.startsWith('/api/macro')) return macroApi(req, res);
