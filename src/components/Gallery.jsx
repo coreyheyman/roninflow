@@ -24,66 +24,97 @@ function Thumb({ img, onOpen, onDelete, onCaption, onAsk, reading }) {
   );
 }
 
-/** An image you can zoom (wheel, pinch, double-click, + / − / 0) and drag around once zoomed in. */
+/** An image you can zoom (click, wheel, pinch, + / − / 0) and drag around once zoomed in. Clicking outside the
+ *  picture closes the viewer; clicking the picture zooms in there (or back out). */
 function ZoomImage({ src, onBackdrop }) {
   const box = useRef(null);
+  const img = useRef(null);
   const [v, setV] = useState({ k: 1, x: 0, y: 0 });
   const vRef = useRef(v); vRef.current = v;
   const ptrs = useRef(new Map());
-  const pinch = useRef(null);
-  const drag = useRef(null);
+  const gest = useRef(null); // { x, y, ox, oy, moved, pinch: distance }
   useEffect(() => { setV({ k: 1, x: 0, y: 0 }); }, [src]);
-  // zoom by f around a point (cx, cy) measured from the box's centre
-  const zoomAt = useCallback((f, cx = 0, cy = 0) => setV((o) => {
-    const k = Math.max(1, Math.min(8, o.k * f));
-    if (k === 1) return { k: 1, x: 0, y: 0 };
+  // keep the picture on screen: it can be dragged only as far as its zoomed edges reach
+  const clamp = (k, x, y) => {
+    const bw = box.current?.clientWidth || 0, bh = box.current?.clientHeight || 0;
+    const iw = (img.current?.offsetWidth || bw) * k, ih = (img.current?.offsetHeight || bh) * k;
+    const mx = Math.max(0, (iw - bw) / 2), my = Math.max(0, (ih - bh) / 2);
+    return { k, x: Math.max(-mx, Math.min(mx, x)), y: Math.max(-my, Math.min(my, y)) };
+  };
+  // zoom to k around a point (cx, cy) measured from the box's centre
+  const zoomTo = useCallback((k1, cx = 0, cy = 0) => {
+    const o = vRef.current;
+    const k = Math.max(1, Math.min(8, k1));
     const r = k / o.k;
-    return { k, x: cx - (cx - o.x) * r, y: cy - (cy - o.y) * r };
-  }), []);
-  const local = (e) => { const r = box.current.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2]; };
+    const n = k === 1 ? { k: 1, x: 0, y: 0 } : clamp(k, cx - (cx - o.x) * r, cy - (cy - o.y) * r);
+    vRef.current = n; setV(n);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const local = (x, y) => { const r = box.current.getBoundingClientRect(); return [x - r.left - r.width / 2, y - r.top - r.height / 2]; };
+  const onImage = (x, y) => { const r = img.current?.getBoundingClientRect(); return !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; };
   useEffect(() => {
     const el = box.current;
     if (!el) return undefined;
-    const wheel = (e) => { e.preventDefault(); const [cx, cy] = local(e); zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0012)), cx, cy); };
+    const wheel = (e) => { e.preventDefault(); const [cx, cy] = local(e.clientX, e.clientY); zoomTo(vRef.current.k * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0012)), cx, cy); };
     el.addEventListener('wheel', wheel, { passive: false });
     const key = (e) => {
-      if (e.key === '+' || e.key === '=') zoomAt(1.4);
-      else if (e.key === '-' || e.key === '_') zoomAt(1 / 1.4);
-      else if (e.key === '0') setV({ k: 1, x: 0, y: 0 });
+      if (e.key === '+' || e.key === '=') zoomTo(vRef.current.k * 1.4);
+      else if (e.key === '-' || e.key === '_') zoomTo(vRef.current.k / 1.4);
+      else if (e.key === '0') zoomTo(1);
     };
     window.addEventListener('keydown', key);
     return () => { el.removeEventListener('wheel', wheel); window.removeEventListener('keydown', key); };
-  }, [zoomAt]);
+  }, [zoomTo]);
   const down = (e) => {
+    e.preventDefault(); // no native image drag or text selection
+    e.stopPropagation();
     box.current.setPointerCapture?.(e.pointerId);
     ptrs.current.set(e.pointerId, [e.clientX, e.clientY]);
-    if (ptrs.current.size === 2) { const [a, b] = [...ptrs.current.values()]; pinch.current = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) }; drag.current = null; }
-    else drag.current = { x: e.clientX, y: e.clientY, ox: vRef.current.x, oy: vRef.current.y };
-  };
-  const move = (e) => {
-    if (!ptrs.current.has(e.pointerId)) return;
-    ptrs.current.set(e.pointerId, [e.clientX, e.clientY]);
-    if (pinch.current && ptrs.current.size === 2) {
+    if (ptrs.current.size === 2) {
       const [a, b] = [...ptrs.current.values()];
-      const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
-      const r = box.current.getBoundingClientRect();
-      zoomAt(d / pinch.current.d, (a[0] + b[0]) / 2 - r.left - r.width / 2, (a[1] + b[1]) / 2 - r.top - r.height / 2);
-      pinch.current.d = d;
-    } else if (drag.current && vRef.current.k > 1) {
-      setV((o) => ({ ...o, x: drag.current.ox + e.clientX - drag.current.x, y: drag.current.oy + e.clientY - drag.current.y }));
+      gest.current = { ...(gest.current || {}), moved: true, pinch: Math.hypot(a[0] - b[0], a[1] - b[1]) };
+    } else {
+      gest.current = { x: e.clientX, y: e.clientY, ox: vRef.current.x, oy: vRef.current.y, moved: false, pinch: 0, start: [e.clientX, e.clientY] };
     }
   };
-  const up = (e) => { ptrs.current.delete(e.pointerId); if (ptrs.current.size < 2) pinch.current = null; if (!ptrs.current.size) drag.current = null; };
-  const dbl = (e) => { const [cx, cy] = local(e); if (vRef.current.k > 1) setV({ k: 1, x: 0, y: 0 }); else zoomAt(2.5, cx, cy); };
+  const move = (e) => {
+    const g = gest.current;
+    if (!g || !ptrs.current.has(e.pointerId)) return;
+    ptrs.current.set(e.pointerId, [e.clientX, e.clientY]);
+    if (g.pinch && ptrs.current.size === 2) {
+      const [a, b] = [...ptrs.current.values()];
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      const [cx, cy] = local((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+      zoomTo(vRef.current.k * (d / g.pinch), cx, cy);
+      g.pinch = d;
+      return;
+    }
+    const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (!g.moved && Math.hypot(dx, dy) > 4) g.moved = true;
+    if (g.moved && vRef.current.k > 1) {
+      const n = clamp(vRef.current.k, g.ox + dx, g.oy + dy);
+      vRef.current = n; setV(n);
+    }
+  };
+  const up = (e) => {
+    ptrs.current.delete(e.pointerId);
+    const g = gest.current;
+    if (ptrs.current.size) return; // the other finger is still down
+    gest.current = null;
+    if (!g || g.moved || e.type === 'pointercancel') return;
+    // a click: on the picture → zoom in there (or back out); outside it → close
+    if (vRef.current.k > 1) zoomTo(1);
+    else if (onImage(e.clientX, e.clientY)) { const [cx, cy] = local(e.clientX, e.clientY); zoomTo(2.5, cx, cy); }
+    else onBackdrop?.();
+  };
   return (
     <>
-      <div ref={box} className={`lb-stage ${v.k > 1 ? 'zoomed' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onDoubleClick={dbl} onClick={(e) => { if (e.target === box.current && vRef.current.k === 1) onBackdrop?.(); }}>
-        <img src={src} alt="" draggable={false} style={{ transform: `translate(${v.x}px, ${v.y}px) scale(${v.k})` }} />
+      <div ref={box} className={`lb-stage ${v.k > 1 ? 'zoomed' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onMouseDown={(e) => e.stopPropagation()}>
+        <img ref={img} src={src} alt="" draggable={false} style={{ transform: `translate3d(${v.x}px, ${v.y}px, 0) scale(${v.k})` }} />
       </div>
       <div className="lb-zoom" onMouseDown={(e) => e.stopPropagation()}>
-        <button className="icon-btn" title="Zoom out (−)" onClick={() => zoomAt(1 / 1.4)} disabled={v.k <= 1}><ZoomOut size={16} /></button>
-        <button className="lb-pct" title="Fit (0)" onClick={() => setV({ k: 1, x: 0, y: 0 })}>{Math.round(v.k * 100)}%</button>
-        <button className="icon-btn" title="Zoom in (+)" onClick={() => zoomAt(1.4)} disabled={v.k >= 8}><ZoomIn size={16} /></button>
+        <button className="icon-btn" title="Zoom out (−)" onClick={() => zoomTo(vRef.current.k / 1.4)} disabled={v.k <= 1}><ZoomOut size={16} /></button>
+        <button className="lb-pct" title="Fit (0)" onClick={() => zoomTo(1)}>{Math.round(v.k * 100)}%</button>
+        <button className="icon-btn" title="Zoom in (+)" onClick={() => zoomTo(vRef.current.k * 1.4)} disabled={v.k >= 8}><ZoomIn size={16} /></button>
       </div>
     </>
   );

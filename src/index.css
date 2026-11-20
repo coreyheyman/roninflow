@@ -548,7 +548,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .gal-img:hover .gal-zoom { opacity: 1; }
 .gal-add { aspect-ratio: 16 / 12; border: 1px dashed var(--border-2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--fg-2); font-size: 13.5px; background: var(--card); }
 .gal-add:hover { border-color: var(--primary); color: var(--fg); }
-.lightbox { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.92); display: grid; place-items: center; animation: fade 0.15s; }
+.lightbox { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.96); display: grid; place-items: center; animation: fade 0.15s; }
 .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); color: #fff; display: grid; place-items: center; }
 .lb-nav:hover { background: rgba(255, 255, 255, 0.2); }
 .lb-top { position: absolute; top: 16px; left: 20px; right: 20px; color: #fff; font-size: 13px; z-index: 2; }
@@ -556,7 +556,8 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .lb-stage { position: absolute; inset: 56px 70px 64px; display: grid; place-items: center; overflow: hidden; touch-action: none; cursor: zoom-in; }
 .lb-stage.zoomed { cursor: grab; }
 .lb-stage.zoomed:active { cursor: grabbing; }
-.lb-stage img { max-width: 100%; max-height: 100%; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); transform-origin: center; user-select: none; will-change: transform; }
+.lb-stage img { max-width: 100%; max-height: 100%; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); transform-origin: center; user-select: none; -webkit-user-drag: none; pointer-events: none; backface-visibility: hidden; }
+.lightbox { user-select: none; overscroll-behavior: contain; }
 .lb-zoom { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); padding: 3px 6px; z-index: 2; }
 .lb-zoom .icon-btn { color: #fff; }
 .lb-zoom .icon-btn:disabled { opacity: 0.35; }
