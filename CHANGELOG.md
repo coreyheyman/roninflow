@@ -10,6 +10,7 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
 - Fix: pressing Esc in a full-screen chart closes only the chart, not the trade or diary behind it.
 - Fix: GEX data stopped loading ("Cboe has no options") — Cboe moved its free option quotes to a new address behind a firewall; RoninFlow now asks there, the way Cboe's own quote pages do.
 - **Bring your screenshots when you switch:** the trade import has an “Also add my chart screenshots from these dates” option — choose a folder (or pictures) and every one is filed on its trade, or that day's diary. Settings → Screenshots → Upload screenshots does the same for any period. The time comes from the file name when it has one (Snipping Tool, macOS, TradingView, ShareX, Android), otherwise the file's date.
+- Macro → **Heat Map** is now called **News Heat Map**.
 - Economic calendar: when ForexFactory's free feed says slow down (HTTP 429), RoninFlow backs off (10, 20, 40 minutes… up to 2 hours) and fetches next week's file only every few hours; while the saved copy is recent it shows a quiet "saved copy" note instead of a warning.
 - Fix: the screenshot viewer zooms where you click the picture (clicking outside closes it) and drags smoothly without running off the screen.
 

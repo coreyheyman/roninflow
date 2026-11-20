@@ -76,7 +76,7 @@ function Router() {
       view = <Payouts />;
       break;
     case 'macro':
-      crumbs = [{ label: 'Macro', href: '#/macro/calendar' }, { label: { cot: 'COT Report', gex: 'GEX', news: 'News Flow', heatmap: 'Heat Map', agents: 'News Agents' }[sub] || 'Economic Calendar' }];
+      crumbs = [{ label: 'Macro', href: '#/macro/calendar' }, { label: { cot: 'COT Report', gex: 'GEX', news: 'News Flow', heatmap: 'News Heat Map', agents: 'News Agents' }[sub] || 'Economic Calendar' }];
       view = { cot: <Cot />, gex: <Gex />, news: <NewsFlow />, heatmap: <NewsHeatmap />, agents: <NewsAgents /> }[sub] || <EconCalendar />;
       break;
     case 'connections':

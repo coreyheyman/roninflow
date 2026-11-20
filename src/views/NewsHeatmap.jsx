@@ -1,4 +1,4 @@
-// Macro → Heat Map: every macro driver for one market on one screen — the stories in the news, the Fed, the data,
+// Macro → News Heat Map: every macro driver for one market on one screen — the stories in the news, the Fed, the data,
 // rates and the dollar, linked markets — green where it helps the market, red where it hurts, and whether price has
 // joined the news yet. Tap a tile for the headlines behind it.
 import { useState } from 'react';
