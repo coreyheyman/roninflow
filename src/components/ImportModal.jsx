@@ -1,10 +1,12 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Upload, FileSpreadsheet, Settings2, TriangleExclamationPoint as TriangleAlert, Check, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { useStore, navigate } from '../store/store';
 import { Modal, ModalHead, Money, useToast } from './ui';
 import { CONNECTORS } from '../lib/connectors';
 import { readFile, detect, convert, MODES, fingerprint, guessInitial, detectAtasWorkbook, convertAtas, standardOffset } from '../lib/importers';
 import { fmtDate, fmtTime12, fmtMoney } from '../lib/stats';
+import { ShotPicker } from './ShotUpload';
+import { planShots, planSummary, fileShots } from '../lib/shotImport';
 
 const NEW = '__new__';
 const SKIP = '__skip__';
@@ -15,7 +17,14 @@ const FILE_SOURCES = CONNECTORS.filter((c) => c.group === 'file');
 const LIVE_SOURCES = CONNECTORS.filter((c) => c.status === 'ready' && ['live', 'api', 'crypto'].includes(c.group));
 
 export default function ImportModal({ open, onClose, initialSource = null }) {
-  const { state, importBatch, setSetting } = useStore();
+  const { state, importBatch, setSetting, updateTrade, saveDiary } = useStore();
+  const stateRef = useRef(state); stateRef.current = state;
+  // screenshots from the same dates, filed on the imported trades once they're in
+  const [shotsOn, setShotsOn] = useState(false);
+  const [shotFiles, setShotFiles] = useState([]);
+  const [shotRange, setShotRange] = useState(null); // { from, to } — defaults to the file's dates
+  const [shotRun, setShotRun] = useState(null); // { done, total } while filing, after the trades are imported
+  const afterImport = useRef(null);
   const toast = useToast();
   const fileRef = useRef(null);
   const [drag, setDrag] = useState(false);
@@ -37,7 +46,7 @@ export default function ImportModal({ open, onClose, initialSource = null }) {
   if (wasOpen !== open) { setWasOpen(open); if (open) setSource(initialSource); }
   const src = FILE_SOURCES.find((c) => c.id === source) || null;
 
-  const reset = () => { setFile(null); setTables(null); setCfg(null); setErr(''); setShowMap(false); setMults({}); setAcctMap({}); setTz('local'); setDateOrder('auto'); };
+  const reset = () => { setFile(null); setTables(null); setCfg(null); setErr(''); setShowMap(false); setMults({}); setAcctMap({}); setTz('local'); setDateOrder('auto'); setShotsOn(false); setShotFiles([]); setShotRange(null); setShotRun(null); };
   const close = () => { reset(); onClose(); };
 
   const load = async (f) => {
@@ -129,6 +138,15 @@ export default function ImportModal({ open, onClose, initialSource = null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, replace, reviewed, fileAccounts, acctMap, state.trades]);
 
+  const fileDates = useMemo(() => { const d = ready.map((t) => String(t.entry).slice(0, 10)).sort(); return { from: d[0] || '', to: d[d.length - 1] || '' }; }, [ready]);
+  const shotDates = shotRange || fileDates;
+  const shotSum = useMemo(() => {
+    if (!shotsOn || !shotFiles.length) return null;
+    const removed = new Set(plan.removeIds);
+    const trades = [...state.trades.filter((t) => !removed.has(t.id)), ...plan.trades.map((t, i) => ({ ...t, id: `new${i}` }))];
+    return planSummary(planShots(shotFiles, trades, shotDates));
+  }, [shotsOn, shotFiles, plan, state.trades, shotDates]);
+
   const doImport = () => {
     const newAccounts = fileAccounts
       .filter((a) => targetOf(a.raw) === NEW && !state.accounts.some((x) => x.id === a.raw))
@@ -142,10 +160,25 @@ export default function ImportModal({ open, onClose, initialSource = null }) {
       removeIds: plan.removeIds,
       note: { title: `Imported ${plan.trades.length} trades from ${file.name}`, body: `${used} account${used !== 1 ? 's' : ''} · net ${fmtMoney(net, { sign: true })}` },
     });
+    const where = reviewed ? 'journal/database' : 'journal/inbox';
+    if (shotsOn && shotFiles.length) { afterImport.current = { where, count: plan.trades.length }; setShotRun({ done: 0, total: shotSum.trades + shotSum.days }); return; }
     toast(plan.trades.length ? `Imported ${plan.trades.length} trades` : 'Journal already up to date');
     close();
-    navigate(reviewed ? 'journal/database' : 'journal/inbox');
+    navigate(where);
   };
+  // the trades are in the journal now (this runs after the render that has them): file the screenshots against them
+  useEffect(() => {
+    if (!shotRun || shotRun.started) return;
+    setShotRun((r) => ({ ...r, started: true }));
+    (async () => {
+      const p = planShots(shotFiles, stateRef.current.trades, { from: shotDates.from, to: shotDates.to });
+      const r = await fileShots(p, { getState: () => stateRef.current, updateTrade, saveDiary, onProgress: (done, total) => setShotRun((x) => ({ ...x, done, total })) });
+      const a = afterImport.current || {};
+      toast(`Imported ${a.count || 0} trades and ${r.tradeShots + r.dayShots} screenshot${r.tradeShots + r.dayShots === 1 ? '' : 's'}`);
+      close();
+      navigate(a.where || 'journal/inbox');
+    })();
+  }, [shotRun]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const modeLabel = cfg?.mode === 'atas' ? 'ATAS statistics workbook (Journal trades + Executions commissions)' : cfg?.mode === 'fills' ? 'Executions (fills are paired into trades)' : 'Closed trades';
   const setMap = (k, v) => setCfg((c) => ({ ...c, map: { ...c.map, [k]: v === '' ? undefined : Number(v) } }));
@@ -334,6 +367,13 @@ export default function ImportModal({ open, onClose, initialSource = null }) {
                 Replace existing trades in these accounts for the same dates {plan.removed > 0 && <span className="muted">({plan.removed} trade{plan.removed > 1 ? 's' : ''} not in the file will be removed, e.g. sample data)</span>}
               </label>
               <label className="row gap8"><input type="checkbox" className="cbx" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} /> Mark imported trades as reviewed (otherwise they go to your Inbox)</label>
+              <label className="row gap8"><input type="checkbox" className="cbx" checked={shotsOn} onChange={(e) => setShotsOn(e.target.checked)} /> Also add my chart screenshots from these dates <span className="muted">(each goes on its trade, or that day’s diary)</span></label>
+              {shotsOn && (
+                <div className="panel" style={{ padding: 12, marginLeft: 26 }}>
+                  <ShotPicker files={shotFiles} onFiles={setShotFiles} from={shotDates.from} to={shotDates.to} onFrom={(v) => setShotRange({ ...shotDates, from: v })} onTo={(v) => setShotRange({ ...shotDates, to: v })} summary={shotSum} />
+                </div>
+              )}
+              {shotRun && <div className="shot-prog"><i style={{ width: `${(shotRun.done / Math.max(1, shotRun.total)) * 100}%` }} /><span>Trades imported — adding screenshots {shotRun.done} of {shotRun.total}…</span></div>}
               <div className="row gap16 muted wrap" style={{ marginTop: 4 }}>
                 <span className="row gap6"><Check size={14} className="pos" /> {plan.trades.length} new trades</span>
                 {plan.dupes > 0 && <span>{plan.dupes} already in your journal (skipped)</span>}
@@ -368,7 +408,7 @@ export default function ImportModal({ open, onClose, initialSource = null }) {
         {tables ? <button className="btn" onClick={reset}><ChevronLeft size={15} /> Back</button> : <span />}
         <div className="grow" />
         <button className="btn" onClick={close}>Cancel</button>
-        {tables && <button className="btn white" disabled={(!plan.trades.length && !plan.removed) || unknownRoots.some((r) => !mults[r])} onClick={doImport}>Import {plan.trades.length || ''} trades</button>}
+        {tables && <button className="btn white" disabled={!!shotRun || ((!plan.trades.length && !plan.removed) && !(shotSum && shotSum.trades + shotSum.days)) || unknownRoots.some((r) => !mults[r])} onClick={doImport}>Import {plan.trades.length || ''} trades{shotSum && shotSum.trades + shotSum.days ? ` + ${shotSum.trades + shotSum.days} screenshots` : ''}</button>}
       </div>
     </Modal>
   );

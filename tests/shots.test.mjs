@@ -67,3 +67,15 @@ test('the folder watcher imports new pictures once they finish writing, and only
   assert.equal(r.body.added, 1);
   h.stop();
 });
+
+import { shotTime } from '../src/lib/shotMatch.js';
+test('the time a picture was taken is read from common screenshot file names', () => {
+  assert.equal(shotTime('Screenshot 2026-11-20 073800.png', 1), '2026-11-20T07:38:00');
+  assert.equal(shotTime('Screenshot 2026-11-20 at 1.05.09 PM.png', 1), '2026-11-20T13:05:09');
+  assert.equal(shotTime('MESZ2026_2026-11-20_07-38-12_ab12c.png', 1), '2026-11-20T07:38:12');
+  assert.equal(shotTime('chrome_2026-11-20_07-38-00.png', 1), '2026-11-20T07:38:00');
+  assert.equal(shotTime('Screenshot_20261120-073800.png', 1), '2026-11-20T07:38:00');
+  assert.equal(shotTime('Screenshot 2026-11-20 at 12.10.00 AM.png', 1), '2026-11-20T00:10:00');
+  assert.equal(shotTime('chart.png', 12345), 12345, 'no time in the name: the file date');
+  assert.equal(shotTime('notes-2026-11-20.png', 777), 777, 'a date without a time is not enough');
+});

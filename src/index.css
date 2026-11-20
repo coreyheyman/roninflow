@@ -2586,3 +2586,6 @@ button.nw-tone:hover { text-decoration: underline; }
 .gal-auto { margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; }
 .gal-auto:hover { color: var(--fg); text-decoration: underline; }
 .ec-quiet { font-size: 12px; color: var(--muted-2, var(--muted)); margin: -2px 0 10px; }
+.shot-prog { position: relative; height: 26px; margin-top: 12px; border: 1px solid var(--border); background: var(--card-2); font-size: 12.5px; display: flex; align-items: center; padding: 0 10px; overflow: hidden; }
+.shot-prog i { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--primary) 30%, transparent); transition: width 0.2s; }
+.shot-prog span { position: relative; }

@@ -1,8 +1,9 @@
 // Settings → Screenshots: pick the folder your screenshots save to and they're filed automatically — on the trade
 // that was open when you took it (or had just closed), otherwise on that day's diary.
 import { useEffect, useState } from 'react';
-import { Check, FolderOpen, TriangleExclamationPoint as TriangleAlert } from 'lucide-react';
+import { Check, Upload, FolderOpen, TriangleExclamationPoint as TriangleAlert } from 'lucide-react';
 import { Switch, useToast } from './ui';
+import { ShotUploadModal } from './ShotUpload';
 import { fmtDate, fmtTime12, wallClock } from '../lib/stats';
 
 const jsonOf = async (r) => ((r.headers.get('content-type') || '').includes('json') ? r.json() : null);
@@ -12,6 +13,7 @@ export default function ShotSettings() {
   const [cfg, setCfg] = useState(null);
   const [folder, setFolder] = useState('');
   const [busy, setBusy] = useState(false);
+  const [upload, setUpload] = useState(false);
   const load = () => fetch('/api/shots/config', { cache: 'no-store' }).then((r) => (r.ok ? jsonOf(r) : false)).then((j) => { setCfg(j || false); if (j) setFolder(j.folder || ''); }).catch(() => setCfg(false));
   useEffect(() => { load(); const id = setInterval(load, 10e3); return () => clearInterval(id); }, []);
   const save = async (patch, ok) => {
@@ -86,6 +88,16 @@ export default function ShotSettings() {
           </>}
         </div>
       </div>
+      <div className="panel col gap8" style={{ padding: 14 }}>
+        <div className="row between gap8 wrap">
+          <div className="col" style={{ gap: 2 }}>
+            <b style={{ fontWeight: 600 }}>Upload screenshots from a period</b>
+            <span className="muted" style={{ fontSize: 12.5 }}>Moving from another journal, or have a folder of old charts? Choose the folder and the dates — every picture is filed on its trade or diary day.</span>
+          </div>
+          <button className="btn" onClick={() => setUpload(true)}><Upload size={14} /> Upload screenshots</button>
+        </div>
+      </div>
+      <ShotUploadModal open={upload} onClose={() => setUpload(false)} />
       <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
         How it’s matched: by the time the picture was taken, against your trades’ entry and exit times. If several markets were open at once and the coach’s AI is set up, it reads the instrument off the picture to pick the right trade. A picture taken during a trade that hasn’t synced yet waits until it does. Diary screenshots get a caption with the market and timeframe. Only new pictures are picked up — use the buttons above for earlier ones.
       </div>
