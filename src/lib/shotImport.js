@@ -3,7 +3,6 @@
 // RoninFlow (alongside the trade import) and from Settings → Screenshots for any period.
 import { matchShot, pickTrade, shotTime, shotDay } from './shotMatch';
 import { saveImage } from './imageStore';
-import { fileToDataUrl } from '../components/ui';
 
 export const isImage = (f) => /^image\/(png|jpe?g|webp|gif|bmp)$/i.test(f.type) || /\.(png|jpe?g|webp|gif|bmp)$/i.test(f.name || '');
 
@@ -11,11 +10,12 @@ export const isImage = (f) => /^image\/(png|jpe?g|webp|gif|bmp)$/i.test(f.type) 
  * Where each picture would go, without saving anything.
  * @returns [{ file, time, day, kind: 'trade' | 'day' | 'outside', trade? }] sorted by time
  */
-export function planShots(files, trades, { after = 10, from = '', to = '' } = {}) {
+export function planShots(files, trades, { after = 10, from = '', to = '', daysOnly = false } = {}) {
   return [...files].filter(isImage).map((file) => {
     const time = shotTime(file.name, file.lastModified);
     const day = shotDay(time);
     if ((from && day < from) || (to && day > to)) return { file, time, day, kind: 'outside' };
+    if (daysOnly) return { file, time, day, kind: 'day' }; // daily screenshots: always the day's diary
     const m = matchShot(time, trades, { after });
     return m.kind === 'trade' ? { file, time, day, kind: 'trade', trade: pickTrade(m, '') } : { file, time, day, kind: 'day' };
   }).sort((a, b) => String(a.time).localeCompare(String(b.time)) || 0);
@@ -35,6 +35,7 @@ export function planSummary(plan) {
  * getState() must return the journal's current state (the trades just imported included).
  */
 export async function fileShots(plan, { getState, updateTrade, saveDiary, onProgress } = {}) {
+  const { fileToDataUrl } = await import('../components/ui'); // loaded here so the planning above runs anywhere (tests)
   const byTrade = new Map(), byDay = new Map();
   const todo = plan.filter((p) => p.kind !== 'outside');
   let done = 0, failed = 0;

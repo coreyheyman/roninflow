@@ -79,3 +79,13 @@ test('the time a picture was taken is read from common screenshot file names', (
   assert.equal(shotTime('chart.png', 12345), 12345, 'no time in the name: the file date');
   assert.equal(shotTime('notes-2026-11-20.png', 777), 777, 'a date without a time is not enough');
 });
+
+test('“days only” puts every picture on its day, even one taken during a trade', async () => {
+  const { planShots, planSummary } = await import('../src/lib/shotImport.js');
+  const f = (name) => ({ name, type: 'image/png', lastModified: 0 });
+  const files = [f('Screenshot 2026-11-20 074500.png'), f('Screenshot 2026-11-20 120000.png')];
+  assert.deepEqual(planShots(files, trades).map((p) => p.kind), ['trade', 'day']);
+  const p = planShots(files, trades, { daysOnly: true });
+  assert.deepEqual(p.map((x) => x.kind), ['day', 'day']);
+  assert.equal(planSummary(p).dayCount, 1);
+});

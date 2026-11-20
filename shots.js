@@ -71,7 +71,7 @@ export function createShotsHandler(dataDir, { log = () => {}, now = () => Date.n
   const dir = path.join(dataDir, 'shots');
   const imgDir = path.join(dataDir, 'images');
   const cfgFile = path.join(dir, 'config.json'), inboxFile = path.join(dir, 'inbox.json'), seenFile = path.join(dir, 'seen.json');
-  let cfg = { on: false, folder: '', after: 10, since: 0, imported: 0, lastAt: 0, ...readJson(cfgFile, {}) };
+  let cfg = { on: false, folder: '', after: 10, daysOnly: false, since: 0, imported: 0, lastAt: 0, ...readJson(cfgFile, {}) };
   let inbox = readJson(inboxFile, []);
   let seen = readJson(seenFile, {}); // path → "size:mtime" already imported (or skipped)
   const sizes = new Map(); // path → size at the last check (imported once it stops changing)
@@ -123,7 +123,7 @@ export function createShotsHandler(dataDir, { log = () => {}, now = () => Date.n
   const send = (res, code, obj) => { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(obj)); };
   const body = (req) => new Promise((resolve, reject) => { let t = ''; req.setEncoding('utf8'); req.on('data', (c) => { t += c; if (t.length > 1e5) req.destroy(); }); req.on('end', () => { try { resolve(JSON.parse(t || '{}')); } catch (e) { reject(e); } }); req.on('error', reject); });
   const status = () => ({
-    on: !!cfg.on, folder: cfg.folder, after: cfg.after, exists: !!cfg.folder && fs.existsSync(cfg.folder),
+    on: !!cfg.on, folder: cfg.folder, after: cfg.after, daysOnly: !!cfg.daysOnly, exists: !!cfg.folder && fs.existsSync(cfg.folder),
     suggestions: suggestFolders(home), pending: inbox.length, imported: cfg.imported || 0, lastAt: cfg.lastAt || null, error,
   });
 
@@ -140,6 +140,7 @@ export function createShotsHandler(dataDir, { log = () => {}, now = () => Date.n
           if (f !== cfg.folder) { cfg.folder = f; cfg.since = now(); sizes.clear(); }
         }
         if (b.after != null) cfg.after = Math.max(0, Math.min(240, Number(b.after) || 0));
+        if (b.daysOnly != null) cfg.daysOnly = !!b.daysOnly;
         if (b.on != null) { const on = !!b.on; if (on && !cfg.on) cfg.since = now(); cfg.on = on; }
         saveCfg();
         if (cfg.on) start();
@@ -158,7 +159,7 @@ export function createShotsHandler(dataDir, { log = () => {}, now = () => Date.n
         const t = now();
         const mine = inbox.filter((x) => !x.claim || x.claim.by === client || t - x.claim.at > 120e3);
         if (client) for (const x of mine) x.claim = { by: client, at: t };
-        return send(res, 200, { items: mine.map(({ claim, ...x }) => x), after: cfg.after });
+        return send(res, 200, { items: mine.map(({ claim, ...x }) => x), after: cfg.after, daysOnly: !!cfg.daysOnly });
       }
       if (route === '/release' && req.method === 'POST') {
         const b = await body(req);

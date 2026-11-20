@@ -23,6 +23,7 @@ export default function ImportModal({ open, onClose, initialSource = null }) {
   const [shotsOn, setShotsOn] = useState(false);
   const [shotFiles, setShotFiles] = useState([]);
   const [shotRange, setShotRange] = useState(null); // { from, to } — defaults to the file's dates
+  const [shotDays, setShotDays] = useState(false); // daily screenshots: every one on its day's diary
   const [shotRun, setShotRun] = useState(null); // { done, total } while filing, after the trades are imported
   const afterImport = useRef(null);
   const toast = useToast();
@@ -144,8 +145,8 @@ export default function ImportModal({ open, onClose, initialSource = null }) {
     if (!shotsOn || !shotFiles.length) return null;
     const removed = new Set(plan.removeIds);
     const trades = [...state.trades.filter((t) => !removed.has(t.id)), ...plan.trades.map((t, i) => ({ ...t, id: `new${i}` }))];
-    return planSummary(planShots(shotFiles, trades, shotDates));
-  }, [shotsOn, shotFiles, plan, state.trades, shotDates]);
+    return planSummary(planShots(shotFiles, trades, { ...shotDates, daysOnly: shotDays }));
+  }, [shotsOn, shotFiles, plan, state.trades, shotDates, shotDays]);
 
   const doImport = () => {
     const newAccounts = fileAccounts
@@ -171,7 +172,7 @@ export default function ImportModal({ open, onClose, initialSource = null }) {
     if (!shotRun || shotRun.started) return;
     setShotRun((r) => ({ ...r, started: true }));
     (async () => {
-      const p = planShots(shotFiles, stateRef.current.trades, { from: shotDates.from, to: shotDates.to });
+      const p = planShots(shotFiles, stateRef.current.trades, { from: shotDates.from, to: shotDates.to, daysOnly: shotDays });
       const r = await fileShots(p, { getState: () => stateRef.current, updateTrade, saveDiary, onProgress: (done, total) => setShotRun((x) => ({ ...x, done, total })) });
       const a = afterImport.current || {};
       toast(`Imported ${a.count || 0} trades and ${r.tradeShots + r.dayShots} screenshot${r.tradeShots + r.dayShots === 1 ? '' : 's'}`);
@@ -370,7 +371,7 @@ export default function ImportModal({ open, onClose, initialSource = null }) {
               <label className="row gap8"><input type="checkbox" className="cbx" checked={shotsOn} onChange={(e) => setShotsOn(e.target.checked)} /> Also add my chart screenshots from these dates <span className="muted">(each goes on its trade, or that day’s diary)</span></label>
               {shotsOn && (
                 <div className="panel" style={{ padding: 12, marginLeft: 26 }}>
-                  <ShotPicker files={shotFiles} onFiles={setShotFiles} from={shotDates.from} to={shotDates.to} onFrom={(v) => setShotRange({ ...shotDates, from: v })} onTo={(v) => setShotRange({ ...shotDates, to: v })} summary={shotSum} />
+                  <ShotPicker files={shotFiles} onFiles={setShotFiles} from={shotDates.from} to={shotDates.to} onFrom={(v) => setShotRange({ ...shotDates, from: v })} onTo={(v) => setShotRange({ ...shotDates, to: v })} summary={shotSum} daysOnly={shotDays} onDaysOnly={setShotDays} />
                 </div>
               )}
               {shotRun && <div className="shot-prog"><i style={{ width: `${(shotRun.done / Math.max(1, shotRun.total)) * 100}%` }} /><span>Trades imported — adding screenshots {shotRun.done} of {shotRun.total}…</span></div>}

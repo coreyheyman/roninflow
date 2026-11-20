@@ -9,7 +9,7 @@ import { planShots, planSummary, fileShots, isImage } from '../lib/shotImport';
 import { fmtDate } from '../lib/stats';
 
 /** Pick a folder or pictures, and the dates to take them from. */
-export function ShotPicker({ files, onFiles, from, to, onFrom, onTo, summary, compact }) {
+export function ShotPicker({ files, onFiles, from, to, onFrom, onTo, summary, compact, daysOnly = false, onDaysOnly }) {
   const dirRef = useRef(null), fileRef = useRef(null);
   const add = (list) => { const imgs = [...list].filter(isImage); if (imgs.length) onFiles([...files, ...imgs]); };
   return (
@@ -27,6 +27,15 @@ export function ShotPicker({ files, onFiles, from, to, onFrom, onTo, summary, co
         <span className="muted">to</span>
         <input type="date" className="input" style={{ height: 32, width: 150 }} value={to} onChange={(e) => onTo(e.target.value)} />
       </div>
+      {onDaysOnly && (
+        <div className="row gap8 wrap" style={{ alignItems: 'center', fontSize: 13 }}>
+          <span className="muted">Put them on</span>
+          <div className="seg sm">
+            <button type="button" className={!daysOnly ? 'on' : ''} onClick={() => onDaysOnly(false)}>Trades and days</button>
+            <button type="button" className={daysOnly ? 'on' : ''} onClick={() => onDaysOnly(true)}>Days only</button>
+          </div>
+        </div>
+      )}
       {summary && summary.total > 0 && (
         <div className="muted" style={{ fontSize: 12.5 }}>
           {summary.trades > 0 && <span><b style={{ color: 'var(--fg)' }}>{summary.trades}</b> on {summary.tradeCount} trade{summary.tradeCount === 1 ? '' : 's'}</span>}
@@ -35,7 +44,7 @@ export function ShotPicker({ files, onFiles, from, to, onFrom, onTo, summary, co
           {summary.outside > 0 && <span> · {summary.outside} outside these dates (skipped)</span>}
         </div>
       )}
-      {!compact && <div className="muted2" style={{ fontSize: 12 }}>Each picture goes on the trade that was open when it was taken (or closed within 10 minutes), otherwise on that day’s diary. The time comes from the file name when it has one (Snipping Tool, macOS, TradingView, ShareX), otherwise from the file’s date.</div>}
+      {!compact && <div className="muted2" style={{ fontSize: 12 }}>{daysOnly ? 'Each picture goes on the diary of the day it was taken.' : 'Each picture goes on the trade that was open when it was taken (or closed within 10 minutes), otherwise on that day’s diary.'} The time comes from the file name when it has one (Snipping Tool, macOS, TradingView, ShareX), otherwise from the file’s date.</div>}
     </div>
   );
 }
@@ -50,7 +59,9 @@ export function ShotUploadModal({ open, onClose }) {
   const [from, setFrom] = useState(days[0] || '');
   const [to, setTo] = useState(days[days.length - 1] || '');
   const [prog, setProg] = useState(null);
-  const plan = useMemo(() => planShots(files, state.trades, { from, to }), [files, state.trades, from, to]);
+  const [daysOnly, setDaysOnly] = useState(() => { try { return localStorage.getItem('rf-shots-days') === '1'; } catch { return false; } });
+  const setDays = (v) => { setDaysOnly(v); try { localStorage.setItem('rf-shots-days', v ? '1' : '0'); } catch { /* private window */ } };
+  const plan = useMemo(() => planShots(files, state.trades, { from, to, daysOnly }), [files, state.trades, from, to, daysOnly]);
   const sum = planSummary(plan);
   const go = async () => {
     setProg([0, sum.total - sum.outside]);
@@ -63,7 +74,7 @@ export function ShotUploadModal({ open, onClose }) {
     <Modal open onClose={prog ? () => {} : onClose} width={620} className="lle-modal">
       <ModalHead title="Upload screenshots" sub={days.length ? `Your trades run from ${fmtDate(days[0])} to ${fmtDate(days[days.length - 1])}` : 'Filed on your trades and diary days by the time they were taken'} onClose={prog ? undefined : onClose} />
       <div className="modal-body">
-        <ShotPicker files={files} onFiles={setFiles} from={from} to={to} onFrom={setFrom} onTo={setTo} summary={sum} />
+        <ShotPicker files={files} onFiles={setFiles} from={from} to={to} onFrom={setFrom} onTo={setTo} summary={sum} daysOnly={daysOnly} onDaysOnly={setDays} />
         {prog && <div className="shot-prog"><i style={{ width: `${(prog[0] / Math.max(1, prog[1])) * 100}%` }} /><span>Adding {prog[0]} of {prog[1]}…</span></div>}
       </div>
       <div className="modal-foot">

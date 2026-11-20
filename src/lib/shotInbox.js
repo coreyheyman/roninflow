@@ -38,9 +38,9 @@ export function useShotInbox() {
         for (const it of items) {
           if (!alive) break;
           const { state, updateTrade, saveDiary, setSetting } = ref.current;
-          const m = matchShot(it.takenAt, state.trades, { after });
+          const m = j.daysOnly ? matchShot(it.takenAt, [], {}) : matchShot(it.takenAt, state.trades, { after }); // daily screenshots → the day
           // nothing yet: the trade may still be open (platforms send it when it closes) — look again later
-          if (m.kind === 'day' && Date.now() - it.takenAt < (after + 10) * 60e3) { wait.push(it.id); continue; }
+          if (!j.daysOnly && m.kind === 'day' && Date.now() - it.takenAt < (after + 10) * 60e3) { wait.push(it.id); continue; }
           const res = await fetch(`/api/data/images/${it.id}`, { cache: 'no-store' }).catch(() => null);
           if (!res?.ok) { done.push(it.id); continue; } // the file went missing
           const blob = await res.blob();

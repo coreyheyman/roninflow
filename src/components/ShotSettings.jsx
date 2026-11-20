@@ -70,6 +70,13 @@ export default function ShotSettings() {
           {cfg.error && cfg.exists && <div className="ec-warn" style={{ marginTop: 8 }}>{cfg.error}</div>}
         </div>
         <div className="field">
+          <label className="label">Put new screenshots on</label>
+          <div className="seg sm" style={{ alignSelf: 'flex-start' }}>
+            <button type="button" className={!cfg.daysOnly ? 'on' : ''} onClick={() => save({ daysOnly: false })}>Trades and days</button>
+            <button type="button" className={cfg.daysOnly ? 'on' : ''} onClick={() => save({ daysOnly: true })}>Days only</button>
+          </div>
+        </div>
+        {!cfg.daysOnly && <div className="field">
           <label className="label">Still counts for a trade up to</label>
           <div className="row gap8">
             <select className="select" style={{ width: 240 }} value={cfg.after} onChange={(e) => save({ after: Number(e.target.value) })}>
@@ -77,7 +84,7 @@ export default function ShotSettings() {
             </select>
             <span className="muted" style={{ fontSize: 12.5 }}>Later ones go on that day’s diary.</span>
           </div>
-        </div>
+        </div>}
         <div className="row gap8 wrap" style={{ fontSize: 12.5 }}>
           <span className="muted">{cfg.imported ? `${cfg.imported} imported${cfg.lastAt ? ` · last ${fmtDate(wallClock(new Date(cfg.lastAt)).slice(0, 10))} ${fmtTime12(wallClock(new Date(cfg.lastAt)))}` : ''}` : 'Nothing imported yet'}{cfg.pending ? ` · ${cfg.pending} waiting to be filed` : ''}</span>
           <div className="grow" />

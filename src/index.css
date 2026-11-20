@@ -2589,3 +2589,5 @@ button.nw-tone:hover { text-decoration: underline; }
 .shot-prog { position: relative; height: 26px; margin-top: 12px; border: 1px solid var(--border); background: var(--card-2); font-size: 12.5px; display: flex; align-items: center; padding: 0 10px; overflow: hidden; }
 .shot-prog i { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--primary) 30%, transparent); transition: width 0.2s; }
 .shot-prog span { position: relative; }
+.seg.sm { padding: 2px; }
+.seg.sm button { height: 26px; padding: 0 10px; font-size: 12.5px; }
