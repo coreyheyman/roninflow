@@ -178,3 +178,14 @@ test('no ES bars (you didn’t trade ES that day): the add-on is asked for them'
   assert.equal((await futuresFromCandles(have)('ES', NOW)).price, 6030);
   assert.equal(asked.length, 1);
 });
+
+test('Cboe is asked at its new address, the way its own quote pages ask', async () => {
+  const seen = [];
+  const fetchImpl = async (url, opts) => { seen.push({ url, h: opts.headers }); return { ok: true, status: 200, text: async () => JSON.stringify(cboeJson()) }; };
+  const h = createGexHandler(tmp(), { fetchImpl, now: () => NOW, futuresAt: async () => null });
+  const r = res(); await h(req('/api/macro/gex?symbol=SPX&exp=2026-11-19'), r);
+  assert.ok(r.body.spot > 0);
+  assert.match(seen[0].url, /^https:\/\/cdn-api\.cboe\.com\/api\/global\/delayed_quotes\/options\/_SPX\.json$/);
+  assert.equal(seen[0].h.Origin, 'https://www.cboe.com');
+  assert.match(seen[0].h.Referer, /^https:\/\/www\.cboe\.com/);
+});

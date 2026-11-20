@@ -11,7 +11,7 @@
 //   GET  /api/macro/gex/levels?fut=ES&date=YYYY-MM-DD → { levels: [{ t, callWall, putWall, flip, spot }] } in ES prices
 //
 // Sources
-//   • Cboe's delayed option quotes (cdn.cboe.com, the data behind its delayed-quotes pages) — free, no key, ~15 minutes
+//   • Cboe's delayed option quotes (cdn-api.cboe.com — formerly cdn.cboe.com — the data behind its delayed-quotes pages) — free, no key, ~15 minutes
 //     delayed, with open interest, implied volatility and Greeks for every strike. The default, and always used for
 //     the vanna/charm charts and the expiration list (they change slowly).
 //   • Polygon (your Polygon key, needs an options plan) or Tradier (a free brokerage account's API token) — real time,
@@ -23,7 +23,13 @@ import { bsGreeks, parseOcc, expiryMs, computeGex, computeVannaCharm, nyDate } f
 
 export { bsGreeks, parseOcc, expiryMs, computeGex, computeVannaCharm };
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
+export const CBOE_HOSTS = ['https://cdn-api.cboe.com', 'https://cdn.cboe.com'];
+const CBOE_HEADERS = {
+  Origin: 'https://www.cboe.com', Referer: 'https://www.cboe.com/', 'Accept-Language': 'en-US,en;q=0.9',
+  'Sec-Fetch-Site': 'same-site', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Dest': 'empty',
+  'sec-ch-ua': '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"', 'sec-ch-ua-mobile': '?0', 'sec-ch-ua-platform': '"Windows"',
+};
 
 /** The page's indices (any optionable ticker works too); each one's futures market for the converted levels. */
 export const GEX_SYMBOLS = [
@@ -95,15 +101,19 @@ export function createGexHandler(dataDir, { log = () => {}, vault = null, fetchI
     const k = `cboe|${symbol}`, c = cache.get(k);
     if (c && now() - c.at < 120e3) return c.data;
     return once(k, async () => {
-      const urls = INDEX.has(symbol) ? [`_${symbol}`, symbol] : [symbol, `_${symbol}`];
+      const names = INDEX.has(symbol) ? [`_${symbol}`, symbol] : [symbol, `_${symbol}`];
+      // Cboe moved the files to cdn-api.cboe.com (Nov 2026), behind a firewall that only lets through requests that come
+      // from its own quote pages — so ask the way those pages do
+      const urls = [];
+      for (const host of CBOE_HOSTS) for (const n of names) urls.push(`${host}/api/global/delayed_quotes/options/${n}.json`);
       let last;
       for (const u of urls) {
         try {
-          const data = normCboe(await getJson(`https://cdn.cboe.com/api/global/delayed_quotes/options/${u}.json`));
+          const data = normCboe(await getJson(u, { headers: CBOE_HEADERS }));
           if (data.rows.length && data.spot > 0) { data.source = 'cboe'; data.at ||= now() - 15 * 60e3; cache.set(k, { at: now(), data }); return data; }
         } catch (e) { last = e; }
       }
-      throw new Error(last?.status === 403 || last?.status === 404 ? `Cboe has no options for ${symbol}` : `Couldn’t reach Cboe (${last?.message || 'no data'})`);
+      throw new Error(last?.status === 404 ? `Cboe has no options for ${symbol}` : last?.status === 403 ? `Cboe refused the request (HTTP 403) — its firewall may be blocking it; try again in a few minutes, or use Polygon or Tradier` : `Couldn’t reach Cboe (${last?.message || 'no data'})`);
     });
   }
 
