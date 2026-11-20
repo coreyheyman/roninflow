@@ -6,6 +6,7 @@ import { useStore } from '../store/store';
 import { Modal, ModalHead, Drawer, Money, Stars, Seg, useToast, Confirm, fileToDataUrl } from './ui';
 import { computePnl, fmtDate, fmtTime12, fmtHold, holdSeconds, POINT_VALUE, pad, fmtMoney } from '../lib/stats';
 import { BlockerPicker, LabelListEditor } from './Playbook';
+import { Lightbox } from './Gallery';
 import ExecChart from './ExecChart';
 import { askCoachAboutImage } from '../lib/askCoach';
 import { buildReviewContext } from '../lib/coach';
@@ -255,6 +256,7 @@ export function TradeDrawer({ trade, onClose, siblings = null, onNavigate }) {
       focus: { ...buildReviewContext(state, { kind: 'day', label: fmtDate(t.entry), date: day, trades: dayTrades }), focusTrade: { time: t.entry, exit: t.exit, symbol: t.symbol, side: t.direction, qty: t.qty, entryPrice: t.entryPrice, exitPrice: t.exitPrice, pnl: t.pnl, edgeBlockers: t.blockers, tags: t.tags, notes: t.notes || undefined } },
     }).catch(() => {});
   };
+  const [shotOpen, setShotOpen] = useState(-1);
   const addShots = async (e) => {
     const files = [...(e.target.files || [])];
     const urls = await Promise.all(files.map((f) => fileToDataUrl(f)));
@@ -353,12 +355,13 @@ export function TradeDrawer({ trade, onClose, siblings = null, onNavigate }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
               {(t.screenshots || []).map((src, i) => (
                 <div key={i} style={{ position: 'relative' }}>
-                  <a href={src} target="_blank" rel="noreferrer"><img src={src} alt="" style={{ width: '100%', display: 'block', border: '1px solid var(--border)' }} /></a>
+                  <button type="button" className="shot-open" title="Open (zoom with the wheel or a pinch)" onClick={() => setShotOpen(i)}><img src={src} alt="" style={{ width: '100%', display: 'block', border: '1px solid var(--border)' }} /></button>
                   <button className="close-x" style={{ position: 'absolute', top: 6, right: 6 }} onClick={() => up({ screenshots: t.screenshots.filter((_, j) => j !== i) })}><X size={12} /></button>
                   <button className="btn xs shot-ask" data-edit onClick={() => askAboutShot(src)} title="Ask coach about this chart"><MessageCircle size={12} /> Ask coach</button>
                 </div>
               ))}
               {!t.screenshots?.length && <div className="muted2" style={{ fontSize: 13 }}>No screenshots yet</div>}
+              {shotOpen >= 0 && <Lightbox images={(t.screenshots || []).map((src, k) => ({ src, name: `${t.symbol}-${k + 1}.png`, caption: `${t.symbol} ${t.direction} · ${fmtDate(t.entry)}` }))} index={shotOpen} onIndex={setShotOpen} onClose={() => setShotOpen(-1)} onAsk={(src) => askAboutShot(src)} />}
             </div>
           </div>
         </div>

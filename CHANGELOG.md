@@ -2,6 +2,12 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.9.2
+
+- **Zoomable screenshots:** open any screenshot (diary, trade or strategy) and zoom with the mouse wheel, a pinch, a double-click or + / − / 0, then drag to look around.
+- **The chart camera saves to the right place:** in a trade's full-screen chart it adds the picture to that trade's screenshots; in a diary day's chart it adds it to that day's screenshots (captioned with the market and timeframe). Shift-click still downloads a PNG; backtests download as before.
+- Fix: pressing Esc in a full-screen chart closes only the chart, not the trade or diary behind it.
+
 ## 1.9.1
 
 - **Trading Coach → Context:** narrow what the coach looks at by strategy, the day's market condition (from your Diary check-in), tags and edge blockers (any blocker, none — your disciplined trades — or specific ones), on top of account and period. The panel shows how many trades are in context, and the AI is told exactly which trades it's looking at.

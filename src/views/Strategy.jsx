@@ -1,4 +1,5 @@
 import { StatLabel } from '../components/StatInfo';
+import { Lightbox } from '../components/Gallery';
 import { useMemo, useState } from 'react';
 import { Settings, LayoutGrid, List, Plus, ChevronDown, ChevronLeft, ChevronRight, X, Trash, Pencil, ArrowLeft, ArrowRight, ImagePlus, Check, Target, Link as LinkIcon } from 'lucide-react';
 import { useStore, navigate, useAccountTrades } from '../store/store';
@@ -418,6 +419,7 @@ function StrategyDetail({ id }) {
   const [del, setDel] = useState(false);
   const [checked, setChecked] = useState([]);
   const [openT, setOpenT] = useState(null);
+  const [mediaOpen, setMediaOpen] = useState(-1);
   const acctTrades = useAccountTrades();
   const trades = useMemo(() => acctTrades.filter((t) => t.strategyId === id), [acctTrades, id]);
   if (!s) return <div className="page empty">Strategy not found. <a href="#/strategy" className="accent">Back to strategies</a></div>;
@@ -465,7 +467,8 @@ function StrategyDetail({ id }) {
         <div className="panel" style={{ marginBottom: 22 }}>
           <div className="card-title" style={{ marginBottom: 12 }}>Media & Education</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 10 }}>
-            {s.media.map((m, i) => <a key={i} href={m} target="_blank" rel="noreferrer"><img src={m} alt="" style={{ width: '100%', border: '1px solid var(--border)' }} /></a>)}
+            {s.media.map((m, i) => <button key={i} type="button" className="shot-open" onClick={() => setMediaOpen(i)}><img src={m} alt="" style={{ width: '100%', border: '1px solid var(--border)' }} /></button>)}
+            {mediaOpen >= 0 && <Lightbox images={s.media.map((src, k) => ({ src, name: `${s.name || 'strategy'}-${k + 1}.png`, caption: s.name }))} index={mediaOpen} onIndex={setMediaOpen} onClose={() => setMediaOpen(-1)} />}
           </div>
           {s.links.map((l) => <a key={l} href={l} target="_blank" rel="noreferrer" className="row gap8 pos" style={{ marginTop: 10 }}><LinkIcon size={14} />{l}</a>)}
         </div>

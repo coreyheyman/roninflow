@@ -62,8 +62,9 @@ const upload = async (id, blob) => {
 export async function saveImage(file) {
   const blob = await prepare(file);
   const id = `img_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-  if (await hasServer()) await upload(id, blob);
-  else await tx('readwrite', (s) => s.put(blob, id));
+  let saved = false;
+  if (await hasServer()) { try { await upload(id, blob); saved = true; } catch { /* keep it in this browser; it's uploaded later when shown */ } }
+  if (!saved) await tx('readwrite', (s) => s.put(blob, id));
   return { id, name: file.name || 'screenshot.png', size: blob.size, addedAt: new Date().toISOString() };
 }
 

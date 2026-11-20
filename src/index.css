@@ -551,6 +551,18 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .lightbox { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.92); display: grid; place-items: center; animation: fade 0.15s; }
 .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); color: #fff; display: grid; place-items: center; }
 .lb-nav:hover { background: rgba(255, 255, 255, 0.2); }
+.lb-top { position: absolute; top: 16px; left: 20px; right: 20px; color: #fff; font-size: 13px; z-index: 2; }
+.lb-nav { z-index: 2; }
+.lb-stage { position: absolute; inset: 56px 70px 64px; display: grid; place-items: center; overflow: hidden; touch-action: none; cursor: zoom-in; }
+.lb-stage.zoomed { cursor: grab; }
+.lb-stage.zoomed:active { cursor: grabbing; }
+.lb-stage img { max-width: 100%; max-height: 100%; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); transform-origin: center; user-select: none; will-change: transform; }
+.lb-zoom { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); padding: 3px 6px; z-index: 2; }
+.lb-zoom .icon-btn { color: #fff; }
+.lb-zoom .icon-btn:disabled { opacity: 0.35; }
+.lb-pct { color: #fff; font-size: 12.5px; min-width: 52px; text-align: center; }
+@media (max-width: 640px) { .lb-stage { inset: 56px 8px 64px; } .lb-nav { top: auto; bottom: 12px; transform: none; width: 40px; height: 40px; } }
+.studio-shotmsg { font-size: 12.5px; color: var(--pos, #22c55e); white-space: nowrap; animation: fade 0.2s; }
 @media (max-width: 1100px) { .regime-row { grid-template-columns: 1fr; } .tier-row { grid-template-columns: 1fr 1fr !important; } }
 
 /* ---------------- coach providers ---------------- */
@@ -2569,3 +2581,4 @@ button.nw-tone:hover { text-decoration: underline; }
 .ctx-badge { display: inline-grid; place-items: center; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 600; }
 @media (max-width: 520px) { .ctx-grid { grid-template-columns: 1fr; } }
 .overlay:has(> .lle-modal) { z-index: 70; }
+.shot-open { display: block; width: 100%; padding: 0; background: none; border: 0; cursor: zoom-in; }

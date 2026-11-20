@@ -417,7 +417,7 @@ export default function ExecChart({ date: dateProp, trades: tradesProp, onOpenTr
         )}
       </div>
       {colorsOpen && <ChartColors onClose={() => setColorsOpen(false)} />}
-      {studioOpen && <Suspense fallback={null}><ChartStudio date={date} trades={trades} initialSym={sym} onClose={() => setStudioOpen(false)} onOpenTrade={onOpenTrade ? (t) => { setStudioOpen(false); onOpenTrade(t); } : undefined} /></Suspense>}
+      {studioOpen && <Suspense fallback={null}><ChartStudio date={date} trades={trades} initialSym={sym} shotTo={focus ? { trade: focus.id } : dateProp ? { date: dateProp } : undefined} onClose={() => setStudioOpen(false)} onOpenTrade={onOpenTrade ? (t) => { setStudioOpen(false); onOpenTrade(t); } : undefined} /></Suspense>}
     </div>
   );
 }

@@ -13,7 +13,8 @@ import {
 import { useStore } from '../store/store';
 import { IS_VIEWER } from '../lib/shareMode';
 import { fmtMoney, fmtTime12, fmtDate, todayKey } from '../lib/stats';
-import { Popover } from './ui';
+import { Popover, fileToDataUrl } from './ui';
+import { saveImage } from '../lib/imageStore';
 import { ivSec, TIMEFRAMES, SPAN_DAYS, tfLabel, barTime, aggregate, sessionStart, fromLocal, toLocal } from '../lib/bars';
 import { volumeProfile, sessionsIn } from '../lib/volprofile';
 import { sma, ema, vwap, bollinger, rsi, macd } from '../lib/indicators';
@@ -353,8 +354,11 @@ function feed(series, data) {
  * backtest (optional) turns the replay into a trading simulator: { symbol, pv ($ per point), fee (per contract), startTime
  * ('HH:MM' local), strategyId, onTrade(trade), onDay(date), label }. `trades` are then the session's trades on `date`.
  */
-export default function ChartStudio({ date, trades: tradesIn, initialSym, onClose: closeStudio, onOpenTrade, backtest, candleSource }) {
-  const { state, setSetting } = useStore();
+export default function ChartStudio({ date, trades: tradesIn, initialSym, onClose: closeStudio, onOpenTrade, backtest, candleSource, shotTo }) {
+  const { state, setSetting, updateTrade, saveDiary } = useStore();
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const [shotMsg, setShotMsg] = useState('');
   const bt = backtest || null;
   // ---------------------------------------------------------------- backtest position (simulated)
   const [pos, setPosState] = useState(null);
@@ -1474,6 +1478,8 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
       }
       if (e.key === 'Escape') {
         e.preventDefault();
+        if (document.querySelector('.lightbox')) return; // a screenshot viewer on top closes first
+        e.stopPropagation(); // only the chart closes, not the trade drawer or diary behind it
         if (draft.current || toolRef.current !== 'cursor') setTool('cursor');
         else if (selRef.current) setSel(null);
         else if (replayRef.current.mode === 'pick') setReplay((s) => ({ ...s, mode: bt ? 'on' : 'off' }));
@@ -1481,8 +1487,8 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
         else onClose();
       }
     };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
   }, [rows.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------- full screen, screenshot
@@ -1492,16 +1498,38 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
   colorsRef.current = colorsOpen;
   useEffect(() => { const h = () => setIsFull(!!document.fullscreenElement); document.addEventListener('fullscreenchange', h); return () => document.removeEventListener('fullscreenchange', h); }, []);
   const toggleFull = () => { if (document.fullscreenElement) document.exitFullscreen?.(); else stage.current?.closest('.studio')?.requestFullscreen?.().catch(() => {}); };
-  const screenshot = () => {
+  // the camera: opened from a trade → that trade's screenshots; from a diary day → that day's screenshots;
+  // anywhere else (or Shift-click) → a PNG download
+  const shotFlash = (m) => { setShotMsg(m); setTimeout(() => setShotMsg((x) => (x === m ? '' : x)), 2800); };
+  const screenshot = async (e) => {
     const a = api.current;
     if (!a.chart) return;
     const shot = a.chart.takeScreenshot();
     const ctx = shot.getContext('2d');
     if (overlay.current) ctx.drawImage(overlay.current, 0, 0, shot.width, shot.height);
-    const link = document.createElement('a');
-    link.download = `${sym}-${date}-${tf}.png`;
-    link.href = shot.toDataURL('image/png');
-    link.click();
+    const name = `${sym}-${date}-${tf}.png`;
+    const download = () => { const link = document.createElement('a'); link.download = name; link.href = shot.toDataURL('image/png'); link.click(); };
+    if (!shotTo || e?.shiftKey || IS_VIEWER) { download(); return; }
+    try {
+      const blob = await new Promise((r) => shot.toBlob(r, 'image/png'));
+      const file = new File([blob], name, { type: 'image/png' });
+      if (shotTo.trade) {
+        const url = await fileToDataUrl(file);
+        const t = stateRef.current.trades.find((x) => x.id === shotTo.trade);
+        if (!t) { download(); return; }
+        updateTrade(t.id, { screenshots: [...(t.screenshots || []), url] });
+        shotFlash(`Saved to this trade’s screenshots`);
+      } else if (shotTo.date) {
+        const img = await saveImage(file);
+        const caption = `${sym} ${tfLabel(tf)}`;
+        const cur = stateRef.current.diary?.[shotTo.date]?.images || [];
+        saveDiary(shotTo.date, { images: [...cur, { ...img, caption }] });
+        shotFlash(`Saved to ${fmtDate(shotTo.date)} in your diary`);
+      } else download();
+    } catch (err) {
+      shotFlash(`Couldn’t save it (${err.message}) — downloading instead`);
+      download();
+    }
   };
 
   const selected = drawings.find((d) => d.id === sel);
@@ -1574,7 +1602,8 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
           : <button className="btn sm on" onClick={stopReplay}><History size={14} /> Exit replay</button>}
         <button className="icon-btn" onClick={() => setColorsOpen(true)} title="Chart colours"><Palette size={15} /></button>
         <button className="icon-btn" onClick={() => api.current.fit?.()} title="Fit your executions"><Maximize2 size={15} /></button>
-        <button className="icon-btn" onClick={screenshot} title="Save a picture of the chart"><Camera size={15} /></button>
+        <button className="icon-btn" onClick={screenshot} title={shotTo?.trade ? 'Save a picture to this trade’s screenshots (Shift-click to download)' : shotTo?.date ? 'Save a picture to this day in your diary (Shift-click to download)' : 'Save a picture of the chart'}><Camera size={15} /></button>
+        {shotMsg && <span className="studio-shotmsg">{shotMsg}</span>}
         <button className="icon-btn" onClick={toggleFull} title={isFull ? 'Exit full screen' : 'Full screen'}>{isFull ? <Minimize size={15} /> : <Maximize size={15} />}</button>
         <button className="icon-btn" onClick={onClose} title="Close (Esc)"><X size={16} /></button>
       </div>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ImagePlus, X, ChevronLeft, ChevronRight, Trash, Download, Maximize, MessageCircle } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ImagePlus, X, ChevronLeft, ChevronRight, Trash, Download, Maximize, MessageCircle, ZoomIn, ZoomOut } from 'lucide-react';
 import { saveImage, imageUrl, deleteImage } from '../lib/imageStore';
 import { useToast } from './ui';
 
@@ -21,33 +22,105 @@ function Thumb({ img, onOpen, onDelete, onCaption, onAsk, reading }) {
   );
 }
 
-function Lightbox({ images, index, onClose, onIndex, onAsk }) {
+/** An image you can zoom (wheel, pinch, double-click, + / − / 0) and drag around once zoomed in. */
+function ZoomImage({ src, onBackdrop }) {
+  const box = useRef(null);
+  const [v, setV] = useState({ k: 1, x: 0, y: 0 });
+  const vRef = useRef(v); vRef.current = v;
+  const ptrs = useRef(new Map());
+  const pinch = useRef(null);
+  const drag = useRef(null);
+  useEffect(() => { setV({ k: 1, x: 0, y: 0 }); }, [src]);
+  // zoom by f around a point (cx, cy) measured from the box's centre
+  const zoomAt = useCallback((f, cx = 0, cy = 0) => setV((o) => {
+    const k = Math.max(1, Math.min(8, o.k * f));
+    if (k === 1) return { k: 1, x: 0, y: 0 };
+    const r = k / o.k;
+    return { k, x: cx - (cx - o.x) * r, y: cy - (cy - o.y) * r };
+  }), []);
+  const local = (e) => { const r = box.current.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2]; };
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return undefined;
+    const wheel = (e) => { e.preventDefault(); const [cx, cy] = local(e); zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0012)), cx, cy); };
+    el.addEventListener('wheel', wheel, { passive: false });
+    const key = (e) => {
+      if (e.key === '+' || e.key === '=') zoomAt(1.4);
+      else if (e.key === '-' || e.key === '_') zoomAt(1 / 1.4);
+      else if (e.key === '0') setV({ k: 1, x: 0, y: 0 });
+    };
+    window.addEventListener('keydown', key);
+    return () => { el.removeEventListener('wheel', wheel); window.removeEventListener('keydown', key); };
+  }, [zoomAt]);
+  const down = (e) => {
+    box.current.setPointerCapture?.(e.pointerId);
+    ptrs.current.set(e.pointerId, [e.clientX, e.clientY]);
+    if (ptrs.current.size === 2) { const [a, b] = [...ptrs.current.values()]; pinch.current = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) }; drag.current = null; }
+    else drag.current = { x: e.clientX, y: e.clientY, ox: vRef.current.x, oy: vRef.current.y };
+  };
+  const move = (e) => {
+    if (!ptrs.current.has(e.pointerId)) return;
+    ptrs.current.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pinch.current && ptrs.current.size === 2) {
+      const [a, b] = [...ptrs.current.values()];
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      const r = box.current.getBoundingClientRect();
+      zoomAt(d / pinch.current.d, (a[0] + b[0]) / 2 - r.left - r.width / 2, (a[1] + b[1]) / 2 - r.top - r.height / 2);
+      pinch.current.d = d;
+    } else if (drag.current && vRef.current.k > 1) {
+      setV((o) => ({ ...o, x: drag.current.ox + e.clientX - drag.current.x, y: drag.current.oy + e.clientY - drag.current.y }));
+    }
+  };
+  const up = (e) => { ptrs.current.delete(e.pointerId); if (ptrs.current.size < 2) pinch.current = null; if (!ptrs.current.size) drag.current = null; };
+  const dbl = (e) => { const [cx, cy] = local(e); if (vRef.current.k > 1) setV({ k: 1, x: 0, y: 0 }); else zoomAt(2.5, cx, cy); };
+  return (
+    <>
+      <div ref={box} className={`lb-stage ${v.k > 1 ? 'zoomed' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onDoubleClick={dbl} onClick={(e) => { if (e.target === box.current && vRef.current.k === 1) onBackdrop?.(); }}>
+        <img src={src} alt="" draggable={false} style={{ transform: `translate(${v.x}px, ${v.y}px) scale(${v.k})` }} />
+      </div>
+      <div className="lb-zoom" onMouseDown={(e) => e.stopPropagation()}>
+        <button className="icon-btn" title="Zoom out (−)" onClick={() => zoomAt(1 / 1.4)} disabled={v.k <= 1}><ZoomOut size={16} /></button>
+        <button className="lb-pct" title="Fit (0)" onClick={() => setV({ k: 1, x: 0, y: 0 })}>{Math.round(v.k * 100)}%</button>
+        <button className="icon-btn" title="Zoom in (+)" onClick={() => zoomAt(1.4)} disabled={v.k >= 8}><ZoomIn size={16} /></button>
+      </div>
+    </>
+  );
+}
+
+/** Full-screen viewer. images: [{ id } (saved screenshots) or { src } (a data URL / link), name, caption]. */
+export function Lightbox({ images, index, onClose, onIndex, onAsk }) {
   const [url, setUrl] = useState(null);
   const img = images[index];
-  useEffect(() => { let live = true; setUrl(null); if (img) imageUrl(img.id).then((u) => live && setUrl(u)); return () => { live = false; }; }, [img]);
+  useEffect(() => {
+    let live = true;
+    setUrl(img?.src || null);
+    if (img?.id) imageUrl(img.id).then((u) => live && setUrl(u));
+    return () => { live = false; };
+  }, [img]);
   useEffect(() => {
     const k = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
       if (e.key === 'ArrowRight') onIndex((index + 1) % images.length);
       if (e.key === 'ArrowLeft') onIndex((index - 1 + images.length) % images.length);
     };
-    window.addEventListener('keydown', k);
-    return () => window.removeEventListener('keydown', k);
+    window.addEventListener('keydown', k, true);
+    return () => window.removeEventListener('keydown', k, true);
   }, [index, images.length, onClose, onIndex]);
   if (!img) return null;
-  return (
+  return createPortal(
     <div className="lightbox" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="row gap12" style={{ position: 'absolute', top: 16, left: 20, right: 20, color: '#fff', fontSize: 13 }}>
+      <div className="row gap12 lb-top">
         <span>{index + 1} / {images.length}</span>
         <span className="grow truncate" style={{ opacity: 0.8 }}>{img.caption || img.name}</span>
         {onAsk && url && <button className="btn xs lb-ask" onClick={() => { onClose(); onAsk(url, img.caption); }}><MessageCircle size={13} /> Ask coach about this chart</button>}
-        {url && <a className="icon-btn" style={{ color: '#fff' }} href={url} download={img.name} title="Download"><Download size={17} /></a>}
+        {url && <a className="icon-btn" style={{ color: '#fff' }} href={url} download={img.name || 'screenshot.png'} title="Download"><Download size={17} /></a>}
         <button className="icon-btn" style={{ color: '#fff' }} onClick={onClose} title="Close"><X size={20} /></button>
       </div>
       {images.length > 1 && <button className="lb-nav" style={{ left: 16 }} onClick={() => onIndex((index - 1 + images.length) % images.length)}><ChevronLeft size={26} /></button>}
-      {url && <img src={url} alt="" style={{ maxWidth: 'calc(100vw - 140px)', maxHeight: 'calc(100vh - 90px)', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }} />}
+      {url && <ZoomImage src={url} onBackdrop={onClose} />}
       {images.length > 1 && <button className="lb-nav" style={{ right: 16 }} onClick={() => onIndex((index + 1) % images.length)}><ChevronRight size={26} /></button>}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
