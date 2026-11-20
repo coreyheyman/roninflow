@@ -6,6 +6,8 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
 
 - **Screenshots — “Days only”:** a switch on screenshot uploads (Settings → Screenshots → Upload screenshots, and the trade import) and on the folder watcher puts every picture on its day's diary instead of on the trade open at the time — for daily recap screenshots.
 
+**Updating:** nothing to reinstall. Restart RoninFlow after updating so the folder watcher picks up the new setting.
+
 ## 1.9.2
 
 - **Automatic screenshot imports (Settings → Screenshots):** pick the folder your screenshots save to — Snipping Tool / Win+Shift+S, ShareX, your platform's screenshot folder, TradingView's downloads — and every new picture is filed by the time it was taken: on the trade that was open then (or closed within the last few minutes, 10 by default), otherwise on that day's diary with a market/timeframe caption. When several markets were open at once, the coach's AI (if set up) reads the instrument off the picture. A picture taken during a trade that hasn't synced yet waits for it. Pictures taken while RoninFlow was closed are filed when it opens.
