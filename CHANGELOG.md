@@ -4,15 +4,16 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
 
 ## 1.9.2
 
-- **Zoomable screenshots:** open any screenshot (diary, trade or strategy) and zoom with the mouse wheel, a pinch, a double-click or + / − / 0, then drag to look around.
-- **The chart camera saves to the right place:** in a trade's full-screen chart it adds the picture to that trade's screenshots; in a diary day's chart it adds it to that day's screenshots (captioned with the market and timeframe). Shift-click still downloads a PNG; backtests download as before.
-- **Automatic screenshot imports (Settings → Screenshots):** pick the folder your screenshots save to — Snipping Tool / Win+Shift+S, ShareX, your platform's screenshot folder, TradingView's downloads — and every new picture is filed by the time it was taken: on the trade that was open then (or closed within the last few minutes, 10 by default), otherwise on that day's diary with a market/timeframe caption. When several markets were open at once, the coach's AI (if set up) reads the instrument off the picture. A picture taken during a trade that hasn't synced yet waits for it. Pictures taken while RoninFlow was closed are filed when it opens; buttons pick up ones from the last 24 hours or 7 days.
-- Fix: pressing Esc in a full-screen chart closes only the chart, not the trade or diary behind it.
-- Fix: GEX data stopped loading ("Cboe has no options") — Cboe moved its free option quotes to a new address behind a firewall; RoninFlow now asks there, the way Cboe's own quote pages do.
+- **Automatic screenshot imports (Settings → Screenshots):** pick the folder your screenshots save to — Snipping Tool / Win+Shift+S, ShareX, your platform's screenshot folder, TradingView's downloads — and every new picture is filed by the time it was taken: on the trade that was open then (or closed within the last few minutes, 10 by default), otherwise on that day's diary with a market/timeframe caption. When several markets were open at once, the coach's AI (if set up) reads the instrument off the picture. A picture taken during a trade that hasn't synced yet waits for it. Pictures taken while RoninFlow was closed are filed when it opens.
 - **Bring your screenshots when you switch:** the trade import has an “Also add my chart screenshots from these dates” option — choose a folder (or pictures) and every one is filed on its trade, or that day's diary. Settings → Screenshots → Upload screenshots does the same for any period. The time comes from the file name when it has one (Snipping Tool, macOS, TradingView, ShareX, Android), otherwise the file's date.
+- **Zoomable screenshots:** open any screenshot (diary, trade or strategy) and click the picture to zoom in there, or use the mouse wheel, a pinch or + / − / 0; drag to look around. Clicking outside the picture closes it.
+- **The chart camera saves to the right place:** in a trade's full-screen chart it adds the picture to that trade's screenshots; in a diary day's chart it adds it to that day's screenshots (captioned with the market and timeframe). Shift-click still downloads a PNG; backtests download as before.
 - Macro → **Heat Map** is now called **News Heat Map**.
-- Economic calendar: when ForexFactory's free feed says slow down (HTTP 429), RoninFlow backs off (10, 20, 40 minutes… up to 2 hours) and fetches next week's file only every few hours; while the saved copy is recent it shows a quiet "saved copy" note instead of a warning.
-- Fix: the screenshot viewer zooms where you click the picture (clicking outside closes it) and drags smoothly without running off the screen.
+- **Economic calendar:** when ForexFactory's free feed says slow down (HTTP 429), RoninFlow backs off (10, 20, 40 minutes… up to 2 hours) and fetches next week's file only every few hours; while the saved copy is recent it shows a quiet "saved copy" note instead of a warning.
+- Fix: GEX data stopped loading ("Cboe has no options") — Cboe moved its free option quotes to a new address behind a firewall; RoninFlow now asks there, the way Cboe's own quote pages do.
+- Fix: pressing Esc in a full-screen chart closes only the chart, not the trade or diary behind it.
+
+**Updating:** nothing to reinstall — add-ons stay as they are. Restart RoninFlow after updating so the GEX fix and the screenshot folder watcher start.
 
 ## 1.9.1
 
