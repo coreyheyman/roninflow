@@ -2,6 +2,13 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.9.6
+
+- **Tables:** the header row stays fully solid while you scroll — no more rows peeking through gaps between the header cells (Trading Journal, the daily view's trades and every other table).
+- **Daily view checklists:** no frame around the pre- and post-session checklists; each item is its own gently rounded row.
+
+**Updating:** nothing to reinstall.
+
 ## 1.9.5
 
 - **Cleaner scrollbars:** slim, rounded handles with no track or arrow buttons throughout the app; the sidebar's only appears while you're over the menu.

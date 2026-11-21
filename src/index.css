@@ -287,7 +287,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------------- tables ---------------- */
 .tbl-wrap { border: 1px solid var(--border); border-radius: var(--r); overflow: auto; background: var(--panel); }
-table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; } /* separate: the sticky header keeps its borders, so nothing shows through the gaps */
 .tbl thead th {
   position: sticky; top: 0; z-index: 2; text-align: left; font-weight: 500; font-size: 13px; color: var(--fg-2); padding: 0 16px; height: 50px; background: var(--card);
   border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); white-space: nowrap; user-select: none;
@@ -495,8 +495,8 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 /* ---------------- playbook / risk ---------------- */
 .pb-check { display: inline-grid; place-items: center; border: 1.5px solid var(--muted-2); border-radius: var(--r-sm); color: #fff; background: transparent; flex-shrink: 0; }
 .pb-check.on { background: var(--pos-strong); border-color: var(--pos-strong); }
-.routine { display: flex; flex-direction: column; border: 1px solid var(--border); }
-.routine-item { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13.5; line-height: 1.45; font-size: 13.5px; }
+.routine { display: flex; flex-direction: column; gap: 2px; }
+.routine-item { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: var(--r); cursor: pointer; font-size: 13.5; line-height: 1.45; font-size: 13.5px; }
 .routine-item:last-child { border-bottom: 0; }
 .routine-item:hover { background: var(--hover); }
 .routine-item.on { background: color-mix(in srgb, var(--pos-strong) 12%, transparent); }
@@ -2852,3 +2852,7 @@ button.ec-row { border-radius: var(--r); }
 .rv-cal:not(.heat) { padding: 0 2px 2px; }
 @container (max-width: 600px) { .cal { padding: 0 4px 4px; } }
 @media (max-width: 760px) { .rv-cal.full { padding: 0 4px 4px; } }
+
+.tbl thead th:last-child { border-right: 0; }
+.routine-item:not(.on) { background: var(--tile-empty); }
+.routine-item:not(.on):hover { background: var(--hover); }
