@@ -6,7 +6,9 @@ import { createPortal } from 'react-dom';
 import { ArrowUpRight, Circle, Eraser, Hand, Highlighter, Minus, Pencil, Redo2, Square, Trash2, Type, Undo2, X } from 'lucide-react';
 
 const COLORS = ['#ff4d4f', '#ffb020', '#22c55e', '#38bdf8', '#a78bfa', '#ffffff', '#111111'];
-const WIDTHS = [{ v: 2, label: 'Thin' }, { v: 4, label: 'Medium' }, { v: 8, label: 'Thick' }];
+const store = { get: (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private window */ } } };
+const GROUP_DIST = [{ v: 1, label: 'Close' }, { v: 2, label: 'Normal' }, { v: 4, label: 'Far' }];
+const ptsOf = (s) => (s.type === 'ink' ? s.strokes.flatMap((k) => k.pts) : s.pts);
 const TOOLS = [
   { id: 'pen', icon: Pencil, label: 'Pen (P)', key: 'p' },
   { id: 'hl', icon: Highlighter, label: 'Highlighter (H)', key: 'h' },
@@ -60,6 +62,8 @@ export function drawShapes(ctx, shapes, unit = 1) {
     if (s.type === 'hl') ctx.globalAlpha = 0.35;
     if (s.type === 'pen' || s.type === 'hl') {
       strokeSmooth(ctx, s.pts, s.type === 'pen' && s.pr ? w : 0);
+    } else if (s.type === 'ink') { // handwriting: several pen strokes kept together as one drawing
+      for (const k of s.strokes) { ctx.strokeStyle = k.color; ctx.lineWidth = k.w * unit; strokeSmooth(ctx, k.pts, k.pr ? k.w * unit : 0); }
     } else if (s.type === 'line' || s.type === 'arrow') {
       const [x1, y1, x2, y2] = s.box;
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
@@ -86,7 +90,7 @@ export function drawShapes(ctx, shapes, unit = 1) {
 }
 
 const bboxOf = (s, ctx) => {
-  if (s.pts) { const xs = s.pts.map((p) => p[0]), ys = s.pts.map((p) => p[1]); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; }
+  if (s.pts || s.strokes) { const P = ptsOf(s); let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity; for (const p of P) { if (p[0] < a) a = p[0]; if (p[1] < b) b = p[1]; if (p[0] > c) c = p[0]; if (p[1] > d) d = p[1]; } const pad = (s.w || s.strokes?.[0]?.w || 2) / 2; return [a - pad, b - pad, c + pad, d + pad]; }
   if (s.box) { const [a, b, c, d] = s.box; return [Math.min(a, c), Math.min(b, d), Math.max(a, c), Math.max(b, d)]; }
   ctx.font = `600 ${s.size}px Inter, system-ui, sans-serif`;
   const lines = String(s.text).split('\n');
@@ -99,6 +103,7 @@ function hitTest(shapes, x, y, tol, ctx) {
     const s = shapes[i];
     const t = tol + (s.w || 2) * (s.type === 'hl' ? 2 : 0.5);
     if (s.pts) { for (let k = 0; k < s.pts.length; k++) { const a = s.pts[k], b = s.pts[k + 1] || a; if (distSeg(x, y, a[0], a[1], b[0], b[1]) <= t) return i; } continue; }
+    if (s.strokes) { for (const st of s.strokes) for (let k = 0; k < st.pts.length; k++) { const a = st.pts[k], b = st.pts[k + 1] || a; if (distSeg(x, y, a[0], a[1], b[0], b[1]) <= t + st.w / 2) return i; } continue; }
     if (s.type === 'line' || s.type === 'arrow') { if (distSeg(x, y, ...s.box) <= t) return i; continue; }
     const [x1, y1, x2, y2] = bboxOf(s, ctx);
     if (s.type === 'text') { if (x >= x1 - t && x <= x2 + t && y >= y1 - t && y <= y2 + t) return i; continue; }
@@ -107,12 +112,14 @@ function hitTest(shapes, x, y, tol, ctx) {
   }
   return -1;
 }
-const moved = (s, dx, dy) => (s.pts ? { ...s, pts: s.pts.map(([x, y]) => [x + dx, y + dy]) } : s.box ? { ...s, box: [s.box[0] + dx, s.box[1] + dy, s.box[2] + dx, s.box[3] + dy] } : { ...s, x: s.x + dx, y: s.y + dy });
+const shiftPts = (pts, dx, dy) => pts.map(([x, y, ...r]) => [x + dx, y + dy, ...r]);
+const moved = (s, dx, dy) => (s.strokes ? { ...s, strokes: s.strokes.map((k) => ({ ...k, pts: shiftPts(k.pts, dx, dy) })) } : s.pts ? { ...s, pts: shiftPts(s.pts, dx, dy) } : s.box ? { ...s, box: [s.box[0] + dx, s.box[1] + dy, s.box[2] + dx, s.box[3] + dy] } : { ...s, x: s.x + dx, y: s.y + dy });
 
 /** Which edge or corner of a drawing is under the point: { i, h } with h in n/s/e/w/ne/nw/se/sw (or p1/p2: a line's ends). */
-function edgeHit(shapes, x, y, tol, ctx) {
+function edgeHit(shapes, x, y, tol, ctx, skip) {
   for (let i = shapes.length - 1; i >= 0; i--) {
     const s = shapes[i];
+    if (skip && s.id === skip) continue; // handwriting still being written
     if (s.type === 'line' || s.type === 'arrow') {
       const [x1, y1, x2, y2] = s.box;
       if (Math.hypot(x - x2, y - y2) <= tol * 1.4) return { i, h: 'p2' };
@@ -136,9 +143,10 @@ function edgeHit(shapes, x, y, tol, ctx) {
 }
 /** A drawing under the point that can be picked up and moved: its own line, the inside of text, or the grip in
  *  the middle of a box or circle (so you can still draw inside them). */
-function moveHit(shapes, x, y, tol, ctx, grip) {
+function moveHit(shapes, x, y, tol, ctx, grip, skip) {
   for (let i = shapes.length - 1; i >= 0; i--) {
     const s = shapes[i];
+    if (skip && s.id === skip) continue;
     if (s.type === 'text') { const [x1, y1, x2, y2] = bboxOf(s, ctx); if (x >= x1 && x <= x2 && y >= y1 && y <= y2) return i; continue; }
     if (s.type === 'rect' || s.type === 'ellipse') { const [x1, y1, x2, y2] = bboxOf(s, ctx); if (Math.hypot(x - (x1 + x2) / 2, y - (y1 + y2) / 2) <= grip) return i; if (s.type === 'ellipse' && hitTest([s], x, y, tol, ctx) === 0) return i; continue; }
     if (hitTest([s], x, y, tol, ctx) === 0) return i;
@@ -166,7 +174,8 @@ function resized(base, h, x, y, ctx, keep) {
   }
   const mx = (px) => nx1 + (px - ox1) * sx, my = (py) => ny1 + (py - oy1) * sy;
   if (base.type === 'text') return { ...base, size: Math.max(6, base.size * sx), x: nx1, y: ny1 };
-  if (base.pts) return { ...base, pts: base.pts.map(([px, py]) => [mx(px), my(py)]) };
+  if (base.pts) return { ...base, pts: base.pts.map(([px, py, ...r]) => [mx(px), my(py), ...r]) };
+  if (base.strokes) { const k = Math.sqrt(sx * sy); return { ...base, strokes: base.strokes.map((st) => ({ ...st, w: Math.max(0.5, st.w * k), pts: st.pts.map(([px, py, ...r]) => [mx(px), my(py), ...r]) })) }; }
   return { ...base, box: [nx1, ny1, nx2, ny2] };
 }
 
@@ -183,7 +192,19 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
   const [redo, setRedo] = useState([]);
   const [tool, setTool] = useState('arrow');
   const [color, setColor] = useState(() => { try { return localStorage.getItem('rf-draw-color') || COLORS[0]; } catch { return COLORS[0]; } });
-  const [width, setWidth] = useState(4);
+  const [width, setWidthS] = useState(() => store.get('rf-draw-size', 4)); // 1–40, in picture-relative units
+  const setWidth = (v) => { setWidthS(v); store.set('rf-draw-size', v); };
+  // smart grouping: pen strokes written close together, each within a few seconds of the last, become one drawing
+  const [grp, setGrpS] = useState(() => store.get('rf-draw-group', { on: true, secs: 5, dist: 2 }));
+  const setGrp = (g) => { setGrpS(g); store.set('rf-draw-group', g); };
+  const [grpOpen, setGrpOpen] = useState(false);
+  const [pending, setPending] = useState(null); // { id, at } — the handwriting group still open for more strokes
+  useEffect(() => {
+    if (!pending) return undefined;
+    const t = setTimeout(() => setPending(null), Math.max(0, pending.at + grp.secs * 1000 - Date.now()));
+    return () => clearTimeout(t);
+  }, [pending, grp.secs]);
+  const skipId = pending?.id;
   const [draft, setDraft] = useState(null);
   const [hover, setHover] = useState(null); // { i, h } — an edge or corner under the mouse
   const [zoom, setZoom] = useState({ z: 1, x: 0, y: 0 }); // wheel zoom inside the picture's frame; x/y: pan in screen px
@@ -239,6 +260,13 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
     ctx.drawImage(cache.current.c, 0, 0);
     ctx.setTransform(dpr * S, 0, 0, dpr * S, dpr * zoom.x, dpr * zoom.y);
     if (draft) drawShapes(ctx, [draft]);
+    // handwriting still open for more strokes: a faint outline
+    const og = pending ? shapes.find((x) => x.id === pending.id) : null;
+    if (og) {
+      const [x1, y1, x2, y2] = bboxOf(og, ctx), px = 1 / S;
+      ctx.save(); ctx.lineWidth = px; ctx.strokeStyle = 'rgba(167,139,250,0.55)'; ctx.setLineDash([3 * px, 4 * px]);
+      ctx.strokeRect(x1 - 6 * px, y1 - 6 * px, x2 - x1 + 12 * px, y2 - y1 + 12 * px); ctx.restore();
+    }
     // the drawing being resized (or about to be): its outline and handles
     const hi = drag.current?.resize != null ? drag.current.resize : hover?.i;
     const hs = hi != null ? shapes[hi] : null;
@@ -265,7 +293,7 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
       }
       ctx.restore();
     }
-  }, [img, view, shapes, draft, hover, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [img, view, shapes, draft, hover, zoom, pending]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const at = (e) => { const r = cvs.current.getBoundingClientRect(); return [(e.clientX - r.left - zoom.x) / S, (e.clientY - r.top - zoom.y) / S]; };
   const clampPan = (z, x, y) => ({ z, x: Math.min(0, Math.max(view.w - img.naturalWidth * view.scale * z, x)), y: Math.min(0, Math.max(view.h - img.naturalHeight * view.scale * z, y)) });
@@ -291,6 +319,7 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
   };
   const down = (e) => {
     if (!img) return;
+    if (grpOpen) setGrpOpen(false);
     if (e.button === 1 || (e.button === 0 && space.current)) { // pan the zoomed picture
       e.preventDefault(); cvs.current.setPointerCapture?.(e.pointerId);
       drag.current = { pan: true, sx: e.clientX, sy: e.clientY, ox: zoom.x, oy: zoom.y }; return;
@@ -301,10 +330,10 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
     cvs.current.setPointerCapture?.(e.pointerId);
     const ctx = cvs.current.getContext('2d');
     // an edge or corner of any drawing: resize it, whatever tool is picked
-    const eh = tool === 'erase' ? null : edgeHit(shapes, x, y, 7 / S, ctx);
+    const eh = tool === 'erase' ? null : edgeHit(shapes, x, y, 7 / S, ctx, skipId);
     if (eh) { drag.current = { resize: eh.i, h: eh.h, base: shapes }; return; }
     // the middle of any drawing: move it
-    const mh = tool === 'erase' ? -1 : moveHit(shapes, x, y, 6 / S, ctx, 11 / S);
+    const mh = tool === 'erase' ? -1 : moveHit(shapes, x, y, 6 / S, ctx, 11 / S, skipId);
     if (mh >= 0) { drag.current = { move: mh, x, y, base: shapes }; return; }
     if (tool === 'erase') { const i = hitTest(shapes, x, y, 8 / S, ctx); if (i >= 0) commit(shapes.filter((_, k) => k !== i)); drag.current = { erase: true }; return; }
     if (tool === 'move') {
@@ -328,8 +357,8 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
       if (!img || text) return;
       const [hx, hy] = at(e);
       const hctx = cvs.current.getContext('2d');
-      let eh = tool === 'erase' ? null : edgeHit(shapes, hx, hy, 7 / S, hctx);
-      if (!eh && tool !== 'erase') { const mi = moveHit(shapes, hx, hy, 6 / S, hctx, 11 / S); if (mi >= 0) eh = { i: mi, h: 'move' }; }
+      let eh = tool === 'erase' ? null : edgeHit(shapes, hx, hy, 7 / S, hctx, skipId);
+      if (!eh && tool !== 'erase') { const mi = moveHit(shapes, hx, hy, 6 / S, hctx, 11 / S, skipId); if (mi >= 0) eh = { i: mi, h: 'move' }; }
       setHover((o) => (o?.i === eh?.i && o?.h === eh?.h ? o : eh));
       return;
     }
@@ -380,7 +409,20 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
     }
     if (done) {
       const tiny = done.box && Math.hypot(done.box[2] - done.box[0], done.box[3] - done.box[1]) < 3;
-      if (!tiny) commit([...shapes, done]);
+      if (tiny) { /* a click */ } else if (done.type === 'pen' && grp.on) {
+        // handwriting: join the open group when this stroke is near it, otherwise start a new one
+        const ctx = cvs.current.getContext('2d');
+        const stroke = { pts: done.pts, color: done.color, w: done.w, ...(done.pr ? { pr: 1 } : {}) };
+        const gi = pending ? shapes.findIndex((x) => x.id === pending.id) : -1;
+        let joined = false;
+        if (gi >= 0) {
+          const [a1, b1, a2, b2] = bboxOf(shapes[gi], ctx), [c1, d1, c2, d2] = bboxOf(done, ctx);
+          const reach = grp.dist * Math.max(40 * unit, done.w * 8, (b2 - b1) * 0.6);
+          const gx = Math.max(0, c1 - a2, a1 - c2), gy = Math.max(0, d1 - b2, b1 - d2);
+          if (gx <= reach && gy <= reach) { commit(shapes.map((x, k) => (k === gi ? { ...x, strokes: [...x.strokes, stroke] } : x))); joined = true; setPending({ id: pending.id, at: Date.now() }); }
+        }
+        if (!joined) { const id = `ink${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`; commit([...shapes, { type: 'ink', id, strokes: [stroke] }]); setPending({ id, at: Date.now() }); }
+      } else commit([...shapes, done]);
       setDraft(null);
     }
   };
@@ -432,7 +474,22 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
           {COLORS.map((c) => <button key={c} type="button" className={`se-color ${color === c ? 'on' : ''}`} style={{ '--c': c }} title={c} onClick={() => setColor(c)} />)}
         </div>
         <div className="se-group">
-          {WIDTHS.map((w) => <button key={w.v} type="button" className={`se-tool ${width === w.v ? 'on' : ''}`} title={w.label} onClick={() => setWidth(w.v)}><i className="se-dot" style={{ width: 3 + w.v * 1.4, height: 3 + w.v * 1.4 }} /></button>)}
+          <label className="se-size" title="Size — line thickness, and how big text is">
+            <i className="se-dot" style={{ width: Math.min(22, 2 + width * 0.9), height: Math.min(22, 2 + width * 0.9), color }} />
+            <input type="range" min="1" max="40" step="0.5" value={width} onChange={(e) => setWidth(Number(e.target.value))} />
+            <span>{width}</span>
+          </label>
+        </div>
+        <div className="se-group" style={{ position: 'relative' }}>
+          <button type="button" className={`se-tool se-wide ${grp.on ? 'on-soft' : ''}`} title="Handwriting: pen strokes written close together become one drawing" onClick={() => setGrpOpen((o) => !o)}>Group {grp.on ? 'on' : 'off'}</button>
+          {grpOpen && (
+            <div className="se-pop" onPointerDown={(e) => e.stopPropagation()}>
+              <label className="row gap8"><input type="checkbox" className="cbx" checked={grp.on} onChange={(e) => setGrp({ ...grp, on: e.target.checked })} /> Group handwriting</label>
+              <div className="se-pop-t">While you write, each pen stroke stays part of the same note — and can’t be grabbed or resized — until you stop for a moment. Then the whole note becomes one drawing you can move or resize.</div>
+              <div className="se-pop-row"><span>Stop for</span><input type="range" min="1" max="15" step="1" value={grp.secs} disabled={!grp.on} onChange={(e) => setGrp({ ...grp, secs: Number(e.target.value) })} /><b>{grp.secs}s</b></div>
+              <div className="se-pop-row"><span>Strokes within</span><div className="seg sm">{GROUP_DIST.map((d) => <button key={d.v} type="button" disabled={!grp.on} className={grp.dist === d.v ? 'on' : ''} onClick={() => setGrp({ ...grp, dist: d.v })}>{d.label}</button>)}</div></div>
+            </div>
+          )}
         </div>
         <div className="se-group">
           <button type="button" className="se-tool" title="Undo (Ctrl+Z)" disabled={!history.current.length} onClick={undo}><Undo2 size={17} /></button>

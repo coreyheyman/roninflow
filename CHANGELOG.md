@@ -2,6 +2,11 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.9.9
+
+- **Size slider:** one slider (1–40) in the screenshot editor sets line thickness and text size, instead of three fixed sizes.
+- **Handwriting groups:** with the pen, strokes written close together — each within 5 seconds of the last — join into one note, and while you're writing the earlier strokes can't be grabbed or resized by accident. Pause and the whole note becomes a single drawing you can move, resize or erase. A faint outline shows the note that's still open. "Group" in the toolbar turns it off or sets the pause (1–15 s) and how close strokes need to be (close, normal, far).
+
 ## 1.9.8
 
 - **Screenshot editor — resize and move anything:** whatever tool is picked, hover a drawing and drag its middle to move it, or a corner or edge handle to resize it — boxes, circles, pen and highlighter strokes, a line's or arrow's ends, and text (which scales its size). Shift keeps proportions.
