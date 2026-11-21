@@ -160,7 +160,8 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
   const [view, setView] = useState({ scale: 1, w: 0, h: 0 });
   const [shapes, setShapes] = useState(() => annot?.shapes || []);
   const [redo, setRedo] = useState([]);
-  const [tool, setTool] = useState('arrow');
+  const [tool, setToolS] = useState(() => { const t = store.get('rf-draw-tool', 'arrow'); return TOOLS.some((x) => x.id === t) ? t : 'arrow'; });
+  const setTool = (t) => { setToolS(t); store.set('rf-draw-tool', t); };
   const [color, setColor] = useState(() => { try { return localStorage.getItem('rf-draw-color') || COLORS[0]; } catch { return COLORS[0]; } });
   const [width, setWidthS] = useState(() => store.get('rf-draw-size', 4)); // 1–40, in picture-relative units
   const setWidth = (v) => { setWidthS(v); store.set('rf-draw-size', v); };

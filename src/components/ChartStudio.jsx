@@ -625,7 +625,18 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
   const stamp = (d) => { const U = shownUntil.current; return U === Infinity || lastTime(d) <= U ? d : { ...d, born: d.born != null ? Math.min(d.born, U) : U }; };
   // live changes from a slider: one undo step per drag, not one per pixel
   const sliding = useRef(false);
+  // each tool's last colour, thickness and text size, used for the next drawing (and kept between sessions)
+  const styleRef = useRef(store.get('rf-chart-styles', {}));
+  const rememberStyle = (type, patch) => {
+    const keep = Object.fromEntries(Object.entries(patch).filter(([k]) => k === 'color' || k === 'width' || k === 'size'));
+    if (!type || type === 'brush' || !Object.keys(keep).length) return;
+    styleRef.current = { ...styleRef.current, [type]: { ...styleRef.current[type], ...keep } };
+    store.set('rf-chart-styles', styleRef.current);
+  };
   const liveSet = (patch) => {
+    const type = drawingsRef.current.find((d) => d.id === selRef.current)?.type;
+    rememberStyle(type, patch);
+    if (type === 'brush' && patch.width) setBrushCfg({ width: patch.width });
     if (!sliding.current) { history.current = [...history.current.slice(-49), drawingsRef.current]; sliding.current = true; }
     const next = drawingsRef.current.map((d) => (d.id === selRef.current ? { ...d, ...patch } : d));
     drawingsRef.current = next; setDrawings(next);
@@ -1174,7 +1185,8 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
         handling = true; block(e);
         const q = pt(v, x, y, e);
         if (draft.current?.placing) { draft.current.p[1] = q; if (draft.current.type === 'long' || draft.current.type === 'short') draft.current.p[2] = { t: q.t, p: draft.current.p[0].p + (draft.current.p[0].p - q.p) * 2 }; finishDraft(); return; }
-        const d = { id: uid(), type: t, color: DEFAULT_COLOR[t], width: 1.5, ...(t === 'text' ? { size: 16, angle: 0 } : {}), p: ONE_POINT.has(t) ? [q] : [q, { ...q }] };
+        const st = styleRef.current[t] || {};
+        const d = { id: uid(), type: t, color: st.color || DEFAULT_COLOR[t], width: st.width || 1.5, ...(t === 'text' ? { size: st.size || 16, angle: 0 } : {}), p: ONE_POINT.has(t) ? [q] : [q, { ...q }] };
         if (t === 'long' || t === 'short') {
           const step = (tick || Math.abs(q.p) * 0.0005) * 20;
           const stop = t === 'long' ? q.p - step : q.p + step;
@@ -1726,7 +1738,8 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
   };
 
   const selected = drawings.find((d) => d.id === sel);
-  const setSelected = (patch) => commit(drawings.map((d) => (d.id === sel ? { ...d, ...patch } : d)));
+  const setSelected = (patch) => { const cur = drawings.find((d) => d.id === sel); if (cur?.type === 'brush' && patch.color) setBrushCfg({ color: patch.color }); rememberStyle(cur?.type, patch); return commitSel(patch); };
+  const commitSel = (patch) => commit(drawings.map((d) => (d.id === sel ? { ...d, ...patch } : d)));
   const commitText = (text) => {
     const e = editing;
     setEditing(null);
