@@ -68,10 +68,12 @@ export function periodOf(type, date = new Date()) {
   if (type === 'weekly') {
     const start = startOfWeek(d);
     const fri = new Date(start); fri.setDate(fri.getDate() + 4);
-    const end = new Date(start); end.setDate(end.getDate() + 6);
+    // a calendar week: Sunday → Saturday, the same rows as the month calendars (the id stays the Monday)
+    const sun = new Date(start); sun.setDate(sun.getDate() - 1);
+    const end = new Date(start); end.setDate(end.getDate() + 5);
     const sameMonth = start.getMonth() === fri.getMonth();
     return {
-      type, id: keyOf(start), from: keyOf(start), to: keyOf(end), start, end,
+      type, id: keyOf(start), from: keyOf(sun), to: keyOf(end), start, end,
       label: `${short(start)} – ${sameMonth ? fri.getDate() : short(fri)}, ${fri.getFullYear()}`,
       title: `Week of ${short(start)}`,
       dueAt: dueOn(fri),

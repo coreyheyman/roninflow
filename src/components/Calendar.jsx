@@ -52,7 +52,7 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
       </div>
       <div className={`cal ${noWknd ? 'no-wknd' : ''} ${hideWknd ? 'weekdays' : ''}`} style={{ '--days': hideWknd ? 5 : 7 }}>
         <div className="cal-head">
-          {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Week'].filter((d) => !hideWknd || !/^S(at|un)/.test(d)).map((d) => <div key={d}><span className="wd-full">{compact ? (d === 'Week' ? 'Wk' : d.slice(0, 3)) : d}</span><span className="wd-abbr">{d.slice(0, 3)}</span></div>)}
+          {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Week'].filter((d) => !hideWknd || !/^S(at|un)/.test(d)).map((d) => <div key={d}><span className="wd-full">{compact ? (d === 'Week' ? 'Wk' : d.slice(0, 3)) : d}</span><span className="wd-abbr">{d === 'Week' ? 'Wk' : d.slice(0, 3)}</span></div>)}
         </div>
         {weeks.map((wk, wi) => {
           const wd = wk.map((d) => map[keyOf(d)]).filter(Boolean);
@@ -95,9 +95,9 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
                   <>
                     <div className={`wk-pnl ${wNet >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 16, fontWeight: 500, marginTop: 'auto', marginBottom: 6, filter: priv ? 'blur(6px)' : undefined }}>
                       <Fit short={`${wNet > 0 ? '+' : ''}${fmtCompact(wNet)}`}>{fmtMoney(wNet, { sign: true })}</Fit>
-                      <span className="phone-v">{fmtMoney(wNet, { sign: true, dp: 0 })}</span>
+                      <span className="phone-v">{`${wNet > 0 ? '+' : ''}${fmtCompact(wNet)}`}</span>
                     </div>
-                    <div className="muted" style={{ fontWeight: 500 }}>{wTrades}t · {Math.round((wWins / wTrades) * 100)}%</div>
+                    <div className="muted" style={{ fontWeight: 500 }}>{wTrades}t<span className="wk-wr"> · {Math.round((wWins / wTrades) * 100)}%</span></div>
                   </>
                 )}
               </div>

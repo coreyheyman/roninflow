@@ -192,7 +192,7 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
     <div className={`rv-cal ${variant} ${noWknd ? 'no-wknd' : ''}`} style={{ '--cols': cols.length + (showWeek ? 1 : 0) }}>
       <div className="rv-cal-row head">
         {cols.map((i) => <div key={i}><span className="wd-full">{variant === 'full' ? WEEKDAYS[i] : names[i].slice(0, variant === 'heat' ? 1 : 3)}</span><span className="wd-abbr">{names[i]}</span></div>)}
-        {showWeek && <div>{variant === 'full' ? 'Week' : 'Wk'}</div>}
+        {showWeek && <div><span className="wd-full">{variant === 'full' ? 'Week' : 'Wk'}</span><span className="wd-abbr">Wk</span></div>}
       </div>
       {weeks.map((wk, wi) => {
         const inWeek = wk.map((d) => dayMap[keyOf(d)]).filter((d) => d && d.date.startsWith(prefix));
@@ -227,7 +227,7 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
                 {variant === 'full' && <span className="muted" style={{ fontSize: 11.5 }}>W{wi + 1}</span>}
                 {inWeek.length > 0 && (
                   <>
-                    <div className={`pv ${wNet >= 0 ? 'pos' : 'neg'}`}>{variant === 'mini' ? <Fit className={priv ? 'hidden-val' : ''}>{short(wNet)}</Fit> : <><Fit className={priv ? 'hidden-val' : ''} short={short(wNet)}>{fmtMoney(wNet, { sign: true, dp: 0 })}</Fit><span className={`phone-v ${priv ? 'hidden-val' : ''}`}>{fmtMoney(wNet, { sign: true, dp: 0 })}</span></>}</div>
+                    <div className={`pv ${wNet >= 0 ? 'pos' : 'neg'}`}>{variant === 'mini' ? <Fit className={priv ? 'hidden-val' : ''}>{short(wNet)}</Fit> : <><Fit className={priv ? 'hidden-val' : ''} short={short(wNet)}>{fmtMoney(wNet, { sign: true, dp: 0 })}</Fit><span className={`phone-v ${priv ? 'hidden-val' : ''}`}>{short(wNet)}</span></>}</div>
                     {variant === 'full' && <div className="rv-day-meta"><span>{wCount}t</span><span>WR {Math.round((wWins / wCount) * 100)}%</span></div>}
                   </>
                 )}
@@ -403,11 +403,12 @@ function WeekDays({ period, dayMap }) {
   const priv = state.settings.privacy;
   const mode = state.settings.calWeekends || 'auto'; // weekend tiles: auto (when traded) · show · hide
   const days = [], all = [];
-  for (let i = 0; i < 7; i++) {
+  for (let i = -1; i < 6; i++) { // Sunday, Monday … Friday, Saturday
     const d = new Date(period.start); d.setDate(d.getDate() + i);
     const k = keyOf(d);
     all.push(dayMap[k]);
-    if (i < 5 || mode === 'show' || (mode === 'auto' && dayMap[k])) days.push({ d, k, day: dayMap[k] });
+    const weekday = i >= 0 && i < 5;
+    if (weekday || mode === 'show' || (mode === 'auto' && dayMap[k])) days.push({ d, k, day: dayMap[k] });
   }
   const list = all.filter(Boolean); // the week's totals include weekend trades even when their tiles are hidden
   const net = list.reduce((s, d) => s + d.net, 0), n = list.reduce((s, d) => s + d.count, 0), w = list.reduce((s, d) => s + d.wins, 0);
@@ -438,7 +439,7 @@ function WeekDiary({ period, trades }) {
   const rows = [];
   const blockers = {};
   for (const t of trades) for (const b of t.blockers || []) { (blockers[b] ||= { n: 0, pnl: 0 }); blockers[b].n++; blockers[b].pnl += t.pnl; }
-  for (let i = 0; i < 7; i++) {
+  for (let i = -1; i < 6; i++) {
     const d = new Date(period.start); d.setDate(d.getDate() + i);
     const k = keyOf(d);
     const post = state.diary[k]?.post;

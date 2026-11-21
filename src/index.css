@@ -685,7 +685,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-row:hover { color: var(--primary); }
 
 /* week strip */
-.rv-week { display: grid; grid-template-columns: repeat(calc(var(--n) - 1), minmax(0, 1fr)) minmax(0, 0.8fr); border: 1px solid var(--border); background: var(--panel); }
+.rv-week { display: grid; grid-template-columns: repeat(calc(var(--n) - 1), minmax(0, 1fr)) minmax(0, 0.8fr); }
 .rv-wday { display: flex; flex-direction: column; border-right: 1px solid var(--border); cursor: pointer; min-width: 0; width: 100%; aspect-ratio: var(--tile-ar); max-height: var(--tile-max); }
 .rv-wday:last-child { border-right: 0; cursor: default; }
 .rv-wday-h { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; font-size: 13px; font-weight: 500; border-bottom: 1px solid var(--border); background: var(--card); }
@@ -734,7 +734,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
 .rv-cal.mini .rv-day .dn { font-size: 10.5px; }
 .rv-cal.mini .pv { font-size: 12px; letter-spacing: -0.03em; overflow: hidden; text-overflow: clip; }
 .rv-cal.mini .rv-day, .rv-cal.mini .rv-wk { overflow: hidden; padding: 4px 3px; }
-.rv-cal.mini .rv-cal-row { grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, 1fr); }
+.rv-cal.mini .rv-cal-row { grid-template-columns: repeat(calc(var(--cols) - 1), minmax(0, 1fr)) minmax(0, 1fr); }
 .rv-cal.mini .pv { font-size: 11.5px; }
 .rv-cal.mini .rv-cal-row.head div { font-size: 11px; padding: 6px 0; }
 .rv-cal.heat { border-top: 0; }
@@ -2753,18 +2753,19 @@ button.ec-row { border-radius: var(--r); }
   .cal-head .wd-full { display: none; }
   .cal-head .wd-abbr { display: inline; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.06em; color: var(--muted); }
   .cal-head div { padding: 4px 0 6px; }
-  .cal-head, .cal-week { grid-template-columns: repeat(var(--days, 7), minmax(0, 1fr)); }
-  .cal-head > div:last-child { display: none; }
-  .cal.no-wknd .cal-head, .cal.no-wknd .cal-week { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  /* the week's total: a slim bar under each week */
-  .cal-wk { display: flex !important; grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 10px; padding: 6px 10px; min-height: 0; font-size: 11.5px; overflow: visible; margin-bottom: 4px; }
-  .cal-wk > .row { flex: none; color: var(--muted); font-weight: 600; }
-  .cal-wk > .row svg { display: none; }
-  .cal-wk .wk-pnl { order: 3; margin: 0 0 0 auto !important; font-size: 13px !important; font-weight: 600 !important; }
-  .cal-wk .wk-pnl .pv-full { display: none; }
-  .cal-wk .wk-pnl .pv-short { display: inline; }
-  .cal-wk .muted { display: inline !important; order: 2; font-size: 11px; }
-  .cal-wk:not(.win):not(.loss) .row { opacity: 0.6; }
+  .cal-head, .cal-week { grid-template-columns: repeat(var(--days, 7), minmax(0, 1fr)) minmax(0, 0.9fr); }
+  .cal.no-wknd .cal-head, .cal.no-wknd .cal-week { grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 0.9fr); }
+  .cal-head > div:last-child { display: block !important; }
+  /* the week's total, in its own column on the right like on a desktop */
+  .cal-wk { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 5px 3px; min-height: 0; overflow: hidden; border-radius: 6px; text-align: center; }
+  .cal-wk > .row { font-size: 10px; color: var(--muted); font-weight: 600; justify-content: center; }
+  .cal-wk > .row svg { display: none !important; }
+  .cal-wk .wk-pnl { margin: 0 !important; font-size: clamp(10px, 3.2cqw, 12.5px) !important; font-weight: 600 !important; }
+  .cal-wk .muted { display: block !important; font-size: 9px; font-weight: 500 !important; }
+  .cal-wk .wk-wr { display: none; }
+  .cal-cell { padding: 5px 2px !important; }
+  .cal-cell .d { padding-left: 3px; }
+  .cal-cell .ct { font-size: 8.5px !important; letter-spacing: -0.04em; overflow: visible !important; }
   .cal.no-wknd .cal-head > div:nth-child(1), .cal.no-wknd .cal-head > div:nth-child(7),
   .cal.no-wknd .cal-week > .cal-cell:nth-child(1), .cal.no-wknd .cal-week > .cal-cell:nth-child(7) { display: none; }
   .cal, .cal-head, .cal-week { gap: 4px; }
@@ -2783,15 +2784,16 @@ button.ec-row { border-radius: var(--r); }
   .rv-cal.full .rv-cal-row.head div::first-letter { font-size: inherit; }
   .rv-cal .rv-cal-row.head .wd-full { display: none; }
   .rv-cal .rv-cal-row.head .wd-abbr { display: inline; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.06em; color: var(--muted); }
-  .rv-cal.full .rv-cal-row { grid-template-columns: repeat(calc(var(--cols) - 1), minmax(0, 1fr)); }
-  .rv-cal.full.no-wknd .rv-cal-row { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
-  .rv-cal.full.no-wknd .rv-cal-row > :nth-child(1), .rv-cal.full.no-wknd .rv-cal-row > :nth-child(7), .rv-cal.full .rv-cal-row.head > :last-child { display: none; }
-  .rv-cal.full.no-wknd .rv-cal-row > .rv-wk { display: flex; }
-  /* the week's total: a slim bar under each week */
-  .rv-cal.full .rv-wk { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 10px; padding: 6px 10px; aspect-ratio: auto; min-height: 0; margin-bottom: 4px; }
-  .rv-cal.full .rv-wk > .muted { font-weight: 600; }
-  .rv-cal.full .rv-wk .rv-day-meta { display: flex; order: 2; margin: 0; gap: 8px; font-size: 11px; }
-  .rv-cal.full .rv-wk .pv { order: 3; margin: 0 0 0 auto; width: auto; font-size: 13px; font-weight: 600; }
+  .rv-cal.full .rv-cal-row { grid-template-columns: repeat(calc(var(--cols) - 1), minmax(0, 1fr)) minmax(0, 0.9fr); }
+  .rv-cal.full.no-wknd .rv-cal-row { grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 0.9fr) !important; }
+  .rv-cal.full.no-wknd .rv-cal-row > :nth-child(1), .rv-cal.full.no-wknd .rv-cal-row > :nth-child(7) { display: none; }
+  .rv-cal.full .rv-cal-row > .rv-wk { display: flex; }
+  /* the week's total, in its own column on the right like on a desktop */
+  .rv-cal.full .rv-wk { flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 5px 3px; aspect-ratio: auto; min-height: 0; border-radius: 6px; text-align: center; overflow: hidden; }
+  .rv-cal.full .rv-wk > .muted { font-size: 10px !important; font-weight: 600; }
+  .rv-cal.full .rv-wk .rv-day-meta { display: flex; justify-content: center; margin: 0; font-size: 9px; }
+  .rv-cal.full .rv-wk .rv-day-meta span:last-child { display: none; }
+  .rv-cal.full .rv-wk .pv { margin: 0; width: auto; font-size: clamp(10px, 3vw, 12.5px); font-weight: 600; }
   .rv-cal.full, .rv-cal.full .rv-cal-row { gap: 4px; }
   .rv-cal.full .rv-day { aspect-ratio: 1 / 1.02; max-height: none; padding: 5px 6px; min-height: 0; border-radius: 6px; }
   .rv-cal.full .rv-day.win { background: color-mix(in srgb, var(--pos-strong) 26%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pos-strong) 45%, transparent); }
