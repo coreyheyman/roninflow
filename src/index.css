@@ -2723,3 +2723,70 @@ button.ec-row { border-radius: var(--r); }
 .wlib,
 .wlib-search { border-radius: var(--r-lg); }
 .modal { border-radius: var(--r-xl); }
+
+/* ── Calendar tiles: a hairline gap between days instead of grid lines, gently rounded ─────────────────────────── */
+:root { --r-tile: 4px; --tile-empty: rgba(127, 127, 127, 0.045); }
+.wd-abbr, .cal-cell .ct, .rv-day .ct { display: none; }
+.cal { border-top: 0; display: flex; flex-direction: column; gap: 2px; }
+.cal-head, .cal-week { gap: 2px; }
+.cal-head div { border-bottom: 0; padding: 10px 0 8px; }
+.cal-cell, .cal-wk { border: 0; border-radius: var(--r-tile); }
+.cal-cell:not(.win):not(.loss) { background: var(--tile-empty); }
+.cal-cell.out:not(.win):not(.loss) { background: transparent; }
+.cal-cell:not(.out):not(.win):not(.loss):hover { background: var(--card); }
+.rv-cal { border-top: 0; display: flex; flex-direction: column; gap: 2px; }
+.rv-cal:not(.heat) .rv-cal-row { gap: 2px; }
+.rv-cal.heat { gap: 0; }
+.rv-cal-row.head div { border-bottom: 0; }
+.rv-cal:not(.heat) .rv-day, .rv-cal:not(.heat) .rv-wk { border: 0; border-radius: var(--r-tile); }
+.rv-cal:not(.heat) .rv-day:not(.win):not(.loss) { background: var(--tile-empty); }
+.rv-cal:not(.heat) .rv-day.out { background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(127, 127, 127, 0.04) 6px 12px); }
+.rv-cal:not(.heat) .rv-day:not(.out):not(.win):not(.loss):hover { background: var(--card); }
+.rv-week { gap: 2px; }
+.rv-wday { border-right: 0; border-radius: var(--r-tile); overflow: hidden; background: var(--tile-empty); }
+.rv-wday.win, .rv-wday.loss { background-color: transparent; }
+.rv-wday-h { border-bottom: 0; background: transparent; }
+.rv-wday-f { border-top: 0; }
+
+/* ── Calendars on a phone: weekdays only (when the weekend is empty), square filled tiles, the day's P&L and trade count ── */
+@container (max-width: 600px) {
+  .cal-head .wd-full { display: none; }
+  .cal-head .wd-abbr { display: inline; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.06em; color: var(--muted); }
+  .cal-head div { padding: 4px 0 6px; }
+  .cal.no-wknd .cal-head, .cal.no-wknd .cal-week { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .cal.no-wknd .cal-head > div:nth-child(1), .cal.no-wknd .cal-head > div:nth-child(7),
+  .cal.no-wknd .cal-week > .cal-cell:nth-child(1), .cal.no-wknd .cal-week > .cal-cell:nth-child(7) { display: none; }
+  .cal, .cal-head, .cal-week { gap: 4px; }
+  .cal-cell { aspect-ratio: 1 / 1.02; max-height: none; padding: 5px 6px !important; min-height: 0; border-radius: 6px; }
+  .cal-cell .d { font-size: 10.5px; color: var(--fg-2); }
+  .cal-cell.win { background: color-mix(in srgb, var(--pos-strong) 26%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pos-strong) 45%, transparent); }
+  .cal-cell.loss { background: color-mix(in srgb, var(--neg) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--neg) 42%, transparent); }
+  .cal-cell.today { box-shadow: inset 0 0 0 1.5px var(--primary); }
+  .cal-cell .pnl { font-size: clamp(10px, 3.4cqw, 13px) !important; font-weight: 600; margin: auto 0 0; }
+  .cal-cell .pv-full { display: none; }
+  .cal-cell .pv-short { display: inline; }
+  .cal-cell .ct { display: block; text-align: center; font-size: 9px; color: var(--fg-2); opacity: 0.85; margin-top: 1px; white-space: nowrap; overflow: hidden; }
+}
+@media (max-width: 760px) {
+  .rv-cal.full .rv-cal-row.head div { font-size: 11px; }
+  .rv-cal.full .rv-cal-row.head div::first-letter { font-size: inherit; }
+  .rv-cal .rv-cal-row.head .wd-full { display: none; }
+  .rv-cal .rv-cal-row.head .wd-abbr { display: inline; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.06em; color: var(--muted); }
+  .rv-cal.full .rv-cal-row { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .rv-cal.full.no-wknd .rv-cal-row { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+  .rv-cal.full.no-wknd .rv-cal-row > :nth-child(1), .rv-cal.full.no-wknd .rv-cal-row > :nth-child(7), .rv-cal.full .rv-cal-row > .rv-wk, .rv-cal.full .rv-cal-row.head > :nth-child(8) { display: none; }
+  .rv-cal.full, .rv-cal.full .rv-cal-row { gap: 4px; }
+  .rv-cal.full .rv-day { aspect-ratio: 1 / 1.02; max-height: none; padding: 5px 6px; min-height: 0; border-radius: 6px; }
+  .rv-cal.full .rv-day.win { background: color-mix(in srgb, var(--pos-strong) 26%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pos-strong) 45%, transparent); }
+  .rv-cal.full .rv-day.loss { background: color-mix(in srgb, var(--neg) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--neg) 42%, transparent); }
+  .rv-cal.full .rv-day.today { box-shadow: inset 0 0 0 1.5px var(--primary); }
+  .rv-cal.full .rv-day .dn { font-size: 10.5px; }
+  .rv-cal.full .rv-day .pv { font-size: clamp(10px, 3.2vw, 13px); font-weight: 600; margin: auto 0 0; }
+  .rv-cal.full .rv-day .ct { display: block; text-align: center; font-size: 9px; color: var(--fg-2); opacity: 0.85; margin-top: 1px; white-space: nowrap; overflow: hidden; }
+}
+
+/* square corners the scan found */
+.send-btn { border-radius: var(--r); }
+.risk-banner { border-radius: var(--r); }
+.tier-row { overflow: hidden; }
+.wr-bar-fill { border-radius: var(--r-sm) var(--r-sm) 0 0; }

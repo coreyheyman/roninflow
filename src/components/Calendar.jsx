@@ -28,6 +28,8 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
   const monthDays = days.filter((d) => d.date.startsWith(`${y}-${String(m + 1).padStart(2, '0')}`));
   const monthNet = monthDays.reduce((s, d) => s + d.net, 0);
   const money = (v) => (priv ? '•••••' : fmtMoney(v, { sign: true }));
+  // on a phone the calendar drops Saturday and Sunday when no trades fall on a weekend this month
+  const noWknd = !weeks.flat().some((d) => (d.getDay() === 0 || d.getDay() === 6) && d.getMonth() === m && map[keyOf(d)]);
   return (
     <div className="cal-box">
       <div className="row gap16 cal-top" style={{ marginBottom: 20 }}>
@@ -44,9 +46,9 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
           </div>
         )}
       </div>
-      <div className="cal">
+      <div className={`cal ${noWknd ? 'no-wknd' : ''}`}>
         <div className="cal-head">
-          {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Week'].map((d) => <div key={d}>{compact ? (d === 'Week' ? 'Wk' : d.slice(0, 3)) : d}</div>)}
+          {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Week'].map((d) => <div key={d}><span className="wd-full">{compact ? (d === 'Week' ? 'Wk' : d.slice(0, 3)) : d}</span><span className="wd-abbr">{d.slice(0, 3)}</span></div>)}
         </div>
         {weeks.map((wk, wi) => {
           const wd = wk.map((d) => map[keyOf(d)]).filter(Boolean);
@@ -72,6 +74,7 @@ export function PnlCalendar({ days, onDay, initial, compact = false }) {
                         <div className={`pnl ${day.net >= 0 ? 'pos' : 'neg'}`}>
                           <Fit className={priv ? 'hidden-val' : ''} short={`${day.net > 0 ? '+' : ''}${fmtCompact(day.net)}`}>{fmtMoney(day.net, { sign: true })}</Fit>
                         </div>
+                        <div className="ct">{day.count} trade{day.count === 1 ? '' : 's'}</div>
                         <div className="meta">
                           <Clock size={12} />
                           {compact ? `${day.count} trade${day.count === 1 ? '' : 's'}` : fmtDuration(day.duration)}

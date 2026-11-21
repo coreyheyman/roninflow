@@ -186,10 +186,11 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
   const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const short = (v) => `${v > 0 ? '+' : ''}${fmtCompact(v)}`;
   const showWeek = variant !== 'heat';
+  const noWknd = !weeks.flat().some((d) => (d.getDay() === 0 || d.getDay() === 6) && d.getMonth() === month && dayMap[keyOf(d)]);
   return (
-    <div className={`rv-cal ${variant}`} style={{ '--cols': cols.length + (showWeek ? 1 : 0) }}>
+    <div className={`rv-cal ${variant} ${noWknd ? 'no-wknd' : ''}`} style={{ '--cols': cols.length + (showWeek ? 1 : 0) }}>
       <div className="rv-cal-row head">
-        {cols.map((i) => <div key={i}>{variant === 'full' ? WEEKDAYS[i] : names[i].slice(0, variant === 'heat' ? 1 : 3)}</div>)}
+        {cols.map((i) => <div key={i}><span className="wd-full">{variant === 'full' ? WEEKDAYS[i] : names[i].slice(0, variant === 'heat' ? 1 : 3)}</span><span className="wd-abbr">{names[i]}</span></div>)}
         {showWeek && <div>{variant === 'full' ? 'Week' : 'Wk'}</div>}
       </div>
       {weeks.map((wk, wi) => {
@@ -213,6 +214,7 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
                     <>
                       <div className={`pv ${day.net >= 0 ? 'pos' : 'neg'}`}><Fit className={priv ? 'hidden-val' : ''} short={short(day.net)}>{fmtMoney(day.net, { sign: true, dp: 0 })}</Fit></div>
                       <div className="rv-day-meta"><span>{nTrades(day.count)}</span><span>{wr(day)}%</span></div>
+                      <div className="ct">{nTrades(day.count)}</div>
                     </>
                   )}
                   {day && variant === 'mini' && <div className={`pv ${day.net >= 0 ? 'pos' : 'neg'}`}><Fit className={priv ? 'hidden-val' : ''}>{short(day.net)}</Fit></div>}
