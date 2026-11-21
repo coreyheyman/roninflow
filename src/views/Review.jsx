@@ -186,13 +186,15 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
   const today = keyOf(new Date());
   const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const short = (v) => `${v > 0 ? '+' : ''}${fmtCompact(v)}`;
-  const showWeek = variant !== 'heat';
+  const showWeek = true; // the heat map has a week column too: a tile shaded by the week's total
+  const weekNets = weeks.map((wk) => wk.map((d) => dayMap[keyOf(d)]).filter((d) => d && d.date.startsWith(prefix)).reduce((s, d) => s + d.net, 0));
+  const maxWk = Math.max(1, ...weekNets.map(Math.abs));
   const noWknd = wkndMode === 'auto' && !weeks.flat().some((d) => (d.getDay() === 0 || d.getDay() === 6) && d.getMonth() === month && dayMap[keyOf(d)]);
   return (
     <div className={`rv-cal ${variant} ${noWknd ? 'no-wknd' : ''}`} style={{ '--cols': cols.length + (showWeek ? 1 : 0) }}>
       <div className="rv-cal-row head">
         {cols.map((i) => <div key={i}><span className="wd-full">{variant === 'full' ? WEEKDAYS[i] : names[i].slice(0, variant === 'heat' ? 1 : 3)}</span><span className="wd-abbr">{names[i]}</span></div>)}
-        {showWeek && <div><span className="wd-full">{variant === 'full' ? 'Week' : 'Wk'}</span><span className="wd-abbr">Wk</span></div>}
+        {showWeek && <div><span className="wd-full">{variant === 'full' ? 'Week' : variant === 'heat' ? 'W' : 'Wk'}</span><span className="wd-abbr">Wk</span></div>}
       </div>
       {weeks.map((wk, wi) => {
         const inWeek = wk.map((d) => dayMap[keyOf(d)]).filter((d) => d && d.date.startsWith(prefix));
@@ -223,9 +225,10 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
               );
             })}
             {showWeek && (
-              <div className={`rv-wk wk-link ${inWeek.length ? (wNet >= 0 ? 'win' : 'loss') : ''}`} title="Open this week’s review" onClick={() => openReview(periodOf('weekly', wk[1]))}>
+              <div className={`rv-wk wk-link ${inWeek.length ? (wNet >= 0 ? 'win' : 'loss') : ''}`} title={inWeek.length ? `Week of ${fmtDate(keyOf(wk[1]))} · ${fmtMoney(wNet, { sign: true })} · ${nTrades(wCount)} · ${Math.round((wWins / wCount) * 100)}% win — open this week’s review` : 'Open this week’s review'} onClick={() => openReview(periodOf('weekly', wk[1]))}
+                style={variant === 'heat' && inWeek.length ? { background: `color-mix(in srgb, var(${wNet >= 0 ? '--pos-strong' : '--neg'}) ${Math.round(18 + 62 * Math.min(1, Math.abs(wNet) / maxWk))}%, transparent)` } : undefined}>
                 {variant === 'full' && <span className="muted" style={{ fontSize: 11.5 }}>W{wi + 1}</span>}
-                {inWeek.length > 0 && (
+                {inWeek.length > 0 && variant !== 'heat' && (
                   <>
                     <div className={`pv ${wNet >= 0 ? 'pos' : 'neg'}`}>{variant === 'mini' ? <Fit className={priv ? 'hidden-val' : ''}>{short(wNet)}</Fit> : <><Fit className={priv ? 'hidden-val' : ''} short={short(wNet)}>{fmtMoney(wNet, { sign: true, dp: 0 })}</Fit><span className={`phone-v ${priv ? 'hidden-val' : ''}`}>{short(wNet)}</span></>}</div>
                     {variant === 'full' && <div className="rv-day-meta"><span>{wCount}t</span><span>WR {Math.round((wWins / wCount) * 100)}%</span></div>}

@@ -2820,3 +2820,20 @@ button.ec-row { border-radius: var(--r); }
   .rv-cal.full .rv-wk .pv > :not(.phone-v) { display: none !important; }
   .rv-cal.full .rv-wk .pv .phone-v { display: inline; }
 }
+
+/* heat map: the week column — a tile shaded by the week's total, set a little apart from the days */
+.rv-cal.heat .rv-wk { min-height: 0; aspect-ratio: 1.6; border: 0; padding: 0; background: var(--card-2); border-radius: var(--r-sm); box-shadow: none; margin-left: 3px; cursor: pointer; }
+.rv-cal.heat .rv-wk:hover { filter: brightness(1.25); }
+
+/* tone cards: every edge in the card's own colour (a stronger line along the bottom) */
+.kpi.posc, .rv-tile.pos, .ronin.small.posc { border-color: color-mix(in srgb, var(--pos-strong) 24%, transparent); border-bottom-color: color-mix(in srgb, var(--pos-strong) 45%, transparent); }
+.kpi.negc, .rv-tile.neg, .ronin.small.negc { border-color: color-mix(in srgb, var(--neg) 24%, transparent); border-bottom-color: color-mix(in srgb, var(--neg) 45%, transparent); }
+.rv-tile.warn { border-color: color-mix(in srgb, var(--warn) 22%, transparent); border-bottom-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+
+/* weekly review day tiles: the same colours as the calendars (which sit on a panel) */
+.rv-wday { background: linear-gradient(var(--tile-empty), var(--tile-empty)), var(--panel); }
+.rv-wday.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 20%, transparent), color-mix(in srgb, var(--pos-strong) 7%, transparent)), var(--panel); }
+.rv-wday.loss { background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 14%, transparent), color-mix(in srgb, var(--neg) 5%, transparent)), var(--panel); }
+.rv-wday.total { background: var(--card); }
+.rv-wday.total.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 16%, transparent), color-mix(in srgb, var(--pos-strong) 4%, transparent)), var(--card); }
+.rv-wday.total.loss { background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 11%, transparent), color-mix(in srgb, var(--neg) 3%, transparent)), var(--card); }
