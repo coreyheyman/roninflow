@@ -2,6 +2,19 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 2.0.0
+
+RoninFlow 2.0 brings together everything from the 1.9 series. If you're coming from 1.8, here's what's new — each 1.9.x section below has the details.
+
+- **Macro:** dealer gamma exposure (GEX) for SPX, NDX, RUT and more, with every level in ES / NQ / RTY prices and a *GEX levels* indicator on your charts. Also News Flow (live headlines traced to the markets you trade), the News Heat Map and News Agents with alerts.
+- **Draw on screenshots:** pen, highlighter, lines, arrows, boxes, circles and text on any trade or diary screenshot, editable any time. Resize or move anything with whatever tool is picked, zoom while you draw, use a smooth pressure-sensitive pen for handwriting, set size with a slider, and handwriting groups into one note.
+- **Draw on charts the same way:** a smooth brush that draws exactly where your pen goes, handwriting groups, resize and move with any tool, and size sliders. Drawings stay hidden during a replay until the bars they cover have played. Your tools, colours and sizes are remembered between sessions.
+- **Screenshots, filed for you:** a watched folder files every new screenshot on the trade open when it was taken (or that day's diary). Bulk upload does the same, also when switching to RoninFlow, with a "Days only" switch. Screenshots are zoomable, and the chart camera saves straight to the trade or day.
+- **Trading Coach context:** narrow the coach by strategy, market condition, tags and edge blockers. Tags and edge blockers are now your own to edit.
+- **A more polished look:** gently rounded corners everywhere, calendars with spaced tiles and a phone layout with week totals, a weekends setting, a Sunday-to-Saturday weekly review, a heat map with week totals, slim scrollbars and sliders, and solid table headers.
+
+**Updating:** nothing to reinstall. Restart RoninFlow after updating if you're coming from before 1.9.3, so the GEX fix and the screenshot folder watcher start.
+
 ## 1.9.10
 
 - **Chart brush draws real curves:** freehand strokes on the chart were snapped to whole bars, so circles and handwriting came out as stair steps. Drawings now land exactly where the pointer is, between bars too — which also makes every other drawing tool follow the mouse precisely when the magnet is off.
