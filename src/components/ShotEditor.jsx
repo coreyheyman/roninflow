@@ -19,6 +19,36 @@ const TOOLS = [
   { id: 'erase', icon: Eraser, label: 'Eraser — click a drawing to remove it (E)', key: 'e' },
 ];
 
+const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+/**
+ * A freehand stroke as smooth curves through the midpoints of its samples. With `pressW` (a pen or tablet's
+ * pressure was recorded) each piece takes its own width from the pressure, so handwriting thickens and thins.
+ */
+function strokeSmooth(ctx, pts, pressW) {
+  if (!pts.length) return;
+  if (pts.length < 3) {
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+    const l = pts[pts.length - 1]; ctx.lineTo(l[0] + (pts.length === 1 ? 0.1 : 0), l[1]);
+    if (pressW) ctx.lineWidth = pressW * (0.25 + 1.5 * (pts[0][2] ?? 0.5));
+    ctx.stroke(); return;
+  }
+  if (!pressW) {
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length - 1; i++) { const m = mid(pts[i], pts[i + 1]); ctx.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]); }
+    const l = pts[pts.length - 1]; ctx.lineTo(l[0], l[1]);
+    ctx.stroke(); return;
+  }
+  let from = pts[0];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const to = mid(pts[i], pts[i + 1]);
+    ctx.lineWidth = Math.max(0.6, pressW * (0.25 + 1.5 * (pts[i][2] ?? 0.5)));
+    ctx.beginPath(); ctx.moveTo(from[0], from[1]); ctx.quadraticCurveTo(pts[i][0], pts[i][1], to[0], to[1]); ctx.stroke();
+    from = to;
+  }
+  const l = pts[pts.length - 1];
+  ctx.beginPath(); ctx.moveTo(from[0], from[1]); ctx.lineTo(l[0], l[1]); ctx.stroke();
+}
+
 /** Draw the shapes onto a 2D context whose units are the picture's own pixels. */
 export function drawShapes(ctx, shapes, unit = 1) {
   for (const s of shapes) {
@@ -29,10 +59,7 @@ export function drawShapes(ctx, shapes, unit = 1) {
     ctx.lineWidth = s.type === 'hl' ? w * 4 : w;
     if (s.type === 'hl') ctx.globalAlpha = 0.35;
     if (s.type === 'pen' || s.type === 'hl') {
-      ctx.beginPath();
-      s.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-      if (s.pts.length === 1) ctx.lineTo(s.pts[0][0] + 0.1, s.pts[0][1]);
-      ctx.stroke();
+      strokeSmooth(ctx, s.pts, s.type === 'pen' && s.pr ? w : 0);
     } else if (s.type === 'line' || s.type === 'arrow') {
       const [x1, y1, x2, y2] = s.box;
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
@@ -94,13 +121,31 @@ function edgeHit(shapes, x, y, tol, ctx) {
     }
     const [x1, y1, x2, y2] = bboxOf(s, ctx);
     if (x < x1 - tol || x > x2 + tol || y < y1 - tol || y > y2 + tol) continue;
+    if (s.type !== 'rect') { // its frame is invisible: only the eight handles resize it (so drawing near it still draws)
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, t = tol * 1.3;
+      const hs = [['nw', x1, y1], ['n', mx, y1], ['ne', x2, y1], ['e', x2, my], ['se', x2, y2], ['s', mx, y2], ['sw', x1, y2], ['w', x1, my]];
+      const f = hs.find(([, hx, hy]) => Math.abs(x - hx) <= t && Math.abs(y - hy) <= t);
+      if (f) return { i, h: f[0] };
+      continue;
+    }
     const L = Math.abs(x - x1) <= tol, R = Math.abs(x - x2) <= tol, T = Math.abs(y - y1) <= tol, B = Math.abs(y - y2) <= tol;
     const h = `${T ? 'n' : B ? 's' : ''}${L ? 'w' : R ? 'e' : ''}`;
     if (h) return { i, h };
   }
   return null;
 }
-const CURSOR = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize', p1: 'grab', p2: 'grab' };
+/** A drawing under the point that can be picked up and moved: its own line, the inside of text, or the grip in
+ *  the middle of a box or circle (so you can still draw inside them). */
+function moveHit(shapes, x, y, tol, ctx, grip) {
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    const s = shapes[i];
+    if (s.type === 'text') { const [x1, y1, x2, y2] = bboxOf(s, ctx); if (x >= x1 && x <= x2 && y >= y1 && y <= y2) return i; continue; }
+    if (s.type === 'rect' || s.type === 'ellipse') { const [x1, y1, x2, y2] = bboxOf(s, ctx); if (Math.hypot(x - (x1 + x2) / 2, y - (y1 + y2) / 2) <= grip) return i; if (s.type === 'ellipse' && hitTest([s], x, y, tol, ctx) === 0) return i; continue; }
+    if (hitTest([s], x, y, tol, ctx) === 0) return i;
+  }
+  return -1;
+}
+const CURSOR = { move: 'move', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize', p1: 'grab', p2: 'grab' };
 /** The shape `base` stretched by dragging handle `h` to (x, y). */
 function resized(base, h, x, y, ctx, keep) {
   if (h === 'p1' || h === 'p2') { const b = [...base.box]; if (h === 'p1') { b[0] = x; b[1] = y; } else { b[2] = x; b[3] = y; } return { ...base, box: b }; }
@@ -141,6 +186,11 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
   const [width, setWidth] = useState(4);
   const [draft, setDraft] = useState(null);
   const [hover, setHover] = useState(null); // { i, h } — an edge or corner under the mouse
+  const [zoom, setZoom] = useState({ z: 1, x: 0, y: 0 }); // wheel zoom inside the picture's frame; x/y: pan in screen px
+  const zRef = useRef(zoom); zRef.current = zoom;
+  const space = useRef(false);
+  const cache = useRef({ key: '', c: null });
+  const S = view.scale * zoom.z; // screen px per picture px
   const [text, setText] = useState(null); // { x, y, value } while typing
   const [saving, setSaving] = useState(false);
   const drag = useRef(null);
@@ -170,16 +220,30 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
     const c = cvs.current;
     if (!c || !img || !view.w) return;
     const dpr = window.devicePixelRatio || 1;
-    c.width = view.w * dpr; c.height = view.h * dpr;
+    if (c.width !== Math.round(view.w * dpr) || c.height !== Math.round(view.h * dpr)) { c.width = Math.round(view.w * dpr); c.height = Math.round(view.h * dpr); }
     const ctx = c.getContext('2d');
-    ctx.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, 0, 0);
-    ctx.drawImage(img, 0, 0);
-    drawShapes(ctx, draft ? [...shapes, draft] : shapes);
+    // the picture and the finished drawings are cached, so a stroke in progress only repaints itself
+    const key = `${view.w}|${view.h}|${dpr}|${zoom.z}|${zoom.x}|${zoom.y}`;
+    if (cache.current.key !== key || cache.current.shapes !== shapes) {
+      const b = cache.current.c || document.createElement('canvas');
+      b.width = c.width; b.height = c.height;
+      const bx = b.getContext('2d');
+      bx.setTransform(1, 0, 0, 1, 0, 0); bx.fillStyle = '#000'; bx.fillRect(0, 0, b.width, b.height);
+      bx.setTransform(dpr * S, 0, 0, dpr * S, dpr * zoom.x, dpr * zoom.y);
+      bx.imageSmoothingQuality = 'high';
+      bx.drawImage(img, 0, 0);
+      drawShapes(bx, shapes);
+      cache.current = { key, shapes, c: b };
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(cache.current.c, 0, 0);
+    ctx.setTransform(dpr * S, 0, 0, dpr * S, dpr * zoom.x, dpr * zoom.y);
+    if (draft) drawShapes(ctx, [draft]);
     // the drawing being resized (or about to be): its outline and handles
     const hi = drag.current?.resize != null ? drag.current.resize : hover?.i;
     const hs = hi != null ? shapes[hi] : null;
     if (hs) {
-      const px = 1 / view.scale;
+      const px = 1 / S;
       ctx.save();
       ctx.lineWidth = px; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.setLineDash([4 * px, 3 * px]);
       if (hs.type === 'line' || hs.type === 'arrow') {
@@ -192,29 +256,59 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
         ctx.setLineDash([]); ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(0,0,0,0.6)';
         const r = 3.5 * px;
         for (const [a, b] of [[x1, y1], [(x1 + x2) / 2, y1], [x2, y1], [x2, (y1 + y2) / 2], [x2, y2], [(x1 + x2) / 2, y2], [x1, y2], [x1, (y1 + y2) / 2]]) { ctx.fillRect(a - r, b - r, r * 2, r * 2); ctx.strokeRect(a - r, b - r, r * 2, r * 2); }
+        if (hs.type === 'rect' || hs.type === 'ellipse') { // the move grip
+          const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+          ctx.beginPath(); ctx.arc(cx, cy, 7 * px, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fill(); ctx.stroke();
+          ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 1.4 * px; ctx.beginPath();
+          ctx.moveTo(cx - 4 * px, cy); ctx.lineTo(cx + 4 * px, cy); ctx.moveTo(cx, cy - 4 * px); ctx.lineTo(cx, cy + 4 * px); ctx.stroke();
+        }
       }
       ctx.restore();
     }
-  }, [img, view, shapes, draft, hover]);
+  }, [img, view, shapes, draft, hover, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const at = (e) => { const r = cvs.current.getBoundingClientRect(); return [(e.clientX - r.left) / view.scale, (e.clientY - r.top) / view.scale]; };
+  const at = (e) => { const r = cvs.current.getBoundingClientRect(); return [(e.clientX - r.left - zoom.x) / S, (e.clientY - r.top - zoom.y) / S]; };
+  const clampPan = (z, x, y) => ({ z, x: Math.min(0, Math.max(view.w - img.naturalWidth * view.scale * z, x)), y: Math.min(0, Math.max(view.h - img.naturalHeight * view.scale * z, y)) });
+  // the mouse wheel (or a trackpad pinch) zooms where the pointer is
+  useEffect(() => {
+    const c = cvs.current;
+    if (!c || !img) return undefined;
+    const wheel = (e) => {
+      e.preventDefault();
+      const r = c.getBoundingClientRect(), cx = e.clientX - r.left, cy = e.clientY - r.top;
+      const o = zRef.current;
+      const z = Math.max(1, Math.min(10, o.z * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))));
+      const k = z / o.z;
+      setZoom(z === 1 ? { z: 1, x: 0, y: 0 } : clampPan(z, cx - (cx - o.x) * k, cy - (cy - o.y) * k));
+    };
+    c.addEventListener('wheel', wheel, { passive: false });
+    return () => c.removeEventListener('wheel', wheel);
+  }); // eslint-disable-line react-hooks/exhaustive-deps
   const unit = img ? Math.max(1, Math.max(img.naturalWidth, img.naturalHeight) / 1400) : 1; // widths read the same on big and small pictures
   const finishText = () => {
     if (text?.value?.trim()) commit([...shapes, { type: 'text', x: text.x, y: text.y, text: text.value.trim(), size: (14 + width * 3) * unit, color }]);
     setText(null);
   };
   const down = (e) => {
-    if (!img || e.button > 0) return;
+    if (!img) return;
+    if (e.button === 1 || (e.button === 0 && space.current)) { // pan the zoomed picture
+      e.preventDefault(); cvs.current.setPointerCapture?.(e.pointerId);
+      drag.current = { pan: true, sx: e.clientX, sy: e.clientY, ox: zoom.x, oy: zoom.y }; return;
+    }
+    if (e.button > 0) return;
     if (text) { finishText(); return; }
     const [x, y] = at(e);
     cvs.current.setPointerCapture?.(e.pointerId);
     const ctx = cvs.current.getContext('2d');
     // an edge or corner of any drawing: resize it, whatever tool is picked
-    const eh = tool === 'erase' ? null : edgeHit(shapes, x, y, 7 / view.scale, ctx);
+    const eh = tool === 'erase' ? null : edgeHit(shapes, x, y, 7 / S, ctx);
     if (eh) { drag.current = { resize: eh.i, h: eh.h, base: shapes }; return; }
-    if (tool === 'erase') { const i = hitTest(shapes, x, y, 8 / view.scale, ctx); if (i >= 0) commit(shapes.filter((_, k) => k !== i)); drag.current = { erase: true }; return; }
+    // the middle of any drawing: move it
+    const mh = tool === 'erase' ? -1 : moveHit(shapes, x, y, 6 / S, ctx, 11 / S);
+    if (mh >= 0) { drag.current = { move: mh, x, y, base: shapes }; return; }
+    if (tool === 'erase') { const i = hitTest(shapes, x, y, 8 / S, ctx); if (i >= 0) commit(shapes.filter((_, k) => k !== i)); drag.current = { erase: true }; return; }
     if (tool === 'move') {
-      let i = hitTest(shapes, x, y, 8 / view.scale, ctx);
+      let i = hitTest(shapes, x, y, 8 / S, ctx);
       if (i < 0) { // inside a box or circle counts too
         for (let k = shapes.length - 1; k >= 0 && i < 0; k--) { const sh = shapes[k]; if (sh.type === 'rect' || sh.type === 'ellipse') { const [x1, y1, x2, y2] = bboxOf(sh, ctx); if (x >= x1 && x <= x2 && y >= y1 && y <= y2) i = k; } }
       }
@@ -224,37 +318,69 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
     if (tool === 'text') { e.preventDefault(); setText({ x, y, value: '' }); return; }
     const w = width * unit;
     drag.current = { x, y };
-    setDraft(tool === 'pen' || tool === 'hl' ? { type: tool, pts: [[x, y]], color, w } : { type: tool, box: [x, y, x, y], color, w });
+    const pen = e.pointerType === 'pen';
+    const r2 = (v) => Math.round(v * 100) / 100;
+    setDraft(tool === 'pen' || tool === 'hl' ? { type: tool, pts: [[r2(x), r2(y), pen ? r2(e.pressure || 0.5) : 0.5]], color, w, ...(pen && tool === 'pen' ? { pr: 1 } : {}) } : { type: tool, box: [x, y, x, y], color, w });
   };
   const move = (e) => {
     const d = drag.current;
     if (!d) { // just hovering: show a resize cursor over an edge or corner
       if (!img || text) return;
       const [hx, hy] = at(e);
-      const eh = tool === 'erase' ? null : edgeHit(shapes, hx, hy, 7 / view.scale, cvs.current.getContext('2d'));
+      const hctx = cvs.current.getContext('2d');
+      let eh = tool === 'erase' ? null : edgeHit(shapes, hx, hy, 7 / S, hctx);
+      if (!eh && tool !== 'erase') { const mi = moveHit(shapes, hx, hy, 6 / S, hctx, 11 / S); if (mi >= 0) eh = { i: mi, h: 'move' }; }
       setHover((o) => (o?.i === eh?.i && o?.h === eh?.h ? o : eh));
       return;
     }
+    if (d.pan) { setZoom((o) => clampPan(o.z, d.ox + e.clientX - d.sx, d.oy + e.clientY - d.sy)); return; }
     const [x, y] = at(e);
     if (d.resize != null) { const ctx = cvs.current.getContext('2d'); setShapes(d.base.map((s, k) => (k === d.resize ? resized(d.base[k], d.h, x, y, ctx, e.shiftKey) : s))); return; }
-    if (d.erase) { const ctx = cvs.current.getContext('2d'); const i = hitTest(shapes, x, y, 8 / view.scale, ctx); if (i >= 0) commit(shapes.filter((_, k) => k !== i)); return; }
+    if (d.erase) { const ctx = cvs.current.getContext('2d'); const i = hitTest(shapes, x, y, 8 / S, ctx); if (i >= 0) commit(shapes.filter((_, k) => k !== i)); return; }
     if (d.move != null) { setShapes(d.base.map((s, k) => (k === d.move ? moved(s, x - d.x, y - d.y) : s))); return; }
+    if (draft?.pts) {
+      // every sample the pen or mouse sent since the last frame (tablets send far more than one per frame), lightly
+      // smoothed so handwriting comes out clean rather than jittery
+      const evs = e.nativeEvent.getCoalescedEvents?.() || [];
+      const list = evs.length ? evs : [e.nativeEvent];
+      const r = cvs.current.getBoundingClientRect();
+      setDraft((s) => {
+        if (!s?.pts) return s;
+        const pts = [...s.pts];
+        for (const ev of list) {
+          const rx = (ev.clientX - r.left - zoom.x) / S, ry = (ev.clientY - r.top - zoom.y) / S;
+          const last = pts[pts.length - 1];
+          const f = 0.55; // how far each new point moves toward the pointer
+          const nx = last[0] + (rx - last[0]) * f, ny = last[1] + (ry - last[1]) * f;
+          if (Math.hypot(nx - last[0], ny - last[1]) < 0.6 / S) continue;
+          const pr = s.pr ? (ev.pressure || last[2] || 0.5) : 0.5;
+          pts.push([Math.round(nx * 100) / 100, Math.round(ny * 100) / 100, Math.round((last[2] * 0.4 + pr * 0.6) * 100) / 100]);
+        }
+        return pts.length === s.pts.length ? s : { ...s, pts };
+      });
+      return;
+    }
     setDraft((s) => {
       if (!s) return s;
-      if (s.pts) return { ...s, pts: [...s.pts, [x, y]] };
       let [x2, y2] = [x, y];
       if (e.shiftKey && (s.type === 'line' || s.type === 'arrow')) { const a = Math.round(Math.atan2(y - d.y, x - d.x) / (Math.PI / 4)) * (Math.PI / 4), l = Math.hypot(x - d.x, y - d.y); x2 = d.x + l * Math.cos(a); y2 = d.y + l * Math.sin(a); }
       if (e.shiftKey && (s.type === 'rect' || s.type === 'ellipse')) { const m = Math.max(Math.abs(x - d.x), Math.abs(y - d.y)); x2 = d.x + Math.sign(x - d.x || 1) * m; y2 = d.y + Math.sign(y - d.y || 1) * m; }
       return { ...s, box: [d.x, d.y, x2, y2] };
     });
   };
-  const up = () => {
+  const up = (e) => {
     const d = drag.current; drag.current = null;
+    if (d?.pan) return;
     if (d?.resize != null) { history.current.push(d.base); setRedo([]); dirty.current = true; return; }
     if (d?.move != null) { history.current.push(d.base); setRedo([]); dirty.current = true; return; }
-    if (draft) {
-      const tiny = draft.box && Math.hypot(draft.box[2] - draft.box[0], draft.box[3] - draft.box[1]) < 3;
-      if (!tiny) commit([...shapes, draft]);
+    let done = draft;
+    if (done?.pts && e?.clientX != null) { // smoothing trails the pointer slightly: end exactly where the pen lifted
+      const [ex, ey] = at(e), last = done.pts[done.pts.length - 1];
+      if (Math.hypot(ex - last[0], ey - last[1]) > 0.3 / S) done = { ...done, pts: [...done.pts, [Math.round(ex * 100) / 100, Math.round(ey * 100) / 100, last[2]]] };
+    }
+    if (done) {
+      const tiny = done.box && Math.hypot(done.box[2] - done.box[0], done.box[3] - done.box[1]) < 3;
+      if (!tiny) commit([...shapes, done]);
       setDraft(null);
     }
   };
@@ -281,13 +407,19 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
       if (e.target.closest?.('input, textarea')) return;
       const mod = e.ctrlKey || e.metaKey;
       if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); close(); return; }
+      if (e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (!space.current) { space.current = true; setHover((h) => h); setZoom((z) => ({ ...z })); } return; }
+      if (e.key === '0' && !mod) { e.stopPropagation(); setZoom({ z: 1, x: 0, y: 0 }); return; }
+      if ((e.key === '+' || e.key === '=') && !mod) { e.stopPropagation(); setZoom((o) => { const z = Math.min(10, o.z * 1.4), cx = view.w / 2, cy = view.h / 2, k = z / o.z; return clampPan(z, cx - (cx - o.x) * k, cy - (cy - o.y) * k); }); return; }
+      if ((e.key === '-' || e.key === '_') && !mod) { e.stopPropagation(); setZoom((o) => { const z = Math.max(1, o.z / 1.4), cx = view.w / 2, cy = view.h / 2, k = z / o.z; return z === 1 ? { z: 1, x: 0, y: 0 } : clampPan(z, cx - (cx - o.x) * k, cy - (cy - o.y) * k); }); return; }
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.stopPropagation(); if (e.shiftKey) redoIt(); else undo(); return; }
       if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); e.stopPropagation(); redoIt(); return; }
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); e.stopPropagation(); save(); return; }
       if (!mod && !e.altKey) { const t = TOOLS.find((x) => x.key === e.key.toLowerCase()); if (t) { e.stopPropagation(); setTool(t.id); } }
     };
     window.addEventListener('keydown', key, true);
-    return () => window.removeEventListener('keydown', key, true);
+    const keyUp = (e) => { if (e.key === ' ' && space.current) { space.current = false; setZoom((z) => ({ ...z })); } };
+    window.addEventListener('keyup', keyUp, true);
+    return () => { window.removeEventListener('keydown', key, true); window.removeEventListener('keyup', keyUp, true); };
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
   return createPortal(
@@ -308,6 +440,7 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
           <button type="button" className="se-tool" title="Remove all drawings" disabled={!shapes.length} onClick={() => commit([])}><Trash2 size={17} /></button>
         </div>
         <div className="grow" />
+        <button type="button" className="se-zoom" title="Scroll to zoom where the pointer is; hold Space (or the middle button) and drag to move around. Click to fit (0)." onClick={() => setZoom({ z: 1, x: 0, y: 0 })}>{Math.round(zoom.z * 100)}%</button>
         <button type="button" className="btn sm" onClick={close}><X size={14} /> Cancel</button>
         <button type="button" className="btn sm white" disabled={saving || !img} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
       </div>
@@ -315,19 +448,19 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
         {!img && <div className="muted">Loading…</div>}
         {img && (
           <div className="se-canvas-wrap" style={{ width: view.w, height: view.h }}>
-            <canvas ref={cvs} style={{ width: view.w, height: view.h, cursor: hover ? CURSOR[hover.h] : tool === 'move' ? 'move' : tool === 'erase' ? 'cell' : tool === 'text' ? 'text' : 'crosshair' }}
+            <canvas ref={cvs} style={{ width: view.w, height: view.h, cursor: drag.current?.pan ? 'grabbing' : space.current ? 'grab' : hover ? CURSOR[hover.h] : tool === 'move' ? 'move' : tool === 'erase' ? 'cell' : tool === 'text' ? 'text' : 'crosshair' }}
               onPointerLeave={() => { if (!drag.current) setHover(null); }}
               onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
             {text && (
               <textarea autoFocus className="se-text" value={text.value} placeholder="Type, then click away"
-                style={{ left: text.x * view.scale, top: text.y * view.scale, color, fontSize: (14 + width * 3) * unit * view.scale }}
+                style={{ left: text.x * S + zoom.x, top: text.y * S + zoom.y, color, fontSize: (14 + width * 3) * unit * S }}
                 onChange={(e) => setText({ ...text, value: e.target.value })} onBlur={finishText}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finishText(); } }} />
             )}
           </div>
         )}
       </div>
-      <div className="se-hint">Drag any drawing’s edge or corner to resize it (text too). Drawings stay editable — reopen Edit any time. Shift keeps lines straight, boxes square and proportions when resizing.</div>
+      <div className="se-hint">Drag a drawing’s middle to move it, or an edge or corner to resize it. Scroll to zoom; hold Space and drag to pan. Drawings stay editable — reopen Edit any time.</div>
     </div>,
     document.body,
   );

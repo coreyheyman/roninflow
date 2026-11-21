@@ -4,7 +4,11 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
 
 ## 1.9.8
 
-- **Resize drawings on screenshots:** hover any drawing's edge or corner — whatever tool is picked — and drag to resize it: boxes, circles, pen and highlighter strokes, a line's or arrow's ends, and text (which scales its size). Handles show on hover; Shift keeps proportions. With the move tool, boxes and circles can be dragged from inside.
+- **Screenshot editor — resize and move anything:** whatever tool is picked, hover a drawing and drag its middle to move it, or a corner or edge handle to resize it — boxes, circles, pen and highlighter strokes, a line's or arrow's ends, and text (which scales its size). Shift keeps proportions.
+- **Zoom while you draw:** scroll to zoom in where the pointer is (up to 10×), hold Space or the middle mouse button and drag to move around, 0 to fit — the zoom level shows in the toolbar.
+- **Smoother pen for handwriting:** every sample a pen tablet sends is used, lightly smoothed and drawn as curves; with a Wacom or other pressure pen the line thickens and thins with how hard you press. Drawing is also faster on big screenshots.
+
+**Updating:** nothing to reinstall.
 
 ## 1.9.7
 

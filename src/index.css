@@ -2874,3 +2874,5 @@ button.ec-row { border-radius: var(--r); }
 .se-text { position: absolute; min-width: 160px; min-height: 1.6em; background: rgba(0, 0, 0, 0.35); border: 1px dashed rgba(255, 255, 255, 0.6); border-radius: var(--r-sm); outline: none; font-weight: 600; font-family: Inter, system-ui, sans-serif; line-height: 1.2; padding: 0; resize: both; }
 .se-hint { text-align: center; font-size: 12px; color: rgba(255, 255, 255, 0.5); padding: 8px 16px 12px; }
 @media (max-width: 640px) { .se-bar { gap: 6px; padding: 8px; } .se-tool { width: 30px; height: 30px; } .se-hint { display: none; } }
+.se-zoom { min-width: 54px; height: 32px; padding: 0 8px; border-radius: var(--r); color: rgba(255, 255, 255, 0.8); font-size: 12.5px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); }
+.se-zoom:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
