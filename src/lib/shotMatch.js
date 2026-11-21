@@ -71,3 +71,6 @@ export function shotTime(name, lastModified) {
 
 /** The wall-clock day of a shotTime() value. */
 export const shotDay = (t) => (typeof t === 'string' ? t.slice(0, 10) : wallClock(new Date(t)).slice(0, 10));
+
+/** A trade screenshot is a picture URL, or { src, orig, annot } once you've drawn on it. */
+export const shotSrc = (s) => (typeof s === 'string' ? s : s?.src || '');

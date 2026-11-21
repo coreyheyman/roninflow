@@ -1,0 +1,251 @@
+// Draw on a screenshot: pen, highlighter, line, arrow, box, circle, text, move and eraser, in a few colours and
+// widths, with undo/redo. The drawing is kept as shapes next to the untouched original, so it can be reopened and
+// changed any time; saving also renders a flat picture that the journal shows everywhere else.
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { ArrowUpRight, Circle, Eraser, Hand, Highlighter, Minus, Pencil, Redo2, Square, Trash2, Type, Undo2, X } from 'lucide-react';
+
+const COLORS = ['#ff4d4f', '#ffb020', '#22c55e', '#38bdf8', '#a78bfa', '#ffffff', '#111111'];
+const WIDTHS = [{ v: 2, label: 'Thin' }, { v: 4, label: 'Medium' }, { v: 8, label: 'Thick' }];
+const TOOLS = [
+  { id: 'pen', icon: Pencil, label: 'Pen (P)', key: 'p' },
+  { id: 'hl', icon: Highlighter, label: 'Highlighter (H)', key: 'h' },
+  { id: 'line', icon: Minus, label: 'Line (L)', key: 'l' },
+  { id: 'arrow', icon: ArrowUpRight, label: 'Arrow (A)', key: 'a' },
+  { id: 'rect', icon: Square, label: 'Box (B)', key: 'b' },
+  { id: 'ellipse', icon: Circle, label: 'Circle (C)', key: 'c' },
+  { id: 'text', icon: Type, label: 'Text (T)', key: 't' },
+  { id: 'move', icon: Hand, label: 'Move a drawing (M)', key: 'm' },
+  { id: 'erase', icon: Eraser, label: 'Eraser — click a drawing to remove it (E)', key: 'e' },
+];
+
+/** Draw the shapes onto a 2D context whose units are the picture's own pixels. */
+export function drawShapes(ctx, shapes, unit = 1) {
+  for (const s of shapes) {
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = s.color; ctx.fillStyle = s.color;
+    const w = s.w * unit;
+    ctx.lineWidth = s.type === 'hl' ? w * 4 : w;
+    if (s.type === 'hl') ctx.globalAlpha = 0.35;
+    if (s.type === 'pen' || s.type === 'hl') {
+      ctx.beginPath();
+      s.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      if (s.pts.length === 1) ctx.lineTo(s.pts[0][0] + 0.1, s.pts[0][1]);
+      ctx.stroke();
+    } else if (s.type === 'line' || s.type === 'arrow') {
+      const [x1, y1, x2, y2] = s.box;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      if (s.type === 'arrow') {
+        const a = Math.atan2(y2 - y1, x2 - x1), h = Math.max(10 * unit, w * 4);
+        ctx.beginPath();
+        ctx.moveTo(x2, y2); ctx.lineTo(x2 - h * Math.cos(a - 0.45), y2 - h * Math.sin(a - 0.45));
+        ctx.lineTo(x2 - h * Math.cos(a + 0.45), y2 - h * Math.sin(a + 0.45)); ctx.closePath(); ctx.fill();
+      }
+    } else if (s.type === 'rect') {
+      const [x1, y1, x2, y2] = s.box;
+      ctx.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+    } else if (s.type === 'ellipse') {
+      const [x1, y1, x2, y2] = s.box;
+      ctx.beginPath(); ctx.ellipse((x1 + x2) / 2, (y1 + y2) / 2, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (s.type === 'text') {
+      const size = s.size * unit;
+      ctx.font = `600 ${size}px Inter, system-ui, sans-serif`; ctx.textBaseline = 'top';
+      ctx.lineWidth = Math.max(2, size / 7); ctx.strokeStyle = s.color === '#111111' ? '#ffffff' : 'rgba(0,0,0,0.75)';
+      String(s.text).split('\n').forEach((line, i) => { ctx.strokeText(line, s.x, s.y + i * size * 1.2); ctx.fillText(line, s.x, s.y + i * size * 1.2); });
+    }
+    ctx.restore();
+  }
+}
+
+const bboxOf = (s, ctx) => {
+  if (s.pts) { const xs = s.pts.map((p) => p[0]), ys = s.pts.map((p) => p[1]); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; }
+  if (s.box) { const [a, b, c, d] = s.box; return [Math.min(a, c), Math.min(b, d), Math.max(a, c), Math.max(b, d)]; }
+  ctx.font = `600 ${s.size}px Inter, system-ui, sans-serif`;
+  const lines = String(s.text).split('\n');
+  return [s.x, s.y, s.x + Math.max(...lines.map((l) => ctx.measureText(l).width)), s.y + lines.length * s.size * 1.2];
+};
+const distSeg = (px, py, x1, y1, x2, y2) => { const dx = x2 - x1, dy = y2 - y1, l = dx * dx + dy * dy; const t = l ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / l)) : 0; return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy)); };
+/** The top-most shape under a point (in picture pixels), within `tol`. */
+function hitTest(shapes, x, y, tol, ctx) {
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    const s = shapes[i];
+    const t = tol + (s.w || 2) * (s.type === 'hl' ? 2 : 0.5);
+    if (s.pts) { for (let k = 0; k < s.pts.length; k++) { const a = s.pts[k], b = s.pts[k + 1] || a; if (distSeg(x, y, a[0], a[1], b[0], b[1]) <= t) return i; } continue; }
+    if (s.type === 'line' || s.type === 'arrow') { if (distSeg(x, y, ...s.box) <= t) return i; continue; }
+    const [x1, y1, x2, y2] = bboxOf(s, ctx);
+    if (s.type === 'text') { if (x >= x1 - t && x <= x2 + t && y >= y1 - t && y <= y2 + t) return i; continue; }
+    if (s.type === 'rect') { const near = (Math.abs(x - x1) <= t || Math.abs(x - x2) <= t) && y >= y1 - t && y <= y2 + t || (Math.abs(y - y1) <= t || Math.abs(y - y2) <= t) && x >= x1 - t && x <= x2 + t; if (near) return i; continue; }
+    if (s.type === 'ellipse') { const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, rx = Math.max(1, (x2 - x1) / 2), ry = Math.max(1, (y2 - y1) / 2); const d = Math.hypot((x - cx) / rx, (y - cy) / ry); if (Math.abs(d - 1) * Math.min(rx, ry) <= t) return i; }
+  }
+  return -1;
+}
+const moved = (s, dx, dy) => (s.pts ? { ...s, pts: s.pts.map(([x, y]) => [x + dx, y + dy]) } : s.box ? { ...s, box: [s.box[0] + dx, s.box[1] + dy, s.box[2] + dx, s.box[3] + dy] } : { ...s, x: s.x + dx, y: s.y + dy });
+
+/**
+ * @param src the original picture (URL)
+ * @param annot { shapes } saved earlier, or null
+ * @param onSave async (blob of the flattened picture, annot) => void
+ */
+export default function ShotEditor({ src, annot, onSave, onClose }) {
+  const wrap = useRef(null), cvs = useRef(null), imgRef = useRef(null);
+  const [img, setImg] = useState(null);
+  const [view, setView] = useState({ scale: 1, w: 0, h: 0 });
+  const [shapes, setShapes] = useState(() => annot?.shapes || []);
+  const [redo, setRedo] = useState([]);
+  const [tool, setTool] = useState('arrow');
+  const [color, setColor] = useState(() => { try { return localStorage.getItem('rf-draw-color') || COLORS[0]; } catch { return COLORS[0]; } });
+  const [width, setWidth] = useState(4);
+  const [draft, setDraft] = useState(null);
+  const [text, setText] = useState(null); // { x, y, value } while typing
+  const [saving, setSaving] = useState(false);
+  const drag = useRef(null);
+  const history = useRef([]);
+  const dirty = useRef(false);
+  const commit = (next) => { history.current.push(shapes); setShapes(next); setRedo([]); dirty.current = true; };
+  const undo = useCallback(() => { const prev = history.current.pop(); if (!prev) return; setRedo((r) => [shapes, ...r]); setShapes(prev); dirty.current = true; }, [shapes]);
+  const redoIt = useCallback(() => { const [n, ...rest] = redo; if (!n) return; history.current.push(shapes); setShapes(n); setRedo(rest); dirty.current = true; }, [redo, shapes]);
+
+  useEffect(() => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => setImg(i); i.src = src; imgRef.current = i; }, [src]);
+  useEffect(() => { try { localStorage.setItem('rf-draw-color', color); } catch { /* private window */ } }, [color]);
+  // fit the picture into the space
+  useEffect(() => {
+    if (!img || !wrap.current) return undefined;
+    const fit = () => {
+      if (!wrap.current) return; // closed
+      const r = wrap.current.getBoundingClientRect();
+      const scale = Math.min(1, (r.width - 24) / img.naturalWidth, (r.height - 24) / img.naturalHeight);
+      setView({ scale, w: Math.round(img.naturalWidth * scale), h: Math.round(img.naturalHeight * scale) });
+    };
+    fit();
+    const ro = new ResizeObserver(fit); ro.observe(wrap.current);
+    return () => ro.disconnect();
+  }, [img]);
+  // paint
+  useEffect(() => {
+    const c = cvs.current;
+    if (!c || !img || !view.w) return;
+    const dpr = window.devicePixelRatio || 1;
+    c.width = view.w * dpr; c.height = view.h * dpr;
+    const ctx = c.getContext('2d');
+    ctx.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, 0, 0);
+    ctx.drawImage(img, 0, 0);
+    drawShapes(ctx, draft ? [...shapes, draft] : shapes);
+  }, [img, view, shapes, draft]);
+
+  const at = (e) => { const r = cvs.current.getBoundingClientRect(); return [(e.clientX - r.left) / view.scale, (e.clientY - r.top) / view.scale]; };
+  const unit = img ? Math.max(1, Math.max(img.naturalWidth, img.naturalHeight) / 1400) : 1; // widths read the same on big and small pictures
+  const finishText = () => {
+    if (text?.value?.trim()) commit([...shapes, { type: 'text', x: text.x, y: text.y, text: text.value.trim(), size: (14 + width * 3) * unit, color }]);
+    setText(null);
+  };
+  const down = (e) => {
+    if (!img || e.button > 0) return;
+    if (text) { finishText(); return; }
+    const [x, y] = at(e);
+    cvs.current.setPointerCapture?.(e.pointerId);
+    const ctx = cvs.current.getContext('2d');
+    if (tool === 'erase') { const i = hitTest(shapes, x, y, 8 / view.scale, ctx); if (i >= 0) commit(shapes.filter((_, k) => k !== i)); drag.current = { erase: true }; return; }
+    if (tool === 'move') { const i = hitTest(shapes, x, y, 8 / view.scale, ctx); if (i >= 0) drag.current = { move: i, x, y, base: shapes }; return; }
+    if (tool === 'text') { e.preventDefault(); setText({ x, y, value: '' }); return; }
+    const w = width * unit;
+    drag.current = { x, y };
+    setDraft(tool === 'pen' || tool === 'hl' ? { type: tool, pts: [[x, y]], color, w } : { type: tool, box: [x, y, x, y], color, w });
+  };
+  const move = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    const [x, y] = at(e);
+    if (d.erase) { const ctx = cvs.current.getContext('2d'); const i = hitTest(shapes, x, y, 8 / view.scale, ctx); if (i >= 0) commit(shapes.filter((_, k) => k !== i)); return; }
+    if (d.move != null) { setShapes(d.base.map((s, k) => (k === d.move ? moved(s, x - d.x, y - d.y) : s))); return; }
+    setDraft((s) => {
+      if (!s) return s;
+      if (s.pts) return { ...s, pts: [...s.pts, [x, y]] };
+      let [x2, y2] = [x, y];
+      if (e.shiftKey && (s.type === 'line' || s.type === 'arrow')) { const a = Math.round(Math.atan2(y - d.y, x - d.x) / (Math.PI / 4)) * (Math.PI / 4), l = Math.hypot(x - d.x, y - d.y); x2 = d.x + l * Math.cos(a); y2 = d.y + l * Math.sin(a); }
+      if (e.shiftKey && (s.type === 'rect' || s.type === 'ellipse')) { const m = Math.max(Math.abs(x - d.x), Math.abs(y - d.y)); x2 = d.x + Math.sign(x - d.x || 1) * m; y2 = d.y + Math.sign(y - d.y || 1) * m; }
+      return { ...s, box: [d.x, d.y, x2, y2] };
+    });
+  };
+  const up = () => {
+    const d = drag.current; drag.current = null;
+    if (d?.move != null) { history.current.push(d.base); setRedo([]); dirty.current = true; return; }
+    if (draft) {
+      const tiny = draft.box && Math.hypot(draft.box[2] - draft.box[0], draft.box[3] - draft.box[1]) < 3;
+      if (!tiny) commit([...shapes, draft]);
+      setDraft(null);
+    }
+  };
+  const close = useCallback(() => { if (dirty.current && !window.confirm('Close without saving your drawing?')) return; onClose(); }, [onClose]);
+  const save = async () => {
+    if (!img) return;
+    setSaving(true);
+    try {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      drawShapes(ctx, shapes);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      await onSave(blob, { shapes, w: img.naturalWidth, h: img.naturalHeight, v: 1 });
+      dirty.current = false;
+      onClose();
+    } catch (e) { window.alert(`Couldn’t save: ${e.message}`); }
+    setSaving(false);
+  };
+  useEffect(() => {
+    const key = (e) => {
+      if (text) { if (e.key === 'Escape') { e.stopPropagation(); setText(null); } return; }
+      if (e.target.closest?.('input, textarea')) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); close(); return; }
+      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.stopPropagation(); if (e.shiftKey) redoIt(); else undo(); return; }
+      if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); e.stopPropagation(); redoIt(); return; }
+      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); e.stopPropagation(); save(); return; }
+      if (!mod && !e.altKey) { const t = TOOLS.find((x) => x.key === e.key.toLowerCase()); if (t) { e.stopPropagation(); setTool(t.id); } }
+    };
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
+  }); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return createPortal(
+    <div className="se-overlay">
+      <div className="se-bar">
+        <div className="se-group">
+          {TOOLS.map((t) => <button key={t.id} type="button" className={`se-tool ${tool === t.id ? 'on' : ''}`} title={t.label} onClick={() => setTool(t.id)}><t.icon size={17} /></button>)}
+        </div>
+        <div className="se-group">
+          {COLORS.map((c) => <button key={c} type="button" className={`se-color ${color === c ? 'on' : ''}`} style={{ '--c': c }} title={c} onClick={() => setColor(c)} />)}
+        </div>
+        <div className="se-group">
+          {WIDTHS.map((w) => <button key={w.v} type="button" className={`se-tool ${width === w.v ? 'on' : ''}`} title={w.label} onClick={() => setWidth(w.v)}><i className="se-dot" style={{ width: 3 + w.v * 1.4, height: 3 + w.v * 1.4 }} /></button>)}
+        </div>
+        <div className="se-group">
+          <button type="button" className="se-tool" title="Undo (Ctrl+Z)" disabled={!history.current.length} onClick={undo}><Undo2 size={17} /></button>
+          <button type="button" className="se-tool" title="Redo (Ctrl+Shift+Z)" disabled={!redo.length} onClick={redoIt}><Redo2 size={17} /></button>
+          <button type="button" className="se-tool" title="Remove all drawings" disabled={!shapes.length} onClick={() => commit([])}><Trash2 size={17} /></button>
+        </div>
+        <div className="grow" />
+        <button type="button" className="btn sm" onClick={close}><X size={14} /> Cancel</button>
+        <button type="button" className="btn sm white" disabled={saving || !img} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
+      </div>
+      <div ref={wrap} className="se-stage">
+        {!img && <div className="muted">Loading…</div>}
+        {img && (
+          <div className="se-canvas-wrap" style={{ width: view.w, height: view.h }}>
+            <canvas ref={cvs} style={{ width: view.w, height: view.h, cursor: tool === 'move' ? 'move' : tool === 'erase' ? 'cell' : tool === 'text' ? 'text' : 'crosshair' }}
+              onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
+            {text && (
+              <textarea autoFocus className="se-text" value={text.value} placeholder="Type, then click away"
+                style={{ left: text.x * view.scale, top: text.y * view.scale, color, fontSize: (14 + width * 3) * unit * view.scale }}
+                onChange={(e) => setText({ ...text, value: e.target.value })} onBlur={finishText}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finishText(); } }} />
+            )}
+          </div>
+        )}
+      </div>
+      <div className="se-hint">Drawings stay editable: reopen Edit on this screenshot any time. Shift keeps lines straight and boxes square.</div>
+    </div>,
+    document.body,
+  );
+}

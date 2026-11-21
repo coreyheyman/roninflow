@@ -7,6 +7,8 @@ import { Modal, ModalHead, Drawer, Money, Stars, Seg, useToast, Confirm, fileToD
 import { computePnl, fmtDate, fmtTime12, fmtHold, holdSeconds, POINT_VALUE, pad, fmtMoney } from '../lib/stats';
 import { BlockerPicker, LabelListEditor } from './Playbook';
 import { Lightbox } from './Gallery';
+import { shotSrc } from '../lib/shotMatch';
+import { IS_VIEWER } from '../lib/shareMode';
 import ExecChart from './ExecChart';
 import { askCoachAboutImage } from '../lib/askCoach';
 import { buildReviewContext } from '../lib/coach';
@@ -353,15 +355,21 @@ export function TradeDrawer({ trade, onClose, siblings = null, onNavigate }) {
             </label>
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={addShots} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
-              {(t.screenshots || []).map((src, i) => (
+              {(t.screenshots || []).map((shot, i) => { const src = shotSrc(shot); return (
                 <div key={i} style={{ position: 'relative' }}>
                   <button type="button" className="shot-open" title="Open (zoom with the wheel or a pinch)" onClick={() => setShotOpen(i)}><img src={src} alt="" style={{ width: '100%', display: 'block', borderRadius: 'var(--r)', border: '1px solid var(--border)' }} /></button>
                   <button className="close-x" style={{ position: 'absolute', top: 6, right: 6 }} onClick={() => up({ screenshots: t.screenshots.filter((_, j) => j !== i) })}><X size={12} /></button>
                   <button className="btn xs shot-ask" data-edit onClick={() => askAboutShot(src)} title="Ask coach about this chart"><MessageCircle size={12} /> Ask coach</button>
                 </div>
-              ))}
+              ); })}
               {!t.screenshots?.length && <div className="muted2" style={{ fontSize: 13 }}>No screenshots yet</div>}
-              {shotOpen >= 0 && <Lightbox images={(t.screenshots || []).map((src, k) => ({ src, name: `${t.symbol}-${k + 1}.png`, caption: `${t.symbol} ${t.direction} · ${fmtDate(t.entry)}` }))} index={shotOpen} onIndex={setShotOpen} onClose={() => setShotOpen(-1)} onAsk={(src) => askAboutShot(src)} />}
+              {shotOpen >= 0 && <Lightbox images={(t.screenshots || []).map((shot, k) => ({ src: shotSrc(shot), orig: shot?.orig, annot: shot?.annot, name: `${t.symbol}-${k + 1}.png`, caption: `${t.symbol} ${t.direction} · ${fmtDate(t.entry)}` }))} index={shotOpen} onIndex={setShotOpen} onClose={() => setShotOpen(-1)} onAsk={(src) => askAboutShot(src)}
+                onEdit={IS_VIEWER ? undefined : async (k, blob, annot) => {
+                  const cur = (t.screenshots || [])[k];
+                  const url = await fileToDataUrl(new File([blob], 'shot.png', { type: 'image/png' }));
+                  const orig = cur?.orig || shotSrc(cur);
+                  up({ screenshots: (t.screenshots || []).map((x, j) => (j === k ? (annot.shapes.length ? { src: url, orig, annot } : orig) : x)) });
+                }} />}
             </div>
           </div>
         </div>

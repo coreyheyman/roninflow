@@ -2,6 +2,12 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.9.7
+
+- **Draw on your screenshots:** open any trade or diary screenshot and click **Draw** — pen, highlighter, line, arrow, box, circle and text, seven colours and three widths, plus move, eraser and undo/redo (Ctrl+Z / Ctrl+Shift+Z, Ctrl+S to save, letter keys for tools; Shift keeps lines straight and boxes square). The drawing is saved onto the screenshot everywhere it shows, and stays editable: reopen it with **Edit drawing** to move, change or remove anything — the original picture is kept underneath.
+
+**Updating:** nothing to reinstall.
+
 ## 1.9.6
 
 - **Tables:** the header row stays fully solid while you scroll — no more rows peeking through gaps between the header cells (Trading Journal, the daily view's trades and every other table).

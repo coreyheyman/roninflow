@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ImagePlus, X, ChevronLeft, ChevronRight, Trash, Download, Maximize, MessageCircle, ZoomIn, ZoomOut, FolderSync } from 'lucide-react';
+import ShotEditor from './ShotEditor';
+import { ImagePlus, X, ChevronLeft, ChevronRight, Trash, Download, Maximize, MessageCircle, ZoomIn, ZoomOut, FolderSync, PenLine } from 'lucide-react';
 import { saveImage, imageUrl, deleteImage } from '../lib/imageStore';
 import { IS_VIEWER } from '../lib/shareMode';
 import { IS_DEMO } from '../lib/demoMode';
@@ -121,8 +122,9 @@ function ZoomImage({ src, onBackdrop }) {
 }
 
 /** Full-screen viewer. images: [{ id } (saved screenshots) or { src } (a data URL / link), name, caption]. */
-export function Lightbox({ images, index, onClose, onIndex, onAsk }) {
+export function Lightbox({ images, index, onClose, onIndex, onAsk, onEdit }) {
   const [url, setUrl] = useState(null);
+  const [editing, setEditing] = useState(null); // the original picture's URL while the editor is open
   const img = images[index];
   useEffect(() => {
     let live = true;
@@ -132,19 +134,21 @@ export function Lightbox({ images, index, onClose, onIndex, onAsk }) {
   }, [img]);
   useEffect(() => {
     const k = (e) => {
+      if (editing) return; // the editor has the keyboard
       if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
       if (e.key === 'ArrowRight') onIndex((index + 1) % images.length);
       if (e.key === 'ArrowLeft') onIndex((index - 1 + images.length) % images.length);
     };
     window.addEventListener('keydown', k, true);
     return () => window.removeEventListener('keydown', k, true);
-  }, [index, images.length, onClose, onIndex]);
+  }, [index, images.length, onClose, onIndex, editing]);
   if (!img) return null;
   return createPortal(
     <div className="lightbox" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="row gap12 lb-top">
         <span>{index + 1} / {images.length}</span>
         <span className="grow truncate" style={{ opacity: 0.8 }}>{img.caption || img.name}</span>
+        {onEdit && url && <button className="btn xs lb-ask" title="Draw on this screenshot — your drawings stay editable" onClick={async () => { const o = img.orig ? (/^(data:|blob:|https?:|\/)/.test(img.orig) ? img.orig : await imageUrl(img.orig)) : url; setEditing(o || url); }}><PenLine size={13} /> {img.annot?.shapes?.length ? 'Edit drawing' : 'Draw'}</button>}
         {onAsk && url && <button className="btn xs lb-ask" onClick={() => { onClose(); onAsk(url, img.caption); }}><MessageCircle size={13} /> Ask coach about this chart</button>}
         {url && <a className="icon-btn" style={{ color: '#fff' }} href={url} download={img.name || 'screenshot.png'} title="Download"><Download size={17} /></a>}
         <button className="icon-btn" style={{ color: '#fff' }} onClick={onClose} title="Close"><X size={20} /></button>
@@ -152,6 +156,7 @@ export function Lightbox({ images, index, onClose, onIndex, onAsk }) {
       {images.length > 1 && <button className="lb-nav" style={{ left: 16 }} onClick={() => onIndex((index - 1 + images.length) % images.length)}><ChevronLeft size={26} /></button>}
       {url && <ZoomImage src={url} onBackdrop={onClose} />}
       {images.length > 1 && <button className="lb-nav" style={{ right: 16 }} onClick={() => onIndex((index + 1) % images.length)}><ChevronRight size={26} /></button>}
+      {editing && <ShotEditor src={editing} annot={img.annot} onClose={() => setEditing(null)} onSave={(blob, annot) => onEdit(index, blob, annot)} />}
     </div>,
     document.body,
   );
@@ -205,6 +210,20 @@ export default function Gallery({ images = [], onChange, onAsk, autoCaption }) {
     setBusy(false);
   }, [images, onChange, toast, autoCaption]);
 
+  // a drawing saved in the editor: the flat picture replaces the shown one; the original and the shapes are kept so
+  // it can be edited again
+  const editShot = useCallback(async (i, blob, annot) => {
+    const cur = latest.current[i];
+    if (!cur) return;
+    const saved = await saveImage(new File([blob], cur.name || 'screenshot.png', { type: 'image/png' }));
+    const orig = cur.orig || cur.id;
+    const next = latest.current.map((x, k) => (k === i ? { ...x, id: saved.id, size: saved.size, orig, annot: annot.shapes.length ? annot : null } : x));
+    latest.current = next;
+    onChange(next);
+    if (cur.id !== orig) deleteImage(cur.id).catch(() => {}); // the previous flat copy
+    toast('Drawing saved');
+  }, [onChange, toast]);
+
   useEffect(() => {
     const el = zone.current;
     if (!el) return undefined;
@@ -234,7 +253,7 @@ export default function Gallery({ images = [], onChange, onAsk, autoCaption }) {
             onAsk={onAsk}
             reading={reading.has(img.id)}
             onCaption={(caption) => onChange(images.map((x) => (x.id === img.id ? { ...x, caption } : x)))}
-            onDelete={async () => { await deleteImage(img.id); onChange(images.filter((x) => x.id !== img.id)); }}
+            onDelete={async () => { await deleteImage(img.id); if (img.orig && img.orig !== img.id) deleteImage(img.orig).catch(() => {}); onChange(images.filter((x) => x.id !== img.id)); }}
           />
         ))}
         <button className="gal-add" onClick={() => ref.current?.click()} disabled={busy}>
@@ -245,7 +264,7 @@ export default function Gallery({ images = [], onChange, onAsk, autoCaption }) {
       </div>
       <input ref={ref} type="file" accept="image/*" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
       {!IS_VIEWER && !IS_DEMO && <button type="button" className="gal-auto" onClick={() => window.dispatchEvent(new CustomEvent('tj:open-settings', { detail: 'shots' }))}><FolderSync size={12} /> Import screenshots automatically from a folder</button>}
-      {open >= 0 && <Lightbox images={images} index={open} onIndex={setOpen} onClose={() => setOpen(-1)} onAsk={onAsk} />}
+      {open >= 0 && <Lightbox images={images} index={open} onIndex={setOpen} onClose={() => setOpen(-1)} onAsk={onAsk} onEdit={IS_VIEWER ? undefined : editShot} />}
     </div>
   );
 }
