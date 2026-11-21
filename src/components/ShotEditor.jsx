@@ -82,6 +82,49 @@ function hitTest(shapes, x, y, tol, ctx) {
 }
 const moved = (s, dx, dy) => (s.pts ? { ...s, pts: s.pts.map(([x, y]) => [x + dx, y + dy]) } : s.box ? { ...s, box: [s.box[0] + dx, s.box[1] + dy, s.box[2] + dx, s.box[3] + dy] } : { ...s, x: s.x + dx, y: s.y + dy });
 
+/** Which edge or corner of a drawing is under the point: { i, h } with h in n/s/e/w/ne/nw/se/sw (or p1/p2: a line's ends). */
+function edgeHit(shapes, x, y, tol, ctx) {
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    const s = shapes[i];
+    if (s.type === 'line' || s.type === 'arrow') {
+      const [x1, y1, x2, y2] = s.box;
+      if (Math.hypot(x - x2, y - y2) <= tol * 1.4) return { i, h: 'p2' };
+      if (Math.hypot(x - x1, y - y1) <= tol * 1.4) return { i, h: 'p1' };
+      continue;
+    }
+    const [x1, y1, x2, y2] = bboxOf(s, ctx);
+    if (x < x1 - tol || x > x2 + tol || y < y1 - tol || y > y2 + tol) continue;
+    const L = Math.abs(x - x1) <= tol, R = Math.abs(x - x2) <= tol, T = Math.abs(y - y1) <= tol, B = Math.abs(y - y2) <= tol;
+    const h = `${T ? 'n' : B ? 's' : ''}${L ? 'w' : R ? 'e' : ''}`;
+    if (h) return { i, h };
+  }
+  return null;
+}
+const CURSOR = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize', p1: 'grab', p2: 'grab' };
+/** The shape `base` stretched by dragging handle `h` to (x, y). */
+function resized(base, h, x, y, ctx, keep) {
+  if (h === 'p1' || h === 'p2') { const b = [...base.box]; if (h === 'p1') { b[0] = x; b[1] = y; } else { b[2] = x; b[3] = y; } return { ...base, box: b }; }
+  const [ox1, oy1, ox2, oy2] = bboxOf(base, ctx);
+  let [nx1, ny1, nx2, ny2] = [ox1, oy1, ox2, oy2];
+  if (h.includes('n')) ny1 = Math.min(y, oy2 - 4);
+  if (h.includes('s')) ny2 = Math.max(y, oy1 + 4);
+  if (h.includes('w')) nx1 = Math.min(x, ox2 - 4);
+  if (h.includes('e')) nx2 = Math.max(x, ox1 + 4);
+  const ow = Math.max(1, ox2 - ox1), oh = Math.max(1, oy2 - oy1);
+  let sx = (nx2 - nx1) / ow, sy = (ny2 - ny1) / oh;
+  const corner = h.length === 2;
+  if (base.type === 'text' || (keep && corner)) { // text (and Shift on a corner) keeps its proportions
+    const k = h === 'n' || h === 's' ? sy : h === 'e' || h === 'w' ? sx : Math.max(sx, sy);
+    sx = sy = Math.max(0.05, k);
+    if (h.includes('w')) nx1 = ox2 - ow * sx; else nx2 = ox1 + ow * sx;
+    if (h.includes('n')) ny1 = oy2 - oh * sy; else ny2 = oy1 + oh * sy;
+  }
+  const mx = (px) => nx1 + (px - ox1) * sx, my = (py) => ny1 + (py - oy1) * sy;
+  if (base.type === 'text') return { ...base, size: Math.max(6, base.size * sx), x: nx1, y: ny1 };
+  if (base.pts) return { ...base, pts: base.pts.map(([px, py]) => [mx(px), my(py)]) };
+  return { ...base, box: [nx1, ny1, nx2, ny2] };
+}
+
 /**
  * @param src the original picture (URL)
  * @param annot { shapes } saved earlier, or null
@@ -97,6 +140,7 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
   const [color, setColor] = useState(() => { try { return localStorage.getItem('rf-draw-color') || COLORS[0]; } catch { return COLORS[0]; } });
   const [width, setWidth] = useState(4);
   const [draft, setDraft] = useState(null);
+  const [hover, setHover] = useState(null); // { i, h } — an edge or corner under the mouse
   const [text, setText] = useState(null); // { x, y, value } while typing
   const [saving, setSaving] = useState(false);
   const drag = useRef(null);
@@ -131,7 +175,27 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
     ctx.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, 0, 0);
     ctx.drawImage(img, 0, 0);
     drawShapes(ctx, draft ? [...shapes, draft] : shapes);
-  }, [img, view, shapes, draft]);
+    // the drawing being resized (or about to be): its outline and handles
+    const hi = drag.current?.resize != null ? drag.current.resize : hover?.i;
+    const hs = hi != null ? shapes[hi] : null;
+    if (hs) {
+      const px = 1 / view.scale;
+      ctx.save();
+      ctx.lineWidth = px; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.setLineDash([4 * px, 3 * px]);
+      if (hs.type === 'line' || hs.type === 'arrow') {
+        const [x1, y1, x2, y2] = hs.box;
+        ctx.setLineDash([]); ctx.fillStyle = '#fff';
+        for (const [a, b] of [[x1, y1], [x2, y2]]) { ctx.beginPath(); ctx.arc(a, b, 4.5 * px, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+      } else {
+        const [x1, y1, x2, y2] = bboxOf(hs, ctx);
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        ctx.setLineDash([]); ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        const r = 3.5 * px;
+        for (const [a, b] of [[x1, y1], [(x1 + x2) / 2, y1], [x2, y1], [x2, (y1 + y2) / 2], [x2, y2], [(x1 + x2) / 2, y2], [x1, y2], [x1, (y1 + y2) / 2]]) { ctx.fillRect(a - r, b - r, r * 2, r * 2); ctx.strokeRect(a - r, b - r, r * 2, r * 2); }
+      }
+      ctx.restore();
+    }
+  }, [img, view, shapes, draft, hover]);
 
   const at = (e) => { const r = cvs.current.getBoundingClientRect(); return [(e.clientX - r.left) / view.scale, (e.clientY - r.top) / view.scale]; };
   const unit = img ? Math.max(1, Math.max(img.naturalWidth, img.naturalHeight) / 1400) : 1; // widths read the same on big and small pictures
@@ -145,8 +209,18 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
     const [x, y] = at(e);
     cvs.current.setPointerCapture?.(e.pointerId);
     const ctx = cvs.current.getContext('2d');
+    // an edge or corner of any drawing: resize it, whatever tool is picked
+    const eh = tool === 'erase' ? null : edgeHit(shapes, x, y, 7 / view.scale, ctx);
+    if (eh) { drag.current = { resize: eh.i, h: eh.h, base: shapes }; return; }
     if (tool === 'erase') { const i = hitTest(shapes, x, y, 8 / view.scale, ctx); if (i >= 0) commit(shapes.filter((_, k) => k !== i)); drag.current = { erase: true }; return; }
-    if (tool === 'move') { const i = hitTest(shapes, x, y, 8 / view.scale, ctx); if (i >= 0) drag.current = { move: i, x, y, base: shapes }; return; }
+    if (tool === 'move') {
+      let i = hitTest(shapes, x, y, 8 / view.scale, ctx);
+      if (i < 0) { // inside a box or circle counts too
+        for (let k = shapes.length - 1; k >= 0 && i < 0; k--) { const sh = shapes[k]; if (sh.type === 'rect' || sh.type === 'ellipse') { const [x1, y1, x2, y2] = bboxOf(sh, ctx); if (x >= x1 && x <= x2 && y >= y1 && y <= y2) i = k; } }
+      }
+      if (i >= 0) drag.current = { move: i, x, y, base: shapes };
+      return;
+    }
     if (tool === 'text') { e.preventDefault(); setText({ x, y, value: '' }); return; }
     const w = width * unit;
     drag.current = { x, y };
@@ -154,8 +228,15 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
   };
   const move = (e) => {
     const d = drag.current;
-    if (!d) return;
+    if (!d) { // just hovering: show a resize cursor over an edge or corner
+      if (!img || text) return;
+      const [hx, hy] = at(e);
+      const eh = tool === 'erase' ? null : edgeHit(shapes, hx, hy, 7 / view.scale, cvs.current.getContext('2d'));
+      setHover((o) => (o?.i === eh?.i && o?.h === eh?.h ? o : eh));
+      return;
+    }
     const [x, y] = at(e);
+    if (d.resize != null) { const ctx = cvs.current.getContext('2d'); setShapes(d.base.map((s, k) => (k === d.resize ? resized(d.base[k], d.h, x, y, ctx, e.shiftKey) : s))); return; }
     if (d.erase) { const ctx = cvs.current.getContext('2d'); const i = hitTest(shapes, x, y, 8 / view.scale, ctx); if (i >= 0) commit(shapes.filter((_, k) => k !== i)); return; }
     if (d.move != null) { setShapes(d.base.map((s, k) => (k === d.move ? moved(s, x - d.x, y - d.y) : s))); return; }
     setDraft((s) => {
@@ -169,6 +250,7 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
   };
   const up = () => {
     const d = drag.current; drag.current = null;
+    if (d?.resize != null) { history.current.push(d.base); setRedo([]); dirty.current = true; return; }
     if (d?.move != null) { history.current.push(d.base); setRedo([]); dirty.current = true; return; }
     if (draft) {
       const tiny = draft.box && Math.hypot(draft.box[2] - draft.box[0], draft.box[3] - draft.box[1]) < 3;
@@ -233,7 +315,8 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
         {!img && <div className="muted">Loading…</div>}
         {img && (
           <div className="se-canvas-wrap" style={{ width: view.w, height: view.h }}>
-            <canvas ref={cvs} style={{ width: view.w, height: view.h, cursor: tool === 'move' ? 'move' : tool === 'erase' ? 'cell' : tool === 'text' ? 'text' : 'crosshair' }}
+            <canvas ref={cvs} style={{ width: view.w, height: view.h, cursor: hover ? CURSOR[hover.h] : tool === 'move' ? 'move' : tool === 'erase' ? 'cell' : tool === 'text' ? 'text' : 'crosshair' }}
+              onPointerLeave={() => { if (!drag.current) setHover(null); }}
               onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
             {text && (
               <textarea autoFocus className="se-text" value={text.value} placeholder="Type, then click away"
@@ -244,7 +327,7 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
           </div>
         )}
       </div>
-      <div className="se-hint">Drawings stay editable: reopen Edit on this screenshot any time. Shift keeps lines straight and boxes square.</div>
+      <div className="se-hint">Drag any drawing’s edge or corner to resize it (text too). Drawings stay editable — reopen Edit any time. Shift keeps lines straight, boxes square and proportions when resizing.</div>
     </div>,
     document.body,
   );
