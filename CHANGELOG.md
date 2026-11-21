@@ -2,6 +2,12 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.9.5
+
+- **Cleaner scrollbars:** slim, rounded handles with no track or arrow buttons throughout the app; the sidebar's only appears while you're over the menu.
+
+**Updating:** nothing to reinstall.
+
 ## 1.9.4
 
 - **A more polished look:** slightly rounded corners everywhere — cards, buttons, inputs, menus, pop-ups and badges (no more sharp edges) — and green, red and yellow cards are outlined in their own colour.
