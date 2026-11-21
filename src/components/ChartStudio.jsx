@@ -19,6 +19,8 @@ import { ivSec, TIMEFRAMES, SPAN_DAYS, tfLabel, barTime, aggregate, sessionStart
 import { volumeProfile, sessionsIn } from '../lib/volprofile';
 import { sma, ema, vwap, bollinger, rsi, macd } from '../lib/indicators';
 import { loadLib, chartColors, buildExecutions, TICKS, rootOf, decimals, alpha, ChartColors } from './ExecChart';
+import Range from './Range';
+import { store, GROUP_DIST, GROUP_KEY, GROUP_DEFAULT, strokeSmooth, joinsGroup } from '../lib/ink';
 import { marketOrder, flatten, stepOrders, toTrade, posQty, posAvg, openPnl, nextWeekday, localIso as localIsoOf } from '../lib/backtest';
 
 const TOOLS = [
@@ -178,6 +180,64 @@ function textHandles(d, v) {
   return { anchor: { x: ax, y: ay }, size: at(b.x1, b.y1), rot: at(b.w / 2, b.y0 - 18), top: at(b.w / 2, b.y0), corners: [at(b.x0, b.y0), at(b.x1, b.y0), at(b.x1, b.y1), at(b.x0, b.y1)] };
 }
 
+// freehand: one drawing's points in a single list, `brk` marking where each further stroke starts (handwriting
+// written as a group), each point with the pen's pressure `pr` when a tablet or stylus drew it
+const strokesOf = (d, v) => {
+  const out = [];
+  const brk = d.brk || [];
+  let from = 0;
+  for (const to of [...brk, d.p.length]) {
+    out.push(d.p.slice(from, to).map((q) => [v.toX(q.t), v.toY(q.p), q.pr ?? 0.5]));
+    from = to;
+  }
+  return out;
+};
+/** The box around a brush drawing or a rectangle, in pixels: [x1, y1, x2, y2]. */
+function pxBox(d, v) {
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  for (const q of d.p) { const x = v.toX(q.t), y = v.toY(q.p); if (x == null || y == null) continue; x1 = Math.min(x1, x); x2 = Math.max(x2, x); y1 = Math.min(y1, y); y2 = Math.max(y2, y); }
+  if (!Number.isFinite(x1)) return null;
+  if (d.type === 'brush') { const pad = (d.width || 2) / 2 + 3; return [x1 - pad, y1 - pad, x2 + pad, y2 + pad]; }
+  return [x1, y1, x2, y2];
+}
+const BOXED = new Set(['brush', 'rect']);
+function boxHandles(d, v) {
+  const b = pxBox(d, v);
+  if (!b) return [];
+  const [x1, y1, x2, y2] = b, mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  return [['nw', x1, y1], ['n', mx, y1], ['ne', x2, y1], ['e', x2, my], ['se', x2, y2], ['s', mx, y2], ['sw', x1, y2], ['w', x1, my]].map(([h, x, y]) => ({ i: `b:${h}`, x, y, box: true }));
+}
+const BOX_CURSOR = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' };
+const partCursor = (part) => (part === null ? '' : part === 'body' ? 'move' : part === 'rot' ? 'alias' : part === 'size' ? 'nwse-resize' : typeof part === 'string' && part.startsWith('b:') ? BOX_CURSOR[part.slice(2)] : 'grab');
+/** `o` stretched by dragging its box handle `part` ('b:ne'…) to (x, y); Shift on a corner keeps its proportions. */
+function resizeBox(o, part, x, y, v, keep) {
+  const h = part.slice(2);
+  const b = pxBox(o, v);
+  if (!b) return o;
+  const pad = o.type === 'brush' ? (o.width || 2) / 2 + 3 : 0;
+  const [ox1, oy1, ox2, oy2] = [b[0] + pad, b[1] + pad, b[2] - pad, b[3] - pad];
+  let [nx1, ny1, nx2, ny2] = [ox1, oy1, ox2, oy2];
+  if (h.includes('n')) ny1 = Math.min(y + pad, oy2 - 4);
+  if (h.includes('s')) ny2 = Math.max(y - pad, oy1 + 4);
+  if (h.includes('w')) nx1 = Math.min(x + pad, ox2 - 4);
+  if (h.includes('e')) nx2 = Math.max(x - pad, ox1 + 4);
+  const ow = Math.max(1, ox2 - ox1), oh = Math.max(1, oy2 - oy1);
+  let sx = (nx2 - nx1) / ow, sy = (ny2 - ny1) / oh;
+  if (keep && h.length === 2) {
+    sx = sy = Math.max(0.05, Math.max(sx, sy));
+    if (h.includes('w')) nx1 = ox2 - ow * sx; else nx2 = ox1 + ow * sx;
+    if (h.includes('n')) ny1 = oy2 - oh * sy; else ny2 = oy1 + oh * sy;
+  }
+  const p = o.p.map((q) => ({ ...q, t: v.fromX(nx1 + (v.toX(q.t) - ox1) * sx), p: v.fromY(ny1 + (v.toY(q.p) - oy1) * sy) }));
+  if (o.type !== 'brush') return { ...o, p };
+  const k = h.length === 2 ? Math.sqrt(sx * sy) : h === 'e' || h === 'w' ? Math.sqrt(sx) : Math.sqrt(sy);
+  return { ...o, p, width: Math.round(Math.max(0.5, Math.min(60, (o.width || 2) * k)) * 10) / 10 };
+}
+/** Lines that run across the whole chart: grabbed with the cursor only, so drawing over them still draws. */
+const SPANS = new Set(['hline', 'vline', 'hray', 'ray']);
+/** The latest time a drawing reaches (local seconds). */
+const lastTime = (d) => d.p.reduce((m, q) => Math.max(m, q.t), -Infinity);
+
 /** Pixel positions of a drawing's handles. */
 function handles(d, v) {
   const P = d.p.map((q) => ({ x: v.toX(q.t), y: v.toY(q.p) }));
@@ -186,15 +246,32 @@ function handles(d, v) {
     case 'vline': return [{ i: 0, x: P[0].x, y: v.h / 2 }];
     case 'hray': return [{ i: 0, ...P[0] }];
     case 'text': { const t = textHandles(d, v); return [{ i: 'size', ...t.size }, { i: 'rot', ...t.rot }]; }
-    case 'brush': return [];
+    case 'brush': return boxHandles(d, v);
+    case 'rect': return boxHandles(d, v);
     case 'long': case 'short': return [{ i: 0, ...P[0] }, { i: 1, x: P[1].x, y: P[1].y }, { i: 2, x: P[1].x, y: P[2].y }];
     default: return P.map((q, i) => ({ i, ...q }));
   }
 }
 
 /** What part of the drawing is under (x, y): a handle index, 'body' or null. */
-function hitDrawing(d, v, x, y) {
-  for (const hd of handles(d, v)) if (dist(x, y, hd.x, hd.y) < 8) return hd.i;
+function hitDrawing(d, v, x, y, strict = false) {
+  for (const hd of handles(d, v)) if (hd.box ? Math.abs(x - hd.x) <= 7 && Math.abs(y - hd.y) <= 7 : dist(x, y, hd.x, hd.y) < 8) return hd.i;
+  if (d.type === 'rect') { // its edges stretch it, like the corners
+    const b = pxBox(d, v);
+    if (b) {
+      const t = 5, inX = x >= b[0] - t && x <= b[2] + t, inY = y >= b[1] - t && y <= b[3] + t;
+      const h = `${inX && Math.abs(y - b[1]) <= t ? 'n' : inX && Math.abs(y - b[3]) <= t ? 's' : ''}${inY && Math.abs(x - b[0]) <= t ? 'w' : inY && Math.abs(x - b[2]) <= t ? 'e' : ''}`;
+      if (h) return `b:${h}`;
+    }
+  }
+  if (strict) { // another tool is picked: grab lines, text and strokes themselves, but boxes only by the grip in their middle
+    if (SPANS.has(d.type)) return null;
+    if (['rect', 'measure', 'fib', 'vprofile', 'long', 'short'].includes(d.type)) {
+      const P = d.p.map((q) => ({ x: v.toX(q.t), y: v.toY(q.p) }));
+      const cx = (Math.min(...P.map((q) => q.x)) + Math.max(...P.map((q) => q.x))) / 2, cy = (Math.min(...P.map((q) => q.y)) + Math.max(...P.map((q) => q.y))) / 2;
+      return dist(x, y, cx, cy) <= 11 ? 'body' : null;
+    }
+  }
   const P = d.p.map((q) => ({ x: v.toX(q.t), y: v.toY(q.p) }));
   const near = 6;
   const inBox = (a, b) => x >= Math.min(a.x, b.x) - 2 && x <= Math.max(a.x, b.x) + 2 && y >= Math.min(a.y, b.y) - 2 && y <= Math.max(a.y, b.y) + 2;
@@ -207,7 +284,7 @@ function hitDrawing(d, v, x, y) {
     case 'rect': case 'measure': case 'fib': return inBox(P[0], P[1]) ? 'body' : null;
     case 'vprofile': { const b = vpBox.get(d); return b && x >= b.x0 - 2 && x <= b.x1 + 2 && y >= b.y0 - 2 && y <= b.y1 + 2 ? 'body' : null; }
     case 'long': case 'short': return x >= Math.min(P[0].x, P[1].x) && x <= Math.max(P[0].x, P[1].x) && y >= Math.min(P[1].y, P[2].y) && y <= Math.max(P[1].y, P[2].y) ? 'body' : null;
-    case 'brush': for (let i = 1; i < P.length; i++) if (segDist(x, y, P[i - 1].x, P[i - 1].y, P[i].x, P[i].y) < near) return 'body'; return null;
+    case 'brush': { const brk = new Set(d.brk || []); const tol = near + (d.width || 2) / 2; for (let i = 1; i < P.length; i++) if (!brk.has(i) && segDist(x, y, P[i - 1].x, P[i - 1].y, P[i].x, P[i].y) < tol) return 'body'; return null; }
     case 'text': { const b = textBox(d); const [lx, ly] = rot(x - P[0].x, y - P[0].y, -(d.angle || 0)); return lx >= b.x0 && lx <= b.x1 && ly >= b.y0 && ly <= b.y1 ? 'body' : null; }
     default: return null;
   }
@@ -304,9 +381,9 @@ function paint(ctx, d, v, selected, fmtP, tick, iv, data) {
     }
     case 'brush': {
       ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      ctx.beginPath();
-      P.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
-      ctx.stroke();
+      ctx.lineWidth = d.width || 2;
+      for (const st of strokesOf(d, v)) strokeSmooth(ctx, st, d.pr ? d.width || 2 : 0);
+      if (selected) { const b = pxBox(d, v); if (b) { ctx.setLineDash([3, 3]); ctx.lineWidth = 1; ctx.strokeStyle = alpha(col, 0.6); ctx.strokeRect(b[0], b[1], b[2] - b[0], b[3] - b[1]); ctx.setLineDash([]); } }
       break;
     }
     case 'text': {
@@ -334,8 +411,10 @@ function paint(ctx, d, v, selected, fmtP, tick, iv, data) {
   }
   if (selected) {
     for (const hd of handles(d, v)) {
+      ctx.fillStyle = '#0a0a0a'; ctx.lineWidth = 1.5; ctx.strokeStyle = col;
+      if (hd.box) { ctx.fillRect(hd.x - 4, hd.y - 4, 8, 8); ctx.strokeRect(hd.x - 4, hd.y - 4, 8, 8); continue; }
       ctx.beginPath(); ctx.arc(hd.x, hd.y, 4.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#0a0a0a'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = col; ctx.stroke();
+      ctx.fill(); ctx.stroke();
     }
   }
 }
@@ -516,7 +595,7 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
 
   const [tool, setToolState] = useState('cursor');
   const toolRef = useRef(tool);
-  const setTool = (t) => { toolRef.current = t; setToolState(t); draft.current = null; };
+  const setTool = (t) => { toolRef.current = t; setToolState(t); draft.current = null; pendingInk.current = null; setGrpOpen(false); };
   const [sel, setSelState] = useState(null);
   const selRef = useRef(sel);
   const setSel = (id) => { selRef.current = id; setSelState(id); };
@@ -528,6 +607,29 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
   const drag = useRef(null); // { id, part, x0, y0, orig }
   const magnetRef = useRef(magnet);
   magnetRef.current = magnet;
+  // the brush: its colour and size (remembered), and handwriting grouping (shared with the screenshot editor)
+  const [brushCfg, setBrushCfgS] = useState(() => store.get('rf-chart-brush', { color: DEFAULT_COLOR.brush, width: 2 }));
+  const brushRef = useRef(brushCfg);
+  brushRef.current = brushCfg;
+  const setBrushCfg = (patch) => setBrushCfgS((o) => { const n = { ...o, ...patch }; store.set('rf-chart-brush', n); return n; });
+  const [grp, setGrpS] = useState(() => store.get(GROUP_KEY, GROUP_DEFAULT));
+  const grpRef = useRef(grp);
+  grpRef.current = grp;
+  const setGrp = (g) => { setGrpS(g); store.set(GROUP_KEY, g); };
+  const [grpOpen, setGrpOpen] = useState(false);
+  const pendingInk = useRef(null); // { id, at }: the handwriting group still taking strokes
+  // while replaying (or backtesting), drawings that reach past the last bar shown are hidden; local seconds
+  const shownUntil = useRef(Infinity);
+  const isShown = (d) => { const U = shownUntil.current; return U === Infinity || lastTime(d) <= U || (d.born != null && d.born <= U); };
+  /** Made or moved during a replay: stays visible from this point of the replay on, even where it reaches past it. */
+  const stamp = (d) => { const U = shownUntil.current; return U === Infinity || lastTime(d) <= U ? d : { ...d, born: d.born != null ? Math.min(d.born, U) : U }; };
+  // live changes from a slider: one undo step per drag, not one per pixel
+  const sliding = useRef(false);
+  const liveSet = (patch) => {
+    if (!sliding.current) { history.current = [...history.current.slice(-49), drawingsRef.current]; sliding.current = true; }
+    const next = drawingsRef.current.map((d) => (d.id === selRef.current ? { ...d, ...patch } : d));
+    drawingsRef.current = next; setDrawings(next);
+  };
 
   // ---------------------------------------------------------------- replay
   const [replay, setReplay] = useState({ mode: 'off', idx: 0, playing: false, speed: 5, tickSpeed: 2, sub: 0, subAt: -1 });
@@ -940,6 +1042,9 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
       // volume profile: what's on the chart up to the replay position (never later bars)
       const R = rowsRef.current, rp = replayRef.current;
       const until = R.length ? ((rp.mode === 'on' || (bt && rp.mode === 'pick')) && R[rp.idx] ? R[rp.idx][0] : R[R.length - 1][0]) : 0;
+      shownUntil.current = R.length && (rp.mode === 'on' || (bt && rp.mode === 'pick')) && R[rp.idx] ? toLocal(R[rp.idx][0]) : Infinity;
+      const pend = pendingInk.current;
+      if (pend && Date.now() - pend.at > grpRef.current.secs * 1000) pendingInk.current = null;
       const vdata = { rows: R, until, tick: tick || 0.01, c: api.current.c || chartColors(), key: `${R.length}|${R[0]?.[0]}|${R[R.length - 1]?.[0]}` };
       const indNow = indRef.current;
       if (R.length && indNow.vpsess?.on) {
@@ -965,7 +1070,16 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
         const p = profileFor(vdata, from, to);
         if (p) drawProfile(ctx, p, v, v.w, v.w * 0.22, 'right', vdata.c, fmtP, 0, true, 0.38);
       }
-      if (!hiddenRef.current) for (const d of drawingsRef.current) paint(ctx, d, v, d.id === selRef.current, fmtP, tick, api.current.iv, vdata);
+      if (!hiddenRef.current) {
+        for (const d of drawingsRef.current) {
+          if (!isShown(d)) continue;
+          paint(ctx, d, v, d.id === selRef.current, fmtP, tick, api.current.iv, vdata);
+          if (d.id === pendingInk.current?.id) { // handwriting still open for more strokes
+            const b = pxBox(d, v);
+            if (b) { ctx.setLineDash([4, 4]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(167,139,250,0.55)'; ctx.strokeRect(b[0] - 2, b[1] - 2, b[2] - b[0] + 4, b[3] - b[1] + 4); ctx.setLineDash([]); }
+          }
+        }
+      }
       if (draft.current) paint(ctx, draft.current, v, true, fmtP, tick, api.current.iv, vdata);
       if (replayRef.current.mode === 'pick' && hoverX.current != null) {
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -991,11 +1105,44 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
       const d = draft.current;
       draft.current = null;
       if (!d) return;
-      if (d.type === 'brush' && d.p.length < 2) return;
-      if (d.type === 'text') { const v = view(); setEditing({ id: d.id, x: v.toX(d.p[0].t), y: v.toY(d.p[0].p), text: '', fresh: d }); return; }
-      commit([...drawingsRef.current, d]);
+      if (d.type === 'text') { const v = view(); setEditing({ id: d.id, x: v.toX(d.p[0].t), y: v.toY(d.p[0].p), text: '', fresh: stamp(d) }); return; }
+      commit([...drawingsRef.current, stamp(d)]);
       setSel(d.id);
       setTool('cursor');
+    };
+    const R2 = (n) => Math.round(n * 100) / 100;
+    const pq = (v, x, y, pr) => ({ t: Math.round(v.fromX(x) * 10) / 10, p: Number(v.fromY(y).toPrecision(9)), ...(pr != null ? { pr: R2(pr) } : {}) });
+    /** A finished brush stroke: joins the handwriting still being written when it's close by, or starts its own. */
+    const finishStroke = (d) => {
+      const v = view();
+      if (!v || !d.p.length) return;
+      if (d.p.length === 1) d.p.push({ ...d.p[0], t: d.p[0].t + 0.01 }); // a dot
+      const g = grpRef.current, pend = pendingInk.current;
+      const list = drawingsRef.current;
+      const gi = g.on && pend ? list.findIndex((x) => x.id === pend.id) : -1;
+      const grpD = gi >= 0 ? list[gi] : null;
+      if (grpD && grpD.color === d.color && grpD.width === d.width) {
+        const a = pxBox(grpD, v), b = pxBox(d, v);
+        if (a && b && joinsGroup(a, b, g.dist, 1, d.width)) {
+          const merged = stamp({ ...grpD, p: [...grpD.p, ...d.p], brk: [...(grpD.brk || []), grpD.p.length], ...(d.pr || grpD.pr ? { pr: 1 } : {}) });
+          commit(list.map((x, k) => (k === gi ? merged : x)));
+          pendingInk.current = { id: grpD.id, at: Date.now() };
+          return;
+        }
+      }
+      commit([...list, stamp(d)]);
+      pendingInk.current = g.on ? { id: d.id, at: Date.now() } : null;
+    };
+    /** Under (x, y): the top drawing and its part. Another tool than the cursor only grabs handles, edges, lines and grips. */
+    const hitAt = (v, x, y, strict) => {
+      const list = drawingsRef.current, skip = pendingInk.current?.id;
+      for (let i = list.length - 1; i >= 0; i--) {
+        const d = list[i];
+        if (d.id === skip || !isShown(d)) continue;
+        const part = hitDrawing(d, v, x, y, strict);
+        if (part !== null) return { d, part };
+      }
+      return null;
     };
     const down = (e) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -1007,11 +1154,27 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
       const r = replayRef.current;
       if (r.mode === 'pick') { pickStart = { x, y }; return; } // a click picks the bar; a drag scrolls the chart (to earlier days)
       const t = toolRef.current;
+      if (t !== 'cursor' && !draft.current?.placing && !hiddenRef.current) {
+        // an edge, corner or handle of any drawing resizes it, its middle moves it — whatever tool is picked
+        const h = hitAt(v, x, y, true);
+        if (h) {
+          handling = true; block(e);
+          drag.current = { id: h.d.id, part: h.part, x0: x, y0: y, orig: h.d, before: drawingsRef.current, moved: false };
+          return;
+        }
+      }
+      if (t === 'brush') {
+        handling = true; block(e);
+        const b = brushRef.current, pen = e.pointerType === 'pen';
+        draft.current = { id: uid(), type: 'brush', color: b.color, width: b.width, ...(pen ? { pr: 1 } : {}), p: [pq(v, x, y, pen ? e.pressure || 0.5 : null)] };
+        drag.current = { create: true, x0: x, y0: y, last: [x, y, pen ? e.pressure || 0.5 : 0.5], pen };
+        return;
+      }
       if (t !== 'cursor') {
         handling = true; block(e);
         const q = pt(v, x, y, e);
         if (draft.current?.placing) { draft.current.p[1] = q; if (draft.current.type === 'long' || draft.current.type === 'short') draft.current.p[2] = { t: q.t, p: draft.current.p[0].p + (draft.current.p[0].p - q.p) * 2 }; finishDraft(); return; }
-        const d = { id: uid(), type: t, color: DEFAULT_COLOR[t], width: t === 'brush' ? 2 : 1.5, ...(t === 'text' ? { size: 16, angle: 0 } : {}), p: ONE_POINT.has(t) ? [q] : t === 'brush' ? [q] : [q, { ...q }] };
+        const d = { id: uid(), type: t, color: DEFAULT_COLOR[t], width: 1.5, ...(t === 'text' ? { size: 16, angle: 0 } : {}), p: ONE_POINT.has(t) ? [q] : [q, { ...q }] };
         if (t === 'long' || t === 'short') {
           const step = (tick || Math.abs(q.p) * 0.0005) * 20;
           const stop = t === 'long' ? q.p - step : q.p + step;
@@ -1023,16 +1186,14 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
         return;
       }
       if (!hiddenRef.current) {
-        const list = drawingsRef.current;
-        for (let i = list.length - 1; i >= 0; i--) {
-          const part = hitDrawing(list[i], v, x, y);
-          if (part !== null) {
-            handling = true; block(e);
-            setSel(list[i].id);
-            drag.current = { id: list[i].id, part, x0: x, y0: y, orig: list[i], before: list, moved: false };
-            if (e.detail === 2 && list[i].type === 'text') setEditing({ id: list[i].id, x: v.toX(list[i].p[0].t), y: v.toY(list[i].p[0].p), text: list[i].text || '' });
-            return;
-          }
+        const h = hitAt(v, x, y, false);
+        if (h) {
+          const d = h.d;
+          handling = true; block(e);
+          setSel(d.id);
+          drag.current = { id: d.id, part: h.part, x0: x, y0: y, orig: d, before: drawingsRef.current, moved: false };
+          if (e.detail === 2 && d.type === 'text') setEditing({ id: d.id, x: v.toX(d.p[0].t), y: v.toY(d.p[0].p), text: d.text || '' });
+          return;
         }
       }
       if (selRef.current) setSel(null);
@@ -1058,7 +1219,22 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
       const d = draft.current;
       if (d && (drag.current?.create || d.placing)) {
         const q = pt(v, x, y, e);
-        if (d.type === 'brush') { if (drag.current) d.p.push(q); return; }
+        if (d.type === 'brush') {
+          const g = drag.current;
+          if (!g?.last) return;
+          // every sample the pen or mouse sent since the last event (tablets send many per frame), lightly smoothed
+          const evs = e.getCoalescedEvents?.() || [];
+          const r = box.current.getBoundingClientRect();
+          for (const ev of evs.length ? evs : [e]) {
+            const rx = ev.clientX - r.left, ry = ev.clientY - r.top, last = g.last;
+            const nx = last[0] + (rx - last[0]) * 0.55, ny = last[1] + (ry - last[1]) * 0.55;
+            if (Math.hypot(nx - last[0], ny - last[1]) < 0.8) continue;
+            const pr = g.pen ? last[2] * 0.4 + (ev.pressure || last[2] || 0.5) * 0.6 : null;
+            g.last = [nx, ny, pr ?? 0.5];
+            d.p.push(pq(v, nx, ny, pr));
+          }
+          return;
+        }
         if (d.type === 'long' || d.type === 'short') {
           d.p[1] = { t: Math.max(q.t, d.p[0].t + api.current.iv * 3), p: q.p };
           d.p[2] = { t: d.p[1].t, p: d.p[0].p + (d.p[0].p - q.p) * 2 };
@@ -1073,7 +1249,11 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
         let p = o.p.map((q) => ({ ...q }));
         if (g.part === 'body') {
           const dt = v.fromX(x) - v.fromX(g.x0), dp = v.fromY(y) - v.fromY(g.y0);
-          p = p.map((q) => ({ t: q.t + dt, p: q.p + dp }));
+          p = p.map((q) => ({ ...q, t: q.t + dt, p: q.p + dp }));
+        } else if (typeof g.part === 'string' && g.part.startsWith('b:')) {
+          const r = resizeBox(o, g.part, x, y, v, e.shiftKey);
+          drawingsRef.current = drawingsRef.current.map((x2) => (x2.id === o.id ? r : x2));
+          return;
         } else if (o.type === 'text') {
           const t = textHandles(o, v);
           if (g.part === 'size') {
@@ -1100,24 +1280,37 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
         return;
       }
       // hover: show what's clickable
-      if (toolRef.current !== 'cursor') { el.style.cursor = 'crosshair'; return; }
-      let over = null;
-      if (!hiddenRef.current && x >= 0 && y >= 0 && x <= v.w && y <= v.h) for (const dd of drawingsRef.current) { const part = hitDrawing(dd, v, x, y); if (part !== null) { over = part; break; } }
-      el.style.cursor = over === null ? '' : over === 'body' ? 'move' : over === 'rot' ? 'alias' : over === 'size' ? 'nwse-resize' : 'grab';
+      const strict = toolRef.current !== 'cursor';
+      const over = !hiddenRef.current && !draft.current && x >= 0 && y >= 0 && x <= v.w && y <= v.h ? hitAt(v, x, y, strict) : null;
+      el.style.cursor = over ? partCursor(over.part) : strict ? 'crosshair' : '';
     };
-    const up = () => {
+    const up = (e) => {
       if (pickStart) { const x0 = pickStart.x; pickStart = null; pickAt(x0); return; }
       const g = drag.current;
-      if (g?.create) {
+      if (g?.create && draft.current?.type === 'brush') {
+        drag.current = null;
+        const d = draft.current;
+        draft.current = null;
+        const v = view();
+        if (v && e?.clientX != null && g.last) { // smoothing trails the pointer a little: end exactly where it lifted
+          const { x, y } = local(e);
+          if (Math.hypot(x - g.last[0], y - g.last[1]) > 0.5) d.p.push(pq(v, x, y, g.pen ? g.last[2] : null));
+        }
+        finishStroke(d);
+      } else if (g?.create) {
         drag.current = null;
         const d = draft.current;
         if (!d) return;
         const v = view();
-        const moved = d.type === 'brush' || (v && d.p[1] && dist(v.toX(d.p[0].t), v.toY(d.p[0].p), v.toX(d.p[1].t), v.toY(d.p[1].p)) > 5);
+        const moved = (v && d.p[1] && dist(v.toX(d.p[0].t), v.toY(d.p[0].p), v.toX(d.p[1].t), v.toY(d.p[1].p)) > 5);
         if (moved) finishDraft(); else d.placing = true; // click, move, click
       } else if (g?.id) {
         drag.current = null;
-        if (g.moved) { history.current = [...history.current.slice(-49), g.before]; setDrawings(drawingsRef.current); }
+        if (g.moved) {
+          history.current = [...history.current.slice(-49), g.before];
+          drawingsRef.current = drawingsRef.current.map((x2) => (x2.id === g.id ? stamp(x2) : x2));
+          setDrawings(drawingsRef.current);
+        }
       }
       setTimeout(() => { handling = false; }, 0);
     };
@@ -1659,16 +1852,21 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
               <span className="studio-sep" />
               {selected.type === 'text' ? (
                 <>
-                  {[12, 16, 22, 32, 48].map((z) => <button key={z} className={`studio-w studio-fs ${(selected.size || 14) === z ? 'on' : ''}`} title={`Text ${z}px`} onClick={() => setSelected({ size: z })}>{z}</button>)}
-                  <button className="studio-w studio-fs" title="Bigger" onClick={() => setSelected({ size: Math.min(120, Math.round((selected.size || 14) * 1.15)) })}>A+</button>
-                  <button className="studio-w studio-fs" title="Smaller" onClick={() => setSelected({ size: Math.max(8, Math.round((selected.size || 14) / 1.15)) })}>A−</button>
+                  <label className="studio-size" title="Text size (or drag its corner handle)">
+                    A<Range min={8} max={120} step={1} value={selected.size || 14} onChange={(z) => liveSet({ size: z })} onPointerUp={() => { sliding.current = false; }} onKeyUp={() => { sliding.current = false; }} /><span>{selected.size || 14}</span>
+                  </label>
                   <span className="studio-sep" />
                   <button className="studio-w studio-fs" title="Rotate 15° left" onClick={() => setSelected({ angle: (selected.angle || 0) - Math.PI / 12 })}>↺</button>
                   <button className="studio-w studio-fs" title="Rotate 15° right" onClick={() => setSelected({ angle: (selected.angle || 0) + Math.PI / 12 })}>↻</button>
                   {Math.abs(selected.angle || 0) > 0.001 && <button className="studio-w studio-fs" title="Straighten" onClick={() => setSelected({ angle: 0 })}>0°</button>}
                   <button className="icon-btn" title="Edit text (or double-click it)" onClick={() => { const v = view(); setEditing({ id: selected.id, x: v.toX(selected.p[0].t), y: v.toY(selected.p[0].p), text: selected.text || '' }); }}><Type size={14} /></button>
                 </>
-              ) : [1, 1.5, 2.5].map((w) => <button key={w} className={`studio-w ${(selected.width || 1.5) === w ? 'on' : ''}`} title={`Line ${w}px`} onClick={() => setSelected({ width: w })}><i style={{ height: w + 0.5 }} /></button>)}
+              ) : (
+                <label className="studio-size" title="Thickness">
+                  <i className="se-dot" style={{ width: Math.min(16, 3 + (selected.width || 1.5) * 0.6), height: Math.min(16, 3 + (selected.width || 1.5) * 0.6), color: selected.color || DEFAULT_COLOR[selected.type] }} />
+                  <Range min={0.5} max={selected.type === 'brush' ? 40 : 12} step={0.5} value={selected.width || 1.5} onChange={(w) => liveSet({ width: w })} onPointerUp={() => { sliding.current = false; }} onKeyUp={() => { sliding.current = false; }} /><span>{selected.width || 1.5}</span>
+                </label>
+              )}
               <span className="studio-sep" />
               <button className="icon-btn" title="Delete (Del)" onClick={() => { commit(drawings.filter((d) => d.id !== sel)); setSel(null); }}><Trash2 size={14} /></button>
             </div>
@@ -1684,7 +1882,31 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
           {bt && flash && <div className={`studio-hint studio-flash ${flash.good ? 'good' : 'bad'}`}>{flash.text}</div>}
           {bt && atEnd && !flash && <div className="studio-hint">End of this day’s prices <button className="btn xs" onClick={nextDay}>Next day <ChevronRight size={12} /></button></div>}
           {replay.mode === 'pick' && <div className="studio-hint">{bt ? `Click the bar to restart from — scroll left for earlier days${pos ? '. Your open position closes first' : ''}` : 'Click on the chart where the replay should start'} <button className="btn xs" onClick={() => setReplay((s) => ({ ...s, mode: bt ? 'on' : 'off' }))}>Cancel</button></div>}
-          {tool !== 'cursor' && !replay.mode.startsWith('p') && <div className="studio-hint subtle">{TOOL_BY_ID[tool].label}: {ONE_POINT.has(tool) ? 'click to place' : tool === 'brush' ? 'drag to draw' : 'drag, or click two points'} · Esc to cancel</div>}
+          {tool === 'brush' && !replay.mode.startsWith('p') && (
+            <div className="studio-edit studio-brush" onPointerDown={(e) => e.stopPropagation()}>
+              {SWATCHES.map((c) => <button key={c} className={`studio-sw ${brushCfg.color === c ? 'on' : ''}`} style={{ background: c }} title="Brush colour" onClick={() => setBrushCfg({ color: c })} />)}
+              <span className="studio-sep" />
+              <label className="studio-size" title="Brush size">
+                <i className="se-dot" style={{ width: Math.min(16, 3 + brushCfg.width * 0.5), height: Math.min(16, 3 + brushCfg.width * 0.5), color: brushCfg.color }} />
+                <Range min={0.5} max={40} step={0.5} value={brushCfg.width} onChange={(w) => setBrushCfg({ width: w })} /><span>{brushCfg.width}</span>
+              </label>
+              <span className="studio-sep" />
+              <div className="studio-grp">
+                <button className={`studio-w studio-fs ${grp.on ? 'on-soft' : ''}`} title="Handwriting: strokes written close together become one drawing" onClick={() => setGrpOpen((o) => !o)}>Group {grp.on ? 'on' : 'off'}</button>
+                {grpOpen && (
+                  <div className="studio-pop">
+                    <label className="row gap8"><input type="checkbox" className="cbx" checked={grp.on} onChange={(e) => setGrp({ ...grp, on: e.target.checked })} /> Group handwriting</label>
+                    <div className="se-pop-t">While you write, each stroke stays part of the same note — and can’t be grabbed or resized — until you stop for a moment. Then the whole note becomes one drawing you can move or resize.</div>
+                    <div className="se-pop-row"><span>Stop for</span><Range min={1} max={15} step={1} value={grp.secs} disabled={!grp.on} onChange={(v) => setGrp({ ...grp, secs: v })} /><b>{grp.secs}s</b></div>
+                    <div className="se-pop-row"><span>Strokes within</span><div className="seg sm">{GROUP_DIST.map((d) => <button key={d.v} type="button" disabled={!grp.on} className={grp.dist === d.v ? 'on' : ''} onClick={() => setGrp({ ...grp, dist: d.v })}>{d.label}</button>)}</div></div>
+                  </div>
+                )}
+              </div>
+              <span className="studio-sep" />
+              <button className="studio-w studio-fs" title="Stop drawing (Esc)" onClick={() => setTool('cursor')}>Done</button>
+            </div>
+          )}
+          {tool !== 'cursor' && tool !== 'brush' && !replay.mode.startsWith('p') && <div className="studio-hint subtle">{TOOL_BY_ID[tool].label}: {ONE_POINT.has(tool) ? 'click to place' : tool === 'brush' ? 'drag to draw' : 'drag, or click two points'} · Esc to cancel</div>}
           {rec.status === 'loading' && <div className="ec-msg muted">Loading {sym} candles…</div>}
           {rec.status === 'error' && (
             <div className="ec-msg">

@@ -6,6 +6,9 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
 
 - **Size slider:** one slider (1–40) in the screenshot editor sets line thickness and text size, instead of three fixed sizes.
 - **Handwriting groups:** with the pen, strokes written close together — each within 5 seconds of the last — join into one note, and while you're writing the earlier strokes can't be grabbed or resized by accident. Pause and the whole note becomes a single drawing you can move, resize or erase. A faint outline shows the note that's still open. "Group" in the toolbar turns it off or sets the pause (1–15 s) and how close strokes need to be (close, normal, far).
+- **Chart drawing, like the screenshot editor:** the chart's brush now draws smooth, pressure-aware strokes (great with a pen tablet), stays picked so you can keep writing, and groups handwriting into one note the same way. A brush bar shows its colours, a size slider (0.5–40) and the Group settings. Whatever tool is picked, drag a drawing's handles to resize it — brush notes and rectangles now have corner and edge handles, and a rectangle's edges stretch it — or its middle to move it (lines that run across the whole chart move with the cursor only, so you can draw over them). The thickness and text-size buttons are now sliders.
+- **Drawings follow the replay:** while replaying, a drawing stays hidden until the bars it covers have played, so notes and levels from later in the day don't give the move away. Anything you draw during a replay stays visible from that point on.
+- **Sleeker sliders:** every slider in the journal has a slim track that fills up to the value and a round thumb.
 
 ## 1.9.8
 

@@ -3,11 +3,11 @@
 // changed any time; saving also renders a flat picture that the journal shows everywhere else.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Range from './Range';
+import { store, GROUP_DIST, GROUP_KEY, GROUP_DEFAULT, strokeSmooth, joinsGroup } from '../lib/ink';
 import { ArrowUpRight, Circle, Eraser, Hand, Highlighter, Minus, Pencil, Redo2, Square, Trash2, Type, Undo2, X } from 'lucide-react';
 
 const COLORS = ['#ff4d4f', '#ffb020', '#22c55e', '#38bdf8', '#a78bfa', '#ffffff', '#111111'];
-const store = { get: (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private window */ } } };
-const GROUP_DIST = [{ v: 1, label: 'Close' }, { v: 2, label: 'Normal' }, { v: 4, label: 'Far' }];
 const ptsOf = (s) => (s.type === 'ink' ? s.strokes.flatMap((k) => k.pts) : s.pts);
 const TOOLS = [
   { id: 'pen', icon: Pencil, label: 'Pen (P)', key: 'p' },
@@ -20,36 +20,6 @@ const TOOLS = [
   { id: 'move', icon: Hand, label: 'Move a drawing (M)', key: 'm' },
   { id: 'erase', icon: Eraser, label: 'Eraser — click a drawing to remove it (E)', key: 'e' },
 ];
-
-const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-/**
- * A freehand stroke as smooth curves through the midpoints of its samples. With `pressW` (a pen or tablet's
- * pressure was recorded) each piece takes its own width from the pressure, so handwriting thickens and thins.
- */
-function strokeSmooth(ctx, pts, pressW) {
-  if (!pts.length) return;
-  if (pts.length < 3) {
-    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-    const l = pts[pts.length - 1]; ctx.lineTo(l[0] + (pts.length === 1 ? 0.1 : 0), l[1]);
-    if (pressW) ctx.lineWidth = pressW * (0.25 + 1.5 * (pts[0][2] ?? 0.5));
-    ctx.stroke(); return;
-  }
-  if (!pressW) {
-    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length - 1; i++) { const m = mid(pts[i], pts[i + 1]); ctx.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]); }
-    const l = pts[pts.length - 1]; ctx.lineTo(l[0], l[1]);
-    ctx.stroke(); return;
-  }
-  let from = pts[0];
-  for (let i = 1; i < pts.length - 1; i++) {
-    const to = mid(pts[i], pts[i + 1]);
-    ctx.lineWidth = Math.max(0.6, pressW * (0.25 + 1.5 * (pts[i][2] ?? 0.5)));
-    ctx.beginPath(); ctx.moveTo(from[0], from[1]); ctx.quadraticCurveTo(pts[i][0], pts[i][1], to[0], to[1]); ctx.stroke();
-    from = to;
-  }
-  const l = pts[pts.length - 1];
-  ctx.beginPath(); ctx.moveTo(from[0], from[1]); ctx.lineTo(l[0], l[1]); ctx.stroke();
-}
 
 /** Draw the shapes onto a 2D context whose units are the picture's own pixels. */
 export function drawShapes(ctx, shapes, unit = 1) {
@@ -195,8 +165,8 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
   const [width, setWidthS] = useState(() => store.get('rf-draw-size', 4)); // 1–40, in picture-relative units
   const setWidth = (v) => { setWidthS(v); store.set('rf-draw-size', v); };
   // smart grouping: pen strokes written close together, each within a few seconds of the last, become one drawing
-  const [grp, setGrpS] = useState(() => store.get('rf-draw-group', { on: true, secs: 5, dist: 2 }));
-  const setGrp = (g) => { setGrpS(g); store.set('rf-draw-group', g); };
+  const [grp, setGrpS] = useState(() => store.get(GROUP_KEY, GROUP_DEFAULT));
+  const setGrp = (g) => { setGrpS(g); store.set(GROUP_KEY, g); };
   const [grpOpen, setGrpOpen] = useState(false);
   const [pending, setPending] = useState(null); // { id, at } — the handwriting group still open for more strokes
   useEffect(() => {
@@ -416,10 +386,7 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
         const gi = pending ? shapes.findIndex((x) => x.id === pending.id) : -1;
         let joined = false;
         if (gi >= 0) {
-          const [a1, b1, a2, b2] = bboxOf(shapes[gi], ctx), [c1, d1, c2, d2] = bboxOf(done, ctx);
-          const reach = grp.dist * Math.max(40 * unit, done.w * 8, (b2 - b1) * 0.6);
-          const gx = Math.max(0, c1 - a2, a1 - c2), gy = Math.max(0, d1 - b2, b1 - d2);
-          if (gx <= reach && gy <= reach) { commit(shapes.map((x, k) => (k === gi ? { ...x, strokes: [...x.strokes, stroke] } : x))); joined = true; setPending({ id: pending.id, at: Date.now() }); }
+          if (joinsGroup(bboxOf(shapes[gi], ctx), bboxOf(done, ctx), grp.dist, unit, done.w)) { commit(shapes.map((x, k) => (k === gi ? { ...x, strokes: [...x.strokes, stroke] } : x))); joined = true; setPending({ id: pending.id, at: Date.now() }); }
         }
         if (!joined) { const id = `ink${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`; commit([...shapes, { type: 'ink', id, strokes: [stroke] }]); setPending({ id, at: Date.now() }); }
       } else commit([...shapes, done]);
@@ -476,7 +443,7 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
         <div className="se-group">
           <label className="se-size" title="Size — line thickness, and how big text is">
             <i className="se-dot" style={{ width: Math.min(22, 2 + width * 0.9), height: Math.min(22, 2 + width * 0.9), color }} />
-            <input type="range" min="1" max="40" step="0.5" value={width} onChange={(e) => setWidth(Number(e.target.value))} />
+            <Range min={1} max={40} step={0.5} value={width} onChange={setWidth} />
             <span>{width}</span>
           </label>
         </div>
@@ -486,7 +453,7 @@ export default function ShotEditor({ src, annot, onSave, onClose }) {
             <div className="se-pop" onPointerDown={(e) => e.stopPropagation()}>
               <label className="row gap8"><input type="checkbox" className="cbx" checked={grp.on} onChange={(e) => setGrp({ ...grp, on: e.target.checked })} /> Group handwriting</label>
               <div className="se-pop-t">While you write, each pen stroke stays part of the same note — and can’t be grabbed or resized — until you stop for a moment. Then the whole note becomes one drawing you can move or resize.</div>
-              <div className="se-pop-row"><span>Stop for</span><input type="range" min="1" max="15" step="1" value={grp.secs} disabled={!grp.on} onChange={(e) => setGrp({ ...grp, secs: Number(e.target.value) })} /><b>{grp.secs}s</b></div>
+              <div className="se-pop-row"><span>Stop for</span><Range min={1} max={15} step={1} value={grp.secs} disabled={!grp.on} onChange={(v) => setGrp({ ...grp, secs: v })} /><b>{grp.secs}s</b></div>
               <div className="se-pop-row"><span>Strokes within</span><div className="seg sm">{GROUP_DIST.map((d) => <button key={d.v} type="button" disabled={!grp.on} className={grp.dist === d.v ? 'on' : ''} onClick={() => setGrp({ ...grp, dist: d.v })}>{d.label}</button>)}</div></div>
             </div>
           )}

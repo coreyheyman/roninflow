@@ -10,6 +10,7 @@ import { PnlChart } from '../components/Charts';
 import { fmtMoney, uid, keyOf, pfText, summarize } from '../lib/stats';
 import { pointValueOf, rootOf, localIso } from '../lib/backtest';
 import { TICKS } from '../components/ExecChart';
+import Range from '../components/Range';
 import { engine, loadSeries, stopEngine } from '../lib/autoWorker';
 
 // a micro and its full-size contract trade at the same price, so either chart's history works
@@ -372,7 +373,7 @@ function DataPanel({ s, patch, hist, from, to, splitDay }) {
         </div>
         <div className="field">
           <label className="label">In-sample (for building and tuning): {s.split}% · out-of-sample (locked): {100 - s.split}%</label>
-          <input type="range" min={50} max={90} step={5} value={s.split} disabled={!!s.oos} onChange={(e) => patch({ split: Number(e.target.value) })} />
+          <Range min={50} max={90} step={5} value={s.split} disabled={!!s.oos} onChange={(v) => patch({ split: v })} style={{ width: '100%' }} />
           {splitDay && <span className="muted" style={{ fontSize: 12 }}>Tuning uses {from} – {splitDay}. {s.oos ? 'The split is fixed now that you’ve unlocked.' : `${splitDay} – ${to} stays locked until you’re done.`}</span>}
         </div>
       </div>

@@ -2879,7 +2879,7 @@ button.ec-row { border-radius: var(--r); }
 
 .se-size { display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 32px; color: rgba(255, 255, 255, 0.75); font-size: 12px; }
 .se-size .se-dot { flex: none; }
-.se-size input[type=range] { width: 120px; accent-color: var(--primary); }
+.se-size .rf-range { width: 128px; --track: rgba(255, 255, 255, 0.16); }
 .se-size span { min-width: 26px; text-align: right; font-variant-numeric: tabular-nums; }
 .se-tool.se-wide { width: auto; padding: 0 10px; font-size: 12.5px; white-space: nowrap; }
 .se-tool.on-soft { color: #fff; background: color-mix(in srgb, var(--primary) 35%, transparent); }
@@ -2887,5 +2887,41 @@ button.ec-row { border-radius: var(--r); }
 .se-pop-t { font-size: 12px; color: rgba(255, 255, 255, 0.6); line-height: 1.5; }
 .se-pop-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
 .se-pop-row > span { width: 92px; color: rgba(255, 255, 255, 0.7); }
-.se-pop-row input[type=range] { flex: 1; accent-color: var(--primary); }
+.se-pop-row .rf-range { flex: 1; --track: rgba(255, 255, 255, 0.16); }
 .se-pop-row b { width: 28px; text-align: right; font-weight: 600; }
+
+/* ---------- slim sliders (Range) ---------- */
+.rf-range {
+  -webkit-appearance: none; appearance: none; margin: 0; padding: 0; height: 18px; min-width: 60px; background: transparent; cursor: pointer;
+  --track: color-mix(in srgb, var(--fg) 15%, transparent); --fill: var(--primary);
+}
+.rf-range:focus { outline: none; }
+.rf-range::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: linear-gradient(to right, var(--fill) 0 var(--pct, 50%), var(--track) var(--pct, 50%) 100%); }
+.rf-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-top: -5px; border: 0; border-radius: 50%; background: #fff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fill) 45%, transparent), 0 1px 4px rgba(0, 0, 0, 0.45); transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.rf-range:hover::-webkit-slider-thumb { transform: scale(1.08); }
+.rf-range:active::-webkit-slider-thumb, .rf-range:focus-visible::-webkit-slider-thumb { transform: scale(1.18); box-shadow: 0 0 0 5px color-mix(in srgb, var(--fill) 35%, transparent), 0 1px 4px rgba(0, 0, 0, 0.45); }
+.rf-range::-moz-range-track { height: 4px; border-radius: 999px; background: var(--track); }
+.rf-range::-moz-range-progress { height: 4px; border-radius: 999px; background: var(--fill); }
+.rf-range::-moz-range-thumb {
+  width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fill) 45%, transparent), 0 1px 4px rgba(0, 0, 0, 0.45); transition: transform 0.12s ease;
+}
+.rf-range:active::-moz-range-thumb { transform: scale(1.18); }
+.rf-range:disabled { cursor: default; opacity: 0.4; }
+.rf-range:disabled::-webkit-slider-thumb { transform: none; }
+
+/* chart: size slider in the drawing bar, and the brush bar */
+.studio-size { display: flex; align-items: center; gap: 7px; padding: 0 4px; font-size: 11.5px; color: var(--muted); }
+.studio-size .rf-range { width: 110px; }
+.studio-size span { min-width: 22px; text-align: right; font-variant-numeric: tabular-nums; color: var(--fg); }
+.studio-size .se-dot { flex: none; }
+.studio-brush { top: auto; bottom: 38px; }
+.studio-grp { position: relative; }
+.studio-grp .studio-fs.on-soft { color: var(--fg); border-color: var(--border); }
+.studio-pop { position: absolute; bottom: calc(100% + 10px); right: 0; z-index: 6; width: 290px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--panel); border: 1px solid var(--border-2, var(--border)); border-radius: var(--r-lg); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); font-size: 13px; white-space: normal; }
+.studio-pop .se-pop-t { color: var(--muted); }
+.studio-pop .se-pop-row > span { color: var(--muted); }
+.studio-pop .se-pop-row .rf-range { --track: color-mix(in srgb, var(--fg) 15%, transparent); }
