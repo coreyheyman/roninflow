@@ -2,6 +2,20 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.9.4
+
+- **A more polished look:** slightly rounded corners everywhere — cards, buttons, inputs, menus, pop-ups and badges (no more sharp edges) — and green, red and yellow cards are outlined in their own colour.
+- **Calendars:** a hairline gap between gently rounded day tiles (and the same gap at the card's edge), no lines around the day names, and the weekly review's tiles in the same colours as the month calendars.
+- **Calendars on a phone:** weekdays only when the weekend's empty, square filled tiles with the day's P&L and trade count, and the week's total in a column on the right.
+- **Weekends in calendars (Settings → General):** Auto, Show or Hide — Hide shows Monday to Friday in every calendar (weekend trades still count in the week totals); Show adds Saturday and Sunday everywhere, the weekly review included.
+- **Weekly review:** runs Sunday to Saturday, like the calendars' rows (a Sunday-evening session counts toward the week it opens); no outer frame around the day tiles.
+- **Yearly review:** the heat map has a week column, shaded by each week's total — hover for the numbers, click to open that week.
+- **Quarterly review:** the month cards fit properly with weekends hidden.
+- Wrapped: round, see-through arrows and a rounded Wrapped button.
+- Fix: screenshots in the viewer no longer get cut off at the bottom.
+
+**Updating:** nothing to reinstall.
+
 ## 1.9.3
 
 - **Screenshots — “Days only”:** a switch on screenshot uploads (Settings → Screenshots → Upload screenshots, and the trade import) and on the folder watcher puts every picture on its day's diary instead of on the trade open at the time — for daily recap screenshots.

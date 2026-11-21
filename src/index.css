@@ -2837,3 +2837,9 @@ button.ec-row { border-radius: var(--r); }
 .rv-wday.total { background: var(--card); }
 .rv-wday.total.win { background: linear-gradient(180deg, color-mix(in srgb, var(--pos-strong) 16%, transparent), color-mix(in srgb, var(--pos-strong) 4%, transparent)), var(--card); }
 .rv-wday.total.loss { background: linear-gradient(180deg, color-mix(in srgb, var(--neg) 11%, transparent), color-mix(in srgb, var(--neg) 3%, transparent)), var(--card); }
+
+/* calendars: the same small space between the tiles and the card's edge as between the tiles */
+.cal { padding: 0 2px 2px; }
+.rv-cal:not(.heat) { padding: 0 2px 2px; }
+@container (max-width: 600px) { .cal { padding: 0 4px 4px; } }
+@media (max-width: 760px) { .rv-cal.full { padding: 0 4px 4px; } }
