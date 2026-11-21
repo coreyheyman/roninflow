@@ -85,6 +85,13 @@ function General({ onCurrency, onPlaybook }) {
         <span className="muted" style={{ fontSize: 12, marginTop: 6 }}>Trades from live sync, broker connections and imports with a time zone are recorded in this time zone, so session days stay the same on every device.</span>
       </div>
       <div className="field">
+        <label className="label">Weekends in calendars</label>
+        <div className="seg sm" style={{ alignSelf: 'flex-start' }}>
+          {[['auto', 'Auto'], ['show', 'Show'], ['hide', 'Hide']].map(([v, l]) => <button key={v} type="button" className={(state.settings.calWeekends || 'auto') === v ? 'on' : ''} onClick={() => setSetting('calWeekends', v)}>{l}</button>)}
+        </div>
+        <span className="muted" style={{ fontSize: 12, marginTop: 6 }}>{(state.settings.calWeekends || 'auto') === 'show' ? 'Saturday and Sunday in every calendar, including the weekly review.' : state.settings.calWeekends === 'hide' ? 'Monday to Friday only — the calendars widen to fill the space. Weekend trades still count in week totals.' : 'Month calendars show weekends; on a phone and in the weekly review they appear only when you traded that weekend.'}</span>
+      </div>
+      <div className="field">
         <label className="label">Features</label>
         <label className="row gap8" style={{ fontSize: 13.5 }}><Switch on={state.settings.riskEnabled !== false} onChange={(v) => setSetting('riskEnabled', v)} /> Risk tiers <span className="muted" style={{ fontSize: 12 }}>(Risk Management page, today’s risk in the sidebar and diary)</span></label>
         {state.trades.some((t) => t.demo) && <button className="btn sm" style={{ alignSelf: 'flex-start', marginTop: 8 }} onClick={() => { removeDemo(); toast('Demo data removed'); }}>Remove demo data</button>}

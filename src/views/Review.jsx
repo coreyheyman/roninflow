@@ -176,17 +176,18 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
   const first = new Date(year, month, 1), last = new Date(year, month + 1, 0);
   const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
   const monthDays = Object.values(dayMap).filter((d) => d.date.startsWith(prefix));
-  const cols = [0, 1, 2, 3, 4, 5, 6]; // Sunday → Saturday
+  const wkndMode = state.settings.calWeekends || 'auto';
+  const cols = wkndMode === 'hide' ? [1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6]; // Sunday → Saturday (Mon–Fri with weekends hidden)
   const weeks = [];
   for (let s = startOfCalWeek(first); s <= last; s = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 7)) {
-    weeks.push(cols.map((i) => new Date(s.getFullYear(), s.getMonth(), s.getDate() + i)));
+    weeks.push([0, 1, 2, 3, 4, 5, 6].map((i) => new Date(s.getFullYear(), s.getMonth(), s.getDate() + i)));
   }
   const maxAbs = Math.max(1, ...monthDays.map((d) => Math.abs(d.net)));
   const today = keyOf(new Date());
   const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const short = (v) => `${v > 0 ? '+' : ''}${fmtCompact(v)}`;
   const showWeek = variant !== 'heat';
-  const noWknd = !weeks.flat().some((d) => (d.getDay() === 0 || d.getDay() === 6) && d.getMonth() === month && dayMap[keyOf(d)]);
+  const noWknd = wkndMode === 'auto' && !weeks.flat().some((d) => (d.getDay() === 0 || d.getDay() === 6) && d.getMonth() === month && dayMap[keyOf(d)]);
   return (
     <div className={`rv-cal ${variant} ${noWknd ? 'no-wknd' : ''}`} style={{ '--cols': cols.length + (showWeek ? 1 : 0) }}>
       <div className="rv-cal-row head">
@@ -200,7 +201,7 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
         const wWins = inWeek.reduce((s, d) => s + d.wins, 0);
         return (
           <div className="rv-cal-row" key={wi}>
-            {wk.map((d) => {
+            {wk.filter((d) => cols.includes(d.getDay())).map((d) => {
               const k = keyOf(d);
               const out = d.getMonth() !== month;
               const day = out ? null : dayMap[k];
@@ -226,7 +227,7 @@ function MonthCal({ year, month, dayMap, variant = 'full', onDay: onDayProp }) {
                 {variant === 'full' && <span className="muted" style={{ fontSize: 11.5 }}>W{wi + 1}</span>}
                 {inWeek.length > 0 && (
                   <>
-                    <div className={`pv ${wNet >= 0 ? 'pos' : 'neg'}`}>{variant === 'mini' ? <Fit className={priv ? 'hidden-val' : ''}>{short(wNet)}</Fit> : <Fit className={priv ? 'hidden-val' : ''} short={short(wNet)}>{fmtMoney(wNet, { sign: true, dp: 0 })}</Fit>}</div>
+                    <div className={`pv ${wNet >= 0 ? 'pos' : 'neg'}`}>{variant === 'mini' ? <Fit className={priv ? 'hidden-val' : ''}>{short(wNet)}</Fit> : <><Fit className={priv ? 'hidden-val' : ''} short={short(wNet)}>{fmtMoney(wNet, { sign: true, dp: 0 })}</Fit><span className={`phone-v ${priv ? 'hidden-val' : ''}`}>{fmtMoney(wNet, { sign: true, dp: 0 })}</span></>}</div>
                     {variant === 'full' && <div className="rv-day-meta"><span>{wCount}t</span><span>WR {Math.round((wWins / wCount) * 100)}%</span></div>}
                   </>
                 )}
@@ -400,20 +401,22 @@ function WeekDays({ period, dayMap }) {
   const { state } = useStore();
   const openDay = useOpenDay();
   const priv = state.settings.privacy;
-  const days = [];
+  const mode = state.settings.calWeekends || 'auto'; // weekend tiles: auto (when traded) · show · hide
+  const days = [], all = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(period.start); d.setDate(d.getDate() + i);
     const k = keyOf(d);
-    if (i < 5 || dayMap[k]) days.push({ d, k, day: dayMap[k] });
+    all.push(dayMap[k]);
+    if (i < 5 || mode === 'show' || (mode === 'auto' && dayMap[k])) days.push({ d, k, day: dayMap[k] });
   }
-  const list = days.map((x) => x.day).filter(Boolean);
+  const list = all.filter(Boolean); // the week's totals include weekend trades even when their tiles are hidden
   const net = list.reduce((s, d) => s + d.net, 0), n = list.reduce((s, d) => s + d.count, 0), w = list.reduce((s, d) => s + d.wins, 0);
   const today = keyOf(new Date());
   return (
     <div className="rv-week" style={{ '--n': days.length + 1 }}>
       {days.map(({ d, k, day }) => (
         <div key={k} className={`rv-wday ${day ? (day.net >= 0 ? 'win' : 'loss') : ''} ${k === today ? 'today' : ''}`} onClick={() => openDay(k)} title="Open this day's diary">
-          <div className="rv-wday-h"><span>{WEEKDAYS[d.getDay()]}</span><span className="muted">{MONTHS[d.getMonth()]} {d.getDate()}</span></div>
+          <div className="rv-wday-h"><span>{days.length > 5 ? WEEKDAYS[d.getDay()].slice(0, 3) : WEEKDAYS[d.getDay()]}</span><span className="muted">{MONTHS[d.getMonth()]} {d.getDate()}</span></div>
           <div className={`rv-wday-v ${day ? (day.net >= 0 ? 'pos' : 'neg') : 'muted2'}`} style={day ? { '--len': fmtMoney(day.net, { sign: true, dp: 0 }).length } : undefined}>
             {day ? <span className={priv ? 'hidden-val' : ''}>{fmtMoney(day.net, { sign: true, dp: 0 })}</span> : '—'}
           </div>
@@ -423,7 +426,7 @@ function WeekDays({ period, dayMap }) {
       <div className={`rv-wday total ${list.length ? (net >= 0 ? 'win' : 'loss') : ''}`}>
         <div className="rv-wday-h"><span>Week</span></div>
         <div className={`rv-wday-v ${list.length ? (net >= 0 ? 'pos' : 'neg') : 'muted2'}`} style={list.length ? { '--len': fmtMoney(net, { sign: true, dp: 0 }).length } : undefined}>{list.length ? <span className={priv ? 'hidden-val' : ''}>{fmtMoney(net, { sign: true, dp: 0 })}</span> : '—'}</div>
-        <div className="rv-wday-f">{list.length ? <><span>{nTrades(n)}</span><span>WR {Math.round((w / n) * 100)}%</span></> : <span className="muted2">—</span>}</div>
+        <div className="rv-wday-f">{list.length ? <><span>{days.length > 5 ? `${n}t` : nTrades(n)}</span><span>{days.length > 5 ? '' : 'WR '}{Math.round((w / n) * 100)}%</span></> : <span className="muted2">—</span>}</div>
       </div>
     </div>
   );
