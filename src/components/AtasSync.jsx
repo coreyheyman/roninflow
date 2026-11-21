@@ -137,7 +137,7 @@ function Step({ n, done, title, children }) {
 function CopyCode({ text }) {
   const toast = useToast();
   return (
-    <span className="row gap6" style={{ display: 'inline-flex', background: 'var(--card-3)', border: '1px solid var(--border-2)', padding: '3px 4px 3px 8px', marginTop: 6, fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 12.5, color: 'var(--fg)' }}>
+    <span className="row gap6" style={{ display: 'inline-flex', background: 'var(--card-3)', borderRadius: 'var(--r)', border: '1px solid var(--border-2)', padding: '3px 4px 3px 8px', marginTop: 6, fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 12.5, color: 'var(--fg)' }}>
       {text}
       <button className="icon-btn" style={{ width: 22, height: 22 }} title="Copy" onClick={() => { navigator.clipboard?.writeText(text); toast('Copied'); }}><Copy size={12} /></button>
     </span>

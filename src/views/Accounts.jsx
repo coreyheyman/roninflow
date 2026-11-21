@@ -145,7 +145,7 @@ function AccountMenu({ a, onEdit, onDelete }) {
   const [costOpen, setCostOpen] = useState(false);
   return (
     <>
-    <Popover align="right" trigger={({ toggle }) => <button className="icon-btn" data-edit style={{ border: '1px solid var(--border-2)', width: 26, height: 26 }} onClick={(e) => { e.stopPropagation(); toggle(); }}><EllipsisVertical size={15} /></button>}>
+    <Popover align="right" trigger={({ toggle }) => <button className="icon-btn" data-edit style={{ borderRadius: 'var(--r)', border: '1px solid var(--border-2)', width: 26, height: 26 }} onClick={(e) => { e.stopPropagation(); toggle(); }}><EllipsisVertical size={15} /></button>}>
       {(close) => (
         <div onClick={(e) => e.stopPropagation()}>
           <button className="pop-item" onClick={() => { setSetting('account', a.id); close(); navigate('dashboard'); }}>Open dashboard</button>
@@ -264,7 +264,7 @@ function AccountDetail({ a, onClose }) {
         <CloseX onClick={onClose} />
       </div>
       <div style={{ padding: '20px 32px 30px' }}>
-        <div className="row gap16 wrap" style={{ padding: '14px 16px', border: '1px solid var(--border-2)', background: 'var(--card)', marginBottom: 20 }}>
+        <div className="row gap16 wrap" style={{ padding: '14px 16px', borderRadius: 'var(--r-lg)', border: '1px solid var(--border-2)', background: 'var(--card)', marginBottom: 20 }}>
           <AcctLogo name={a.name} />
           <span className="muted">Net P&L:</span>
           <span style={{ fontSize: 23, fontWeight: 500 }}><Private>{fmtMoney(net)}</Private></span>

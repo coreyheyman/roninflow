@@ -162,7 +162,7 @@ export function StrategyWizard({ open, onClose, initial }) {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 26 }}>
                   {s.media.map((m, i) => (
                     <div key={i} style={{ position: 'relative' }}>
-                      <img src={m} alt="" style={{ width: '100%', aspectRatio: '16/10', objectFit: 'cover', border: '1px solid var(--border-2)', display: 'block' }} />
+                      <img src={m} alt="" style={{ width: '100%', aspectRatio: '16/10', objectFit: 'cover', borderRadius: 'var(--r)', border: '1px solid var(--border-2)', display: 'block' }} />
                       <button className="close-x" style={{ position: 'absolute', top: 6, right: 6 }} onClick={() => set('media')(s.media.filter((_, j) => j !== i))}><X size={11} /></button>
                     </div>
                   ))}
@@ -366,7 +366,7 @@ function Strategies({ lookback, setLookback }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 18 }}>
               {rows.map(({ s, trades, st, ev }) => (
                 <div key={s.id} className="strat-card" onClick={() => setStatsOf(s.id)}>
-                  {s.media[0] && <img src={s.media[0]} alt="" style={{ width: '100%', aspectRatio: '16/8', objectFit: 'cover', border: '1px solid var(--border)' }} />}
+                  {s.media[0] && <img src={s.media[0]} alt="" style={{ width: '100%', aspectRatio: '16/8', objectFit: 'cover', borderRadius: 'var(--r)', border: '1px solid var(--border)' }} />}
                   <div className="row between gap8"><b style={{ fontWeight: 600, fontSize: 16 }}>{s.name}</b><span className="badge neutral">{s.category}</span></div>
                   {[...s.timeframes, ...s.tags].length > 0 && <div className="row gap6 wrap">{[...s.timeframes, ...s.tags].slice(0, 5).map((t) => <span key={t} className="chip" style={{ padding: '2px 7px' }}>{t}</span>)}{s.rr && <span className="chip" style={{ padding: '2px 7px' }}>R:R {s.rr}</span>}</div>}
                   {trades.length ? <div className="strat-curve" title="P&L curve"><PnlChart data={curveData(trades)} height={70} compact /></div> : <div className="strat-curve empty">No trades in this period</div>}
@@ -467,7 +467,7 @@ function StrategyDetail({ id }) {
         <div className="panel" style={{ marginBottom: 22 }}>
           <div className="card-title" style={{ marginBottom: 12 }}>Media & Education</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 10 }}>
-            {s.media.map((m, i) => <button key={i} type="button" className="shot-open" onClick={() => setMediaOpen(i)}><img src={m} alt="" style={{ width: '100%', border: '1px solid var(--border)' }} /></button>)}
+            {s.media.map((m, i) => <button key={i} type="button" className="shot-open" onClick={() => setMediaOpen(i)}><img src={m} alt="" style={{ width: '100%', borderRadius: 'var(--r)', border: '1px solid var(--border)' }} /></button>)}
             {mediaOpen >= 0 && <Lightbox images={s.media.map((src, k) => ({ src, name: `${s.name || 'strategy'}-${k + 1}.png`, caption: s.name }))} index={mediaOpen} onIndex={setMediaOpen} onClose={() => setMediaOpen(-1)} />}
           </div>
           {s.links.map((l) => <a key={l} href={l} target="_blank" rel="noreferrer" className="row gap8 pos" style={{ marginTop: 10 }}><LinkIcon size={14} />{l}</a>)}

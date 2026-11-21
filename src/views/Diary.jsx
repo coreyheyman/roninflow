@@ -169,7 +169,7 @@ function DiaryIndex() {
                 <ScoreBox v={d.score} ctx={d} />
                 <div className="grow" />
                 <WrappedButton date={d.date} />
-                <Popover align="right" trigger={({ toggle }) => <button className="icon-btn" onClick={(e) => { e.stopPropagation(); toggle(); }} style={{ border: '1px solid var(--border-2)', width: 26, height: 26 }}><EllipsisVertical size={15} /></button>}>
+                <Popover align="right" trigger={({ toggle }) => <button className="icon-btn" onClick={(e) => { e.stopPropagation(); toggle(); }} style={{ borderRadius: 'var(--r)', border: '1px solid var(--border-2)', width: 26, height: 26 }}><EllipsisVertical size={15} /></button>}>
                   {(close) => (
                     <div onClick={(e) => e.stopPropagation()}>
                       <button className="pop-item" onClick={() => { close(); navigate(`diary/${d.date}`); }}>Open diary</button>
@@ -311,7 +311,7 @@ function DayPage({ date, embedded = false, onDate, onClose }) {
         <div className="grow" />
         <button className="btn sm" disabled={!nav.prev} onClick={() => go(nav.prev)} title={nav.prev ? fmtDate(nav.prev) : undefined}><ChevronLeft size={15} /> <span className={embedded ? 'hide-sm' : ''}>Previous</span></button>
         <button className="btn sm" disabled={!nav.next} onClick={() => go(nav.next)} title={nav.next ? fmtDate(nav.next) : undefined}><span className={embedded ? 'hide-sm' : ''}>Next</span> <ChevronRight size={15} /></button>
-        {embedded && <button className="icon-btn" style={{ border: '1px solid var(--border-2)' }} onClick={onClose} title="Close (Esc)"><X size={16} /></button>}
+        {embedded && <button className="icon-btn" style={{ borderRadius: 'var(--r)', border: '1px solid var(--border-2)' }} onClick={onClose} title="Close (Esc)"><X size={16} /></button>}
       </div>
       <div className="row gap16" style={{ marginBottom: 20 }}>
         <div>

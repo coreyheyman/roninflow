@@ -103,7 +103,7 @@ export default function Journal({ sub }) {
       )}
 
       {sel.length > 0 && (
-        <div className="row gap12" style={{ marginBottom: 12, padding: '8px 14px', background: 'var(--card-2)', border: '1px solid var(--border-2)' }}>
+        <div className="row gap12" style={{ marginBottom: 12, padding: '8px 14px', background: 'var(--card-2)', borderRadius: 'var(--r)', border: '1px solid var(--border-2)' }}>
           <b style={{ fontWeight: 500 }}>{sel.length} selected</b>
           <div className="grow" />
           <button className="btn xs" onClick={() => { sel.forEach((id) => updateTrade(id, { reviewed: true })); setSel([]); toast('Marked reviewed'); }}><Check size={13} /> Mark reviewed</button>

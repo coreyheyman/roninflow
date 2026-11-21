@@ -43,7 +43,7 @@ export default function Notebook() {
       <div className="nb-col folders">
         {showF ? (
           <>
-            <div className="hd">Folders <button className="icon-btn" style={{ width: 26, height: 26, border: '1px solid var(--border-2)' }} onClick={() => setShowF(false)} title="Collapse folders panel"><PanelLeftClose size={14} /></button></div>
+            <div className="hd">Folders <button className="icon-btn" style={{ width: 26, height: 26, borderRadius: 'var(--r)', border: '1px solid var(--border-2)' }} onClick={() => setShowF(false)} title="Collapse folders panel"><PanelLeftClose size={14} /></button></div>
             <div style={{ flex: '0 1 auto', overflow: 'auto' }}>
               {folders.length === 0 && adding === null && <div className="muted" style={{ textAlign: 'center', padding: '20px 0 40px', borderBottom: '1px solid var(--border)', margin: '0 8px' }}>No folders yet</div>}
               {folders.map((f) => (
@@ -69,7 +69,7 @@ export default function Notebook() {
             <button className="row gap8 center muted" style={{ padding: '24px 0', fontSize: 14 }} onClick={() => setAdding('')}><Plus size={16} /> Add folder</button>
           </>
         ) : (
-          <button className="icon-btn" style={{ margin: '14px auto', border: '1px solid var(--border-2)', width: 26, height: 26 }} onClick={() => setShowF(true)} title="Expand folders panel"><PanelLeft size={14} /></button>
+          <button className="icon-btn" style={{ margin: '14px auto', borderRadius: 'var(--r)', border: '1px solid var(--border-2)', width: 26, height: 26 }} onClick={() => setShowF(true)} title="Expand folders panel"><PanelLeft size={14} /></button>
         )}
       </div>
 
@@ -80,14 +80,14 @@ export default function Notebook() {
               Notes
               <span className="row gap6">
                 {folderId && <button className="icon-btn" style={{ width: 26, height: 26 }} onClick={addNote} title="New note"><Plus size={15} /></button>}
-                <button className="icon-btn" style={{ width: 26, height: 26, border: '1px solid var(--border-2)' }} onClick={() => setShowN(false)} title="Collapse notes panel"><PanelLeftClose size={14} /></button>
+                <button className="icon-btn" style={{ width: 26, height: 26, borderRadius: 'var(--r)', border: '1px solid var(--border-2)' }} onClick={() => setShowN(false)} title="Collapse notes panel"><PanelLeftClose size={14} /></button>
               </span>
             </div>
             {!folderId ? (
               <div className="muted" style={{ textAlign: 'center', padding: 22 }}>Select a folder</div>
             ) : (
               <>
-                <div className="row gap8" style={{ margin: '0 12px 10px', padding: '0 10px', border: '1px solid var(--border-2)', height: 34 }}>
+                <div className="row gap8" style={{ margin: '0 12px 10px', padding: '0 10px', borderRadius: 'var(--r)', border: '1px solid var(--border-2)', height: 34 }}>
                   <Search size={14} className="muted" />
                   <input className="grow" style={{ background: 'transparent', border: 0, outline: 'none' }} placeholder="Search notes" value={q} onChange={(e) => setQ(e.target.value)} />
                 </div>
@@ -110,7 +110,7 @@ export default function Notebook() {
             )}
           </>
         ) : (
-          <button className="icon-btn" style={{ margin: '14px auto', border: '1px solid var(--border-2)', width: 26, height: 26 }} onClick={() => setShowN(true)} title="Expand notes panel"><PanelLeft size={14} /></button>
+          <button className="icon-btn" style={{ margin: '14px auto', borderRadius: 'var(--r)', border: '1px solid var(--border-2)', width: 26, height: 26 }} onClick={() => setShowN(true)} title="Expand notes panel"><PanelLeft size={14} /></button>
         )}
       </div>
 
@@ -123,7 +123,7 @@ export default function Notebook() {
           <div className="col" style={{ flex: 1, minHeight: 0, maxWidth: 900, width: '100%', margin: '0 auto', padding: '10px 20px 20px' }}>
             <input value={note.title} onChange={(e) => patchNote({ title: e.target.value })} placeholder="Untitled note" style={{ background: 'transparent', border: 0, outline: 'none', fontSize: 28, fontWeight: 500, letterSpacing: '-0.03em', padding: '10px 22px 4px' }} />
             <div className="muted" style={{ fontSize: 12, padding: '0 22px 12px' }}>Last edited {fmtDate(note.updatedAt)} at {fmtTime12(note.updatedAt)}</div>
-            <RichText toolbarTop docKey={note.id} value={note.body} onChange={(body) => patchNote({ body })} placeholder="Write your trading notes, ideas, rules… paste screenshots directly." style={{ flex: 1, border: '1px solid var(--border)' }} minHeight={400} />
+            <RichText toolbarTop docKey={note.id} value={note.body} onChange={(body) => patchNote({ body })} placeholder="Write your trading notes, ideas, rules… paste screenshots directly." style={{ flex: 1, borderRadius: 'var(--r)', border: '1px solid var(--border)' }} minHeight={400} />
           </div>
         ) : (
           <div className="empty" style={{ flex: 1 }}>

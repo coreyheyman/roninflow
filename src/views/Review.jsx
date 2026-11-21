@@ -858,7 +858,7 @@ function ReviewModal({ period, onPeriod, onClose }) {
             <span className="hide-sm"><StatusBadge status={status} /></span>
             <div className="grow" />
             {all.some((t) => inPeriod(t, period)) && <WrappedButton key={`${period.type}:${period.id}`} period={period} />}
-            <button className="icon-btn" style={{ border: '1px solid var(--border-2)' }} onClick={onClose} title="Close (Esc)"><X size={16} /></button>
+            <button className="icon-btn" style={{ borderRadius: 'var(--r)', border: '1px solid var(--border-2)' }} onClick={onClose} title="Close (Esc)"><X size={16} /></button>
           </div>
           <div className="rv">
             <ReviewBody key={`${period.type}:${period.id}`} period={period} all={all} />

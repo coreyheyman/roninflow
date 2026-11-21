@@ -23,7 +23,7 @@ export function useNetStatus(deps = []) {
 function CopyLine({ text }) {
   const toast = useToast();
   return (
-    <div className="row gap8" style={{ padding: '10px 12px', background: 'var(--card-2)', border: '1px solid var(--border-2)' }}>
+    <div className="row gap8" style={{ padding: '10px 12px', background: 'var(--card-2)', borderRadius: 'var(--r)', border: '1px solid var(--border-2)' }}>
       <span className="grow" style={{ fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 15 }}>{text}</span>
       <button className="btn xs" onClick={() => { navigator.clipboard?.writeText(text); toast('Copied'); }}><Copy size={12} /> Copy</button>
     </div>

@@ -264,7 +264,7 @@ export function TradeDrawer({ trade, onClose, siblings = null, onNavigate }) {
     e.target.value = '';
   };
   const Stat = ({ k, v }) => (
-    <div style={{ padding: '12px 14px', background: 'var(--card-2)', border: '1px solid var(--border)' }}>
+    <div style={{ padding: '12px 14px', background: 'var(--card-2)', borderRadius: 'var(--r-lg)', border: '1px solid var(--border)' }}>
       <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>{k}</div>
       <div style={{ fontWeight: 500 }}>{v}</div>
     </div>
@@ -355,7 +355,7 @@ export function TradeDrawer({ trade, onClose, siblings = null, onNavigate }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
               {(t.screenshots || []).map((src, i) => (
                 <div key={i} style={{ position: 'relative' }}>
-                  <button type="button" className="shot-open" title="Open (zoom with the wheel or a pinch)" onClick={() => setShotOpen(i)}><img src={src} alt="" style={{ width: '100%', display: 'block', border: '1px solid var(--border)' }} /></button>
+                  <button type="button" className="shot-open" title="Open (zoom with the wheel or a pinch)" onClick={() => setShotOpen(i)}><img src={src} alt="" style={{ width: '100%', display: 'block', borderRadius: 'var(--r)', border: '1px solid var(--border)' }} /></button>
                   <button className="close-x" style={{ position: 'absolute', top: 6, right: 6 }} onClick={() => up({ screenshots: t.screenshots.filter((_, j) => j !== i) })}><X size={12} /></button>
                   <button className="btn xs shot-ask" data-edit onClick={() => askAboutShot(src)} title="Ask coach about this chart"><MessageCircle size={12} /> Ask coach</button>
                 </div>

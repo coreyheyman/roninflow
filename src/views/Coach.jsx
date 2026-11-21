@@ -186,7 +186,7 @@ function Composer({ onSend, busy, ctx, setCtx, compact = false, draft = null, co
     <div className="composer" style={compact ? { padding: '10px 10px 8px 14px' } : undefined}>
       {image && (
         <div style={{ position: 'relative', display: 'inline-block', marginBottom: 8 }}>
-          <img src={image} alt="" style={{ height: 60, border: '1px solid var(--border-2)' }} />
+          <img src={image} alt="" style={{ height: 60, borderRadius: 'var(--r)', border: '1px solid var(--border-2)' }} />
           <button className="close-x" style={{ position: 'absolute', top: -6, right: -6 }} onClick={() => setImage(null)}><X size={11} /></button>
         </div>
       )}

@@ -234,7 +234,7 @@ export default function ImportModal({ open, onClose, initialSource = null }) {
         </div>
       ) : (
         <div className="modal-body col gap16">
-          <div className="row gap12" style={{ padding: '12px 14px', background: 'var(--card-2)', border: '1px solid var(--border-2)' }}>
+          <div className="row gap12" style={{ padding: '12px 14px', background: 'var(--card-2)', borderRadius: 'var(--r-lg)', border: '1px solid var(--border-2)' }}>
             <FileSpreadsheet size={20} className="accent" />
             <div className="grow">
               <div style={{ fontWeight: 500 }}>{file.name}</div>
