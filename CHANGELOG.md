@@ -2,6 +2,12 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 1.9.10
+
+- **Chart brush draws real curves:** freehand strokes on the chart were snapped to whole bars, so circles and handwriting came out as stair steps. Drawings now land exactly where the pointer is, between bars too — which also makes every other drawing tool follow the mouse precisely when the magnet is off.
+
+**Updating:** nothing to reinstall.
+
 ## 1.9.9
 
 - **Size slider:** one slider (1–40) in the screenshot editor sets line thickness and text size, instead of three fixed sizes.

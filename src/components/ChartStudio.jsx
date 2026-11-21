@@ -762,9 +762,18 @@ export default function ChartStudio({ date, trades: tradesIn, initialSym, onClos
     try { h = a.chart.paneSize(0).height; } catch { h = (box.current?.clientHeight || 0) - ts.height(); }
     return {
       w: ts.width(), h,
-      toX: (t) => ts.logicalToCoordinate(toLogical(t)),
+      toX: (t) => { // whole bars only from the chart (it rounds), the fraction between them added here
+        const l = toLogical(t), l0 = Math.floor(l), c = ts.logicalToCoordinate(l0);
+        return c == null ? null : c + (l - l0) * ts.options().barSpacing;
+      },
       toY: (p) => a.series.priceToCoordinate(p),
-      fromX: (x) => fromLogical(ts.coordinateToLogical(x)),
+      // the chart's own coordinateToLogical rounds to whole bars (freehand strokes came out as steps): work it out exactly
+      fromX: (x) => {
+        const l = ts.coordinateToLogical(x);
+        if (l == null) return fromLogical(l);
+        const cx = ts.logicalToCoordinate(l), sp = ts.options().barSpacing;
+        return fromLogical(cx != null && sp > 0 ? l + (x - cx) / sp : l);
+      },
       fromY: (y) => a.series.coordinateToPrice(y),
       snap: (x, y) => { // magnet: the nearest open/high/low/close of the bar under the pointer
         const l = Math.round(ts.coordinateToLogical(x));
