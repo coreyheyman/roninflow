@@ -39,6 +39,7 @@ namespace TradeJournal
     {
         public enum Placement { TopLeft, TopCenter, TopRight, MiddleLeft, Center, MiddleRight, BottomLeft, BottomCenter, BottomRight }
         public enum GammaDrawing { Lines, Zones }
+        public enum LabelSide { Left, Middle, Right }
         public enum NewsLevel { AllNews, ImportantOnly, HighImpactOnly }
         public enum EventLevel { AllEvents, MediumAndHigh, HighOnly }
 
@@ -165,6 +166,13 @@ namespace TradeJournal
 
         [Display(Name = "Level names on the chart", GroupName = "3. Gamma levels", Order = 50)]
         public bool ShowLevelNames { get; set; } = true;
+
+        [Display(Name = "Level names: where", GroupName = "3. Gamma levels", Order = 50)]
+        public LabelSide LevelNameSide { get; set; } = LabelSide.Left;
+
+        [Display(Name = "Level names: X offset", GroupName = "3. Gamma levels", Order = 50)]
+        [Range(-2000, 2000)]
+        public int LevelNameX { get; set; } = 8;
 
         [Display(Name = "Price tags on the price axis", GroupName = "3. Gamma levels", Order = 51)]
         public bool ShowAxisTags { get; set; } = true;
@@ -796,7 +804,14 @@ namespace TradeJournal
                 {
                     var label = name == "+GEX" || name == "−GEX" ? name : name;
                     var size = g.MeasureString(label, _small);
-                    var lr = new Rectangle(r.Left + 8, y - size.Height - 4, size.Width + 12, size.Height + 4);
+                    var lw = size.Width + 12;
+                    var lx = LevelNameSide switch
+                    {
+                        LabelSide.Middle => r.Left + (r.Width - lw) / 2 + LevelNameX,
+                        LabelSide.Right => r.Right - lw - LevelNameX,
+                        _ => r.Left + LevelNameX,
+                    };
+                    var lr = new Rectangle(lx, y - size.Height - 4, lw, size.Height + 4);
                     g.FillRectangle(Color.FromArgb(200, 0, 0, 0), lr, 3);
                     g.DrawRectangle(new RenderPen(A(color, 120), 1), lr, 3);
                     g.DrawString(label, _small, color, lr.X + 6, lr.Y + 2);
