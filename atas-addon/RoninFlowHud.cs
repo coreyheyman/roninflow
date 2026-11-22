@@ -64,7 +64,12 @@ namespace TradeJournal
         private bool _primed;
         private CancellationTokenSource? _cts;
         private bool _newsCollapsed;
+        private bool _statsCollapsed;
         private bool _collapseInit;
+        private Rectangle _statsRect = Rectangle.Empty;
+        private float _k = 1f; // the account panel's size while it's drawn (chip padding follows it)
+        private string _aKey = "";
+        private RenderFont _aFont = new("Consolas", 9), _aBold = new("Consolas", 9, FontStyle.Bold), _aSmall = new("Consolas", 8), _aBig = new("Consolas", 11, FontStyle.Bold);
         private Rectangle _newsHeader = Rectangle.Empty;
         private readonly List<(Rectangle Box, string Key)> _closeBoxes = new();
 
@@ -104,6 +109,16 @@ namespace TradeJournal
         [Display(Name = "Width", GroupName = "2. Account panel", Order = 24)]
         [Range(220, 700)]
         public int AccountWidth { get; set; } = 330;
+
+        [Display(Name = "Size (%)", GroupName = "2. Account panel", Order = 24)]
+        [Range(50, 250)]
+        public int AccountScale { get; set; } = 100;
+
+        [Display(Name = "Shrink to fit narrow charts", GroupName = "2. Account panel", Order = 24)]
+        public bool AccountFit { get; set; } = true;
+
+        [Display(Name = "Start with the stats collapsed", GroupName = "2. Account panel", Order = 29)]
+        public bool StatsStartCollapsed { get; set; } = false;
 
         [Display(Name = "Risk tier chip", GroupName = "2. Account panel", Order = 25)]
         public bool ShowTierChip { get; set; } = true;
@@ -605,6 +620,12 @@ namespace TradeJournal
                 RedrawChart();
                 return true;
             }
+            if (ShowAccount && ShowStats && _statsRect.Contains(e.Location))
+            {
+                _statsCollapsed = !_statsCollapsed;
+                RedrawChart();
+                return true;
+            }
             foreach (var (box, key) in _closeBoxes.ToList())
             {
                 if (!box.Contains(e.Location)) continue;
@@ -618,7 +639,7 @@ namespace TradeJournal
 
         public override StdCursor GetCursor(RenderControlMouseEventArgs e)
         {
-            if ((ShowNews && _newsHeader.Contains(e.Location)) || _closeBoxes.Any(b => b.Box.Contains(e.Location)))
+            if ((ShowNews && _newsHeader.Contains(e.Location)) || (ShowAccount && ShowStats && _statsRect.Contains(e.Location)) || _closeBoxes.Any(b => b.Box.Contains(e.Location)))
                 return StdCursor.Hand;
             return base.GetCursor(e);
         }
@@ -719,12 +740,13 @@ namespace TradeJournal
         private int Chip(RenderContext g, string text, Color c, int x, int y, int h, bool bold = false)
         {
             var f = bold ? _bold : _small;
-            var w = g.MeasureString(text, f).Width + 14;
+            var padX = (int)Math.Round(7 * _k);
+            var w = g.MeasureString(text, f).Width + padX * 2;
             var r = new Rectangle(x, y, w, h);
             g.FillRectangle(A(c, 28), r, Math.Min(Radius, 4));
             g.DrawRectangle(new RenderPen(A(c, 110), 1), r, Math.Min(Radius, 4));
             var th = g.MeasureString(text, f).Height;
-            g.DrawString(text, f, c, x + 7, y + (h - th) / 2);
+            g.DrawString(text, f, c, x + padX, y + (h - th) / 2);
             return w;
         }
 
@@ -747,7 +769,7 @@ namespace TradeJournal
             if (ChartInfo == null || Container == null)
                 return;
             Fonts();
-            if (!_collapseInit) { _newsCollapsed = NewsStartCollapsed; _collapseInit = true; }
+            if (!_collapseInit) { _newsCollapsed = NewsStartCollapsed; _statsCollapsed = StatsStartCollapsed; _collapseInit = true; }
             _closeBoxes.Clear();
             var snap = _snap;
             try { if (ShowGamma && snap?.Gex != null) DrawGamma(g, snap.Gex); } catch { }
@@ -896,14 +918,38 @@ namespace TradeJournal
 
         private void DrawAccount(RenderContext g, Snapshot? s)
         {
+            // its own size: fonts and spacing scale together, and it narrows to fit the chart
+            var k = Math.Max(0.5f, Math.Min(2.5f, AccountScale / 100f));
+            var key = $"{_fontName}|{_fontSize}|{k}";
+            if (key != _aKey)
+            {
+                _aKey = key;
+                _aFont = new RenderFont(_fontName, _fontSize * k);
+                _aBold = new RenderFont(_fontName, _fontSize * k, FontStyle.Bold);
+                _aSmall = new RenderFont(_fontName, Math.Max(5, (_fontSize - 1) * k));
+                _aBig = new RenderFont(_fontName, (_fontSize + 2) * k, FontStyle.Bold);
+            }
+            var (f0, f1, f2, f3) = (_font, _bold, _small, _big);
+            (_font, _bold, _small, _big, _k) = (_aFont, _aBold, _aSmall, _aBig, k);
+            try { DrawAccountBody(g, s, k); }
+            finally { (_font, _bold, _small, _big, _k) = (f0, f1, f2, f3, 1f); }
+        }
+
+        private void DrawAccountBody(RenderContext g, Snapshot? s, float k)
+        {
             var portfolio = TradingManager?.Portfolio;
             var acct = s?.Account;
             var day = _day;
-            var w = AccountWidth;
-            var pad = 10;
+            var w = (int)Math.Round(AccountWidth * k);
+            if (AccountFit)
+                w = Math.Min(w, Container.Region.Width - 2 * Math.Max(4, Math.Abs(AccountX)));
+            w = Math.Max(w, (int)(170 * k));
+            var pad = (int)Math.Round(10 * k);
             var lh = g.MeasureString("Ag", _font).Height;
             var sh = g.MeasureString("Ag", _small).Height;
-            var chipH = sh + 8;
+            var chipH = sh + (int)Math.Round(8 * k);
+            var cols = w >= 270 * k ? 4 : 2; // stats in two columns on a narrow panel
+            var statRowH = sh + lh + (int)Math.Round(10 * k);
             var gx = s?.Gex;
             var price = LastPrice();
 
@@ -932,11 +978,12 @@ namespace TradeJournal
             if (chips) h += chipH + 8;
             var blocked = acct != null && acct.Blocked;
             if (blocked) h += lh * 2 + 14;
-            var tileH = sh + lh + 14;
+            var tileH = sh + lh + (int)Math.Round(14 * k);
             if (ShowPnlTiles) h += tileH + 8;
             var dll = acct?.DailyLoss ?? 0;
             if (ShowBuffer && dll > 0) h += sh + 10 + 6 + sh + 10;
-            if (ShowStats && day.Trades > 0) h += (sh + lh + 10) * 2 + 2;
+            if (ShowStats && day.Trades > 0) h += _statsCollapsed ? sh + (int)Math.Round(12 * k) : statRowH * (8 / cols) + 2;
+            else _statsRect = Rectangle.Empty;
             if (ShowGexLine && gx != null) h += lh + 12;
 
             var p = Place(AccountPlacement, w, h, AccountX, AccountY);
@@ -1039,31 +1086,53 @@ namespace TradeJournal
                 y += sh + 10;
             }
 
-            // stats
+            // stats (click to collapse / expand)
             if (ShowStats && day.Trades > 0)
             {
-                var winRate = day.Trades > 0 ? (decimal)day.Wins / day.Trades * 100 : 0;
+                var winRate = (decimal)day.Wins / day.Trades * 100;
                 var pf = day.GrossLoss > 0 ? day.GrossWin / day.GrossLoss : (day.GrossWin > 0 ? 99m : 0m);
-                var ev = day.Trades > 0 ? day.Realised / day.Trades : 0;
-                var rows = new[]
+                var ev = day.Realised / day.Trades;
+                var top = y;
+                var line = new RenderPen(BorderColor, 1);
+                g.DrawLine(line, rect.Left + 1, y, rect.Right - 1, y);
+                if (_statsCollapsed)
                 {
-                    new (string, string, Color)[] { ("Win rate", $"{winRate:0}%", TextColor), ("Profit f.", pf >= 99 ? "∞" : pf.ToString("0.00", CultureInfo.InvariantCulture), pf >= 1 ? PositiveColor : NegativeColor), ("EV", Num(ev, true), ev >= 0 ? PositiveColor : NegativeColor), ("W / L", $"{day.Wins} / {day.Losses}", TextColor) },
-                    new (string, string, Color)[] { ("Avg win", Num(day.AvgWin), TextColor), ("Avg loss", Num(day.AvgLoss), TextColor), ("Best", Num(day.Best, true), day.Best >= 0 ? PositiveColor : NegativeColor), ("Worst", Num(day.Worst, true), day.Worst >= 0 ? PositiveColor : NegativeColor) },
-                };
-                var cw = (w - 2) / 4;
-                foreach (var row in rows)
-                {
-                    g.DrawLine(new RenderPen(BorderColor, 1), rect.Left + 1, y, rect.Right - 1, y);
-                    for (var i = 0; i < 4; i++)
-                    {
-                        var cxx = rect.Left + 1 + i * cw;
-                        if (i > 0) g.DrawLine(new RenderPen(BorderColor, 1), cxx, y, cxx, y + sh + lh + 10);
-                        g.DrawString(row[i].Item1, _small, MutedColor, cxx + 8, y + 4);
-                        g.DrawString(row[i].Item2, _bold, row[i].Item3, cxx + 8, y + 4 + sh + 2);
-                    }
-                    y += sh + lh + 10;
+                    var rowH = sh + (int)Math.Round(12 * k);
+                    var summary = $"Stats · {winRate:0}% win · PF {(pf >= 99 ? "∞" : pf.ToString("0.00", CultureInfo.InvariantCulture))} · EV {Num(ev, true)}";
+                    g.DrawString(Fit(g, summary, _small, w - pad * 2 - 16), _small, MutedColor, x, y + (rowH - sh) / 2);
+                    var aw = g.MeasureString("▸", _small).Width;
+                    g.DrawString("▸", _small, MutedColor, rect.Right - pad - aw, y + (rowH - sh) / 2);
+                    y += rowH;
                 }
-                y += 2;
+                else
+                {
+                    var items = new (string, string, Color)[]
+                    {
+                        ("Win rate", $"{winRate:0}%", TextColor), ("Profit f.", pf >= 99 ? "∞" : pf.ToString("0.00", CultureInfo.InvariantCulture), pf >= 1 ? PositiveColor : NegativeColor),
+                        ("EV", Num(ev, true), ev >= 0 ? PositiveColor : NegativeColor), ("W / L", $"{day.Wins} / {day.Losses}", TextColor),
+                        ("Avg win", Num(day.AvgWin), TextColor), ("Avg loss", Num(day.AvgLoss), TextColor),
+                        ("Best", Num(day.Best, true), day.Best >= 0 ? PositiveColor : NegativeColor), ("Worst", Num(day.Worst, true), day.Worst >= 0 ? PositiveColor : NegativeColor),
+                    };
+                    var cw = (w - 2) / cols;
+                    var ip = (int)Math.Round(8 * k);
+                    for (var r0 = 0; r0 < items.Length; r0 += cols)
+                    {
+                        if (r0 > 0) g.DrawLine(line, rect.Left + 1, y, rect.Right - 1, y);
+                        for (var i = 0; i < cols; i++)
+                        {
+                            var it = items[r0 + i];
+                            var cxx = rect.Left + 1 + i * cw;
+                            if (i > 0) g.DrawLine(line, cxx, y, cxx, y + statRowH);
+                            g.DrawString(it.Item1, _small, MutedColor, cxx + ip, y + ip / 2);
+                            g.DrawString(Fit(g, it.Item2, _bold, cw - ip * 2), _bold, it.Item3, cxx + ip, y + ip / 2 + sh + 2);
+                        }
+                        y += statRowH;
+                    }
+                    var aw = g.MeasureString("▾", _small).Width;
+                    g.DrawString("▾", _small, A(MutedColor, 170), rect.Right - pad / 2 - aw, top + 3);
+                    y += 2;
+                }
+                _statsRect = new Rectangle(rect.Left, top, rect.Width, y - top);
             }
 
             // GEX line
