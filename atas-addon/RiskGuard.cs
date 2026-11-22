@@ -467,7 +467,7 @@ namespace TradeJournal
             decimal open = 0;
             foreach (var p in v.Positions)
             {
-                try { open += p.UnrealizedPnL; }
+                try { open += p.OpenPnL ?? 0m; }
                 catch { }
             }
             v.Unrealised = open;

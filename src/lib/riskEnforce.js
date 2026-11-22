@@ -51,13 +51,28 @@ export function allRules(state) {
   return state.accounts.map((a) => rulesFor(state, a.id)).filter(Boolean);
 }
 
+/** Every account's tier and loss limits, for the RoninFlow HUD on ATAS charts (enforced or not). */
+export function allTiers(state) {
+  const out = {};
+  for (const a of state.accounts) {
+    try {
+      const r = tierOf(state, a.id);
+      if (!r) continue;
+      const cfg = enforceOf(state, a.id);
+      const dll = pos(cfg.dll) ?? (Number(r.tier.dailyLL) || 0);
+      out[a.id] = { name: r.tier.name, level: r.level, of: r.tiers.length, color: r.tier.color || '', dailyLoss: dll, trail: pos(cfg.trail) ?? dll, riskMin: Number(r.tier.riskMin) || 0, riskMax: Number(r.tier.riskMax) || 0, enforced: !!cfg.on, maxTrades: posInt(cfg.maxTrades) };
+    } catch { /* an account without trades yet */ }
+  }
+  return out;
+}
+
 /** Keeps the journal server's copy of the rules up to date while the app is open (tiers move as days close). */
 export function useRiskEnforceSync(state, enabled) {
   const last = useRef('');
   const at = useRef(0);
   const [tick, setTick] = useState(0);
   useEffect(() => { if (!enabled) return undefined; const iv = setInterval(() => setTick((n) => n + 1), 60e3); return () => clearInterval(iv); }, [enabled]); // a new day moves tiers
-  const json = enabled ? JSON.stringify({ tz: homeTimeZone(), accounts: allRules(state) }) : '';
+  const json = enabled ? JSON.stringify({ tz: homeTimeZone(), accounts: allRules(state), tiers: allTiers(state) }) : '';
   useEffect(() => {
     if (!enabled) return undefined;
     const send = (force) => {

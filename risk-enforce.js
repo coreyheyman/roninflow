@@ -51,7 +51,7 @@ export function nextChange(windows, days, now, wd) {
 
 export function createRiskHandler(dataDir, { log = () => {}, now = () => Date.now() } = {}) {
   const file = path.join(dataDir, 'atas-sync', 'risk.json');
-  let rules = readJson(file, { tz: '', accounts: [], at: 0 });
+  let rules = readJson(file, { tz: '', accounts: [], tiers: {}, at: 0 });
   let status = null; // the add-on's last report (kept in memory)
 
   const send = (res, code, obj) => { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(obj)); };
@@ -84,8 +84,9 @@ export function createRiskHandler(dataDir, { log = () => {}, now = () => Date.no
       if (route === '/rules' && req.method === 'POST') {
         const b = await body(req);
         const accounts = Array.isArray(b.accounts) ? b.accounts.filter((a) => a && typeof a.account === 'string').slice(0, 200) : [];
-        const next = { tz: typeof b.tz === 'string' ? b.tz : '', accounts, at: now() };
-        const changed = JSON.stringify([next.tz, next.accounts]) !== JSON.stringify([rules.tz, rules.accounts]);
+        const tiers = b.tiers && typeof b.tiers === 'object' ? b.tiers : {};
+        const next = { tz: typeof b.tz === 'string' ? b.tz : '', accounts, tiers, at: now() };
+        const changed = JSON.stringify([next.tz, next.accounts, next.tiers]) !== JSON.stringify([rules.tz, rules.accounts, rules.tiers]);
         rules = next;
         if (changed) { writeJson(file, rules); log(`[risk] rules for ${accounts.filter((a) => a.on).length} account(s)`); }
         return send(res, 200, { ok: true });
@@ -101,5 +102,7 @@ export function createRiskHandler(dataDir, { log = () => {}, now = () => Date.no
       return send(res, 400, { error: e.message });
     }
   }
+  /** For the HUD: the rules as the add-on sees them, every account's tier, and the add-on's last report. */
+  handler.snapshot = () => ({ rules: forAddon(), tiers: rules.tiers || {}, status });
   return handler;
 }
