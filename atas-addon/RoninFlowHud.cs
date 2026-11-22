@@ -1092,13 +1092,17 @@ namespace TradeJournal
                 var winRate = (decimal)day.Wins / day.Trades * 100;
                 var pf = day.GrossLoss > 0 ? day.GrossWin / day.GrossLoss : (day.GrossWin > 0 ? 99m : 0m);
                 var ev = day.Realised / day.Trades;
+                // Edge = the journal's Performance Ratio: win rate × average win ÷ average loss (0.75+ good, under 0.5 poor)
+                var edge = day.AvgLoss > 0 ? winRate / 100 * day.AvgWin / day.AvgLoss : (day.AvgWin > 0 ? 99m : 0m);
+                var edgeText = edge >= 99 ? "∞" : edge.ToString("0.00", CultureInfo.InvariantCulture);
+                var edgeColor = edge >= 0.75m ? PositiveColor : edge >= 0.5m ? WarningColor : NegativeColor;
                 var top = y;
                 var line = new RenderPen(BorderColor, 1);
                 g.DrawLine(line, rect.Left + 1, y, rect.Right - 1, y);
                 if (_statsCollapsed)
                 {
                     var rowH = sh + (int)Math.Round(12 * k);
-                    var summary = $"Stats · {winRate:0}% win · PF {(pf >= 99 ? "∞" : pf.ToString("0.00", CultureInfo.InvariantCulture))} · EV {Num(ev, true)}";
+                    var summary = $"Stats · {winRate:0}% win · PF {(pf >= 99 ? "∞" : pf.ToString("0.00", CultureInfo.InvariantCulture))} · Edge {edgeText} · EV {Num(ev, true)}";
                     g.DrawString(Fit(g, summary, _small, w - pad * 2 - 16), _small, MutedColor, x, y + (rowH - sh) / 2);
                     var aw = g.MeasureString("▸", _small).Width;
                     g.DrawString("▸", _small, MutedColor, rect.Right - pad - aw, y + (rowH - sh) / 2);
@@ -1109,7 +1113,7 @@ namespace TradeJournal
                     var items = new (string, string, Color)[]
                     {
                         ("Win rate", $"{winRate:0}%", TextColor), ("Profit f.", pf >= 99 ? "∞" : pf.ToString("0.00", CultureInfo.InvariantCulture), pf >= 1 ? PositiveColor : NegativeColor),
-                        ("EV", Num(ev, true), ev >= 0 ? PositiveColor : NegativeColor), ("W / L", $"{day.Wins} / {day.Losses}", TextColor),
+                        ("EV", Num(ev, true), ev >= 0 ? PositiveColor : NegativeColor), ("Edge", edgeText, edgeColor),
                         ("Avg win", Num(day.AvgWin), TextColor), ("Avg loss", Num(day.AvgLoss), TextColor),
                         ("Best", Num(day.Best, true), day.Best >= 0 ? PositiveColor : NegativeColor), ("Worst", Num(day.Worst, true), day.Worst >= 0 ? PositiveColor : NegativeColor),
                     };
