@@ -891,7 +891,7 @@ namespace TradeJournal
             return new Point(x, y);
         }
 
-        private void Panel(RenderContext g, Rectangle r)
+        private void DrawPanel(RenderContext g, Rectangle r)
         {
             g.FillRectangle(Background, r, Radius);
             g.DrawRectangle(new RenderPen(BorderColor, 1), r, Radius);
@@ -1109,7 +1109,7 @@ namespace TradeJournal
                 var lh = g.MeasureString("Ag", _font).Height + 3;
                 var w = lines.Max(l => g.MeasureString(l.Item1, _font).Width) + 20;
                 var rect = new Rectangle(Math.Max(r.Left + 4, Math.Min(r.Right - w - 4, hoverX - w / 2)), r.Bottom - 40 - lines.Count * lh - 12, w, lines.Count * lh + 12);
-                Panel(g, rect);
+                DrawPanel(g, rect);
                 var y = rect.Y + 6;
                 foreach (var (t, c) in lines) { g.DrawString(t, _font, c, rect.X + 10, y); y += lh; }
             }
@@ -1195,7 +1195,7 @@ namespace TradeJournal
             var p = Place(AccountPlacement, w, h, AccountX, AccountY);
             var rect = new Rectangle(p.X, p.Y, w, h);
             _accountRect = rect;
-            Panel(g, rect);
+            DrawPanel(g, rect);
             var x = p.X + pad;
             var y = p.Y + pad;
 
@@ -1394,7 +1394,7 @@ namespace TradeJournal
             }
             else p = Place(AccountPlacement, w, h, AccountX, AccountY);
             var rect = new Rectangle(p.X, p.Y, w, h);
-            Panel(g, rect);
+            DrawPanel(g, rect);
 
             var x = rect.X + pad + 2;
             var y = rect.Y + pad - 2;
@@ -1462,7 +1462,7 @@ namespace TradeJournal
             }
             var p = Place(NewsPlacement, w, h, NewsX, NewsY);
             var rect = new Rectangle(p.X, p.Y, w, h);
-            Panel(g, rect);
+            DrawPanel(g, rect);
             var x = p.X + pad;
             var y = p.Y + pad / 2 + 1;
 

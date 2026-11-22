@@ -36,6 +36,11 @@
       <HintPath>$(ATAS_BASE)\OFT.Rendering.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <!-- FontStyle and DashStyle (bold text, dashed lines in the RoninFlow HUD) -->
+    <Reference Include="System.Drawing.Common">
+      <HintPath>$(ATAS_BASE)\System.Drawing.Common.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Utils.Common">
       <HintPath>$(ATAS_BASE)\Utils.Common.dll</HintPath>
       <Private>False</Private>
