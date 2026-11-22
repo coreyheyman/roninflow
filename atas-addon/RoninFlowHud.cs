@@ -33,6 +33,26 @@ using OFT.Rendering.Tools;
 
 namespace TradeJournal
 {
+    /// <summary>Lists ATAS's sounds (its Sounds folder, yours included) as choices for an alert's sound.</summary>
+    public class AtasSoundList : StringConverter
+    {
+        public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
+        public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => false;
+        public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
+        {
+            var names = new List<string>();
+            try
+            {
+                foreach (var dir in new[] { System.IO.Path.Combine(AppContext.BaseDirectory, "Sounds"), System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ATAS X", "Sounds") })
+                    if (System.IO.Directory.Exists(dir))
+                        names.AddRange(System.IO.Directory.GetFiles(dir, "*.wav").Select(f => System.IO.Path.GetFileNameWithoutExtension(f) ?? "").Where(n => n.Length > 0));
+            }
+            catch { }
+            if (names.Count == 0) names.AddRange(new[] { "alert1", "alert2", "alert3", "alert4", "alert5" });
+            return new StandardValuesCollection(names.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList());
+        }
+    }
+
     [DisplayName("RoninFlow HUD")]
     [Description("RoninFlow on your chart: account panel with risk tier and gamma regime, gamma levels, the news feed and news pop-ups. Each part can be switched on or off and placed in the settings.")]
     public class RoninFlowHud : Indicator
@@ -63,6 +83,12 @@ namespace TradeJournal
         private readonly HashSet<string> _seen = new();
         private bool _primed;
         private CancellationTokenSource? _cts;
+        // alerts: trades already seen, what's fired today, and alerts waiting for the chart's timer to raise them
+        private readonly HashSet<string> _tradesSeen = new();
+        private bool _tradesPrimed;
+        private long _alertDay;
+        private bool _dllFired, _dllWarned, _targetFired;
+        private readonly List<(string Sound, string Message, string Kind)> _alertQueue = new();
         private bool _newsCollapsed;
         private bool _statsCollapsed;
         private bool _collapseInit;
@@ -308,6 +334,74 @@ namespace TradeJournal
 
         #endregion
 
+        #region Settings — alerts
+
+        [Display(Name = "Alerts on", GroupName = "8. Alerts", Order = 140)]
+        public bool AlertsOn { get; set; } = true;
+
+        [Display(Name = "Also show ATAS's alert pop-up", GroupName = "8. Alerts", Order = 141)]
+        public bool AlertAtasPopup { get; set; } = false;
+
+        [Display(Name = "Also show it with the news pop-ups", GroupName = "8. Alerts", Order = 142)]
+        public bool AlertHudPopup { get; set; } = true;
+
+        [Display(Name = "Winning trade", GroupName = "8. Alerts", Order = 150)]
+        public bool AlertWin { get; set; } = true;
+
+        [Display(Name = "Winning trade: sound", GroupName = "8. Alerts", Order = 151)]
+        [TypeConverter(typeof(AtasSoundList))]
+        public string WinSound { get; set; } = "alert1";
+
+        [Display(Name = "Winning trade: only above ($, 0 = any)", GroupName = "8. Alerts", Order = 152)]
+        [Range(0, 1000000)]
+        public decimal WinMin { get; set; } = 0;
+
+        [Display(Name = "Losing trade", GroupName = "8. Alerts", Order = 160)]
+        public bool AlertLoss { get; set; } = true;
+
+        [Display(Name = "Losing trade: sound", GroupName = "8. Alerts", Order = 161)]
+        [TypeConverter(typeof(AtasSoundList))]
+        public string LossSound { get; set; } = "alert2";
+
+        [Display(Name = "Losing trade: only below (−$, 0 = any)", GroupName = "8. Alerts", Order = 162)]
+        [Range(0, 1000000)]
+        public decimal LossMin { get; set; } = 0;
+
+        [Display(Name = "Daily loss limit hit", GroupName = "8. Alerts", Order = 170)]
+        public bool AlertDll { get; set; } = true;
+
+        [Display(Name = "Daily loss limit hit: sound", GroupName = "8. Alerts", Order = 171)]
+        [TypeConverter(typeof(AtasSoundList))]
+        public string DllSound { get; set; } = "alert4";
+
+        [Display(Name = "Daily loss limit ($, 0 = the RoninFlow tier's)", GroupName = "8. Alerts", Order = 172)]
+        [Range(0, 1000000)]
+        public decimal DllOverride { get; set; } = 0;
+
+        [Display(Name = "Warn when this much of it is used (%, 0 = off)", GroupName = "8. Alerts", Order = 173)]
+        [Range(0, 99)]
+        public int DllWarnPercent { get; set; } = 80;
+
+        [Display(Name = "Warning: sound", GroupName = "8. Alerts", Order = 174)]
+        [TypeConverter(typeof(AtasSoundList))]
+        public string DllWarnSound { get; set; } = "alert3";
+
+        [Display(Name = "Profit target hit", GroupName = "8. Alerts", Order = 180)]
+        public bool AlertTarget { get; set; } = true;
+
+        [Display(Name = "Profit target hit: sound", GroupName = "8. Alerts", Order = 181)]
+        [TypeConverter(typeof(AtasSoundList))]
+        public string TargetSound { get; set; } = "alert5";
+
+        [Display(Name = "Daily profit target ($, 0 = off)", GroupName = "8. Alerts", Order = 182)]
+        [Range(0, 1000000)]
+        public decimal ProfitTarget { get; set; } = 0;
+
+        [Display(Name = "Count open P&L toward the limit and target", GroupName = "8. Alerts", Order = 183)]
+        public bool AlertIncludeOpen { get; set; } = true;
+
+        #endregion
+
         #region Settings — colours
 
         [Display(Name = "Panel background", GroupName = "7. Colours and text", Order = 120)]
@@ -382,6 +476,14 @@ namespace TradeJournal
 
         private void Tick()
         {
+            List<(string Sound, string Message, string Kind)> due;
+            lock (_alertQueue) { due = _alertQueue.ToList(); _alertQueue.Clear(); }
+            foreach (var (sound, message, kind) in due)
+            {
+                var bg = kind == "win" || kind == "target" ? PositiveColor : kind == "warn" ? WarningColor : NegativeColor;
+                try { AddAlert(string.IsNullOrWhiteSpace(sound) ? "alert1" : sound.Trim(), InstrumentInfo?.Instrument ?? "", message, bg, Color.Black, AlertAtasPopup); }
+                catch { }
+            }
             // countdowns, pop-up timers
             lock (_popLock)
                 _popups.RemoveAll(p => (DateTime.UtcNow - p.Shown).TotalSeconds > PopupSeconds);
@@ -532,6 +634,66 @@ namespace TradeJournal
             d.AvgWin = d.Wins > 0 ? d.GrossWin / d.Wins : 0;
             d.AvgLoss = d.Losses > 0 ? d.GrossLoss / d.Losses : 0;
             _day = d;
+            try { CheckAlerts(today, d, snap, account!, dayStart); }
+            catch { }
+        }
+
+        private void Alert(string sound, string message, string kind, string title, string meta)
+        {
+            lock (_alertQueue) _alertQueue.Add((sound, message, kind));
+            if (!AlertHudPopup) return;
+            lock (_popLock)
+            {
+                _popups.Add(new Popup { Key = "a:" + Guid.NewGuid().ToString("N"), Kind = kind, Title = title, Meta = meta, Shown = DateTime.UtcNow });
+                while (_popups.Count > 4) _popups.RemoveAt(0);
+            }
+        }
+
+        private void CheckAlerts(List<HistoryMyTrade> today, DayStats d, Snapshot? snap, string account, DateTime dayStart)
+        {
+            var dayKey = dayStart.Ticks;
+            if (dayKey != _alertDay) { _alertDay = dayKey; _dllFired = _dllWarned = _targetFired = false; }
+            var label = account.Length > 9 ? account.Substring(0, 4) + "•••" + account.Substring(account.Length - 3) : account;
+            var sym = InstrumentInfo?.Instrument ?? "";
+
+            // each trade that closes from now on
+            foreach (var t in today)
+            {
+                var key = t.Id.ToString();
+                if (!_tradesSeen.Add(key) || !_tradesPrimed) continue;
+                if (!AlertsOn) continue;
+                var net = t.PnL - Math.Abs(t.Commission ?? 0m);
+                var what = t.Security?.Code ?? (string.IsNullOrEmpty(t.SecurityCode) ? sym : t.SecurityCode);
+                if (net > 0 && AlertWin && net >= WinMin)
+                    Alert(WinSound, $"Win {Money(net, true)} · {what} · {label}", "win", $"Winning trade {Money(net, true)}", $"{label} · {what} · day {Money(d.Realised, true)}");
+                else if (net < 0 && AlertLoss && -net >= LossMin)
+                    Alert(LossSound, $"Loss {Money(net, true)} · {what} · {label}", "loss", $"Losing trade {Money(net, true)}", $"{label} · {what} · day {Money(d.Realised, true)}");
+            }
+            _tradesPrimed = true;
+            if (_tradesSeen.Count > 5000) _tradesSeen.Clear();
+            if (!AlertsOn) return;
+
+            var open = AlertIncludeOpen ? TradingManager?.Portfolio?.OpenPnL ?? 0m : 0m;
+            var now = d.Realised + open;
+            var dll = DllOverride > 0 ? DllOverride : snap?.Account?.DailyLoss ?? 0;
+            if (dll > 0 && AlertDll)
+            {
+                if (!_dllFired && now <= -dll)
+                {
+                    _dllFired = _dllWarned = true;
+                    Alert(DllSound, $"Daily loss limit hit: {Money(now, true)} of −${dll:N0} · {label}", "loss", "Daily loss limit hit", $"{label} · day {Money(now, true)} · limit {Money(-dll)}");
+                }
+                else if (!_dllWarned && DllWarnPercent > 0 && now <= -dll * DllWarnPercent / 100m)
+                {
+                    _dllWarned = true;
+                    Alert(DllWarnSound, $"{DllWarnPercent}% of the daily loss limit used: {Money(now, true)} · {label}", "warn", $"{DllWarnPercent}% of your daily loss limit used", $"{label} · day {Money(now, true)} · {Money(dll + now)} left");
+                }
+            }
+            if (ProfitTarget > 0 && AlertTarget && !_targetFired && now >= ProfitTarget)
+            {
+                _targetFired = true;
+                Alert(TargetSound, $"Profit target hit: {Money(now, true)} · {label}", "target", "Profit target hit", $"{label} · day {Money(now, true)} · target {Money(ProfitTarget)}");
+            }
         }
 
         // ---------- pop-ups ----------
@@ -1322,14 +1484,14 @@ namespace TradeJournal
                 var pop = list[i];
                 var h = heights[i];
                 var rect = new Rectangle(origin.X, y, w, h);
-                var c = pop.Kind == "high" ? NegativeColor : pop.Kind == "soon" ? WarningColor : pop.Kind == "release" ? WarningColor : AccentColor;
+                var c = pop.Kind switch { "high" or "loss" => NegativeColor, "soon" or "release" or "warn" => WarningColor, "win" or "target" => PositiveColor, _ => AccentColor };
                 g.FillRectangle(Color.FromArgb(Math.Max(Background.A, (byte)245), Background.R + 4 > 255 ? 255 : Background.R + 4, Background.G + 4 > 255 ? 255 : Background.G + 4, Background.B + 4 > 255 ? 255 : Background.B + 4), rect, Radius);
                 g.DrawRectangle(new RenderPen(BorderColor, 1), rect, Radius);
                 g.FillRectangle(c, new Rectangle(rect.X + 1, rect.Y + 1, rect.Width - 2, 2), 1);
 
                 var ir = new Rectangle(rect.X + pad, rect.Y + pad + 2, icon, icon);
                 g.FillRectangle(A(c, 40), ir, 5);
-                var glyph = pop.Kind == "high" ? "!" : pop.Kind == "soon" ? "◷" : pop.Kind == "release" ? "!" : "N";
+                var glyph = pop.Kind switch { "high" or "release" or "warn" => "!", "soon" => "◷", "win" => "↑", "loss" => "↓", "target" => "★", _ => "N" };
                 var gsz = g.MeasureString(glyph, _bold);
                 g.DrawString(glyph, _bold, c, ir.X + (icon - gsz.Width) / 2, ir.Y + (icon - gsz.Height) / 2);
 

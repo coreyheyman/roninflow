@@ -11,6 +11,7 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
   - **Gamma levels** — call wall, put wall, zero gamma and the biggest other strikes in this market's futures prices, as lines or as zones of the width you choose, with your colours, optional regime shading above and below the flip, level names (left, middle or right) and price-axis tags.
   - **News feed** — today's events with countdowns and live headlines from News Flow, tagged with the markets they move; click its header to collapse it.
   - **News pop-ups** — new headlines, a warning a few minutes before events and releases with actual / forecast / previous, wherever you choose, with a preview switch that shows one in place while you set it up.
+  - **Alerts** — a sound (any of ATAS's sounds, your own included) and a pop-up for winning and losing trades (optionally only above a size), hitting the daily loss limit (the tier's, or your own), a warning when a share of it is used, and hitting a daily profit target you set. Open P&L can count toward the limit and target.
   - Plus HIGH / MED / LOW markers for today's events on the time axis (hover for the numbers).
 - **Journal Sync 1.6.0:** a new **Enforce RoninFlow risk rules** switch in the indicator's settings (off until you turn it on), and **Also keep ATAS Risk Management in step**.
 
