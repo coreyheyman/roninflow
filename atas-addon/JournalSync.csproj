@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <Compile Include="JournalSync.cs" />
+    <Compile Include="RiskGuard.cs" />
   </ItemGroup>
 
   <!-- Platform assemblies come from the installed ATAS X and are not copied to the output. -->

@@ -18,6 +18,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createAtasHandler } from './atas-sync.js';
+import { createRiskHandler } from './risk-enforce.js';
 import { createAiProxy } from './ai-proxy.js';
 import { createCandleHandler } from './candles.js';
 import { createConnectHandler } from './connect.js';
@@ -128,6 +129,7 @@ const readSettings = () => { if (!settingsCache || Date.now() - settingsCache.at
 const newsApi = createNewsHandler(DATA_DIR, { log, vault, readTrades, readConnTrades: () => connectApi.recentTrades(), readSettings, candles: candleApi, macro: macroApi }); // Macro → News Flow / Heat Map / Agents
 newsApi.start();
 const shotsApi = createShotsHandler(DATA_DIR, { log }); // automatic screenshot imports from a folder
+const riskApi = createRiskHandler(DATA_DIR, { log }); // risk enforcement rules for the ATAS add-on
 shotsApi.start();
 connectApi.barsSink = (body) => (Array.isArray(body?.ticks) ? candleApi.ticks.store(body) : candleApi.ingestBars(body)); // a .bars.jsonl line can carry ticks too
 const shareApi = createShareHandler({ dataDir: DATA_DIR, distDir: DIST, port: PORT, readState, candles: candleApi });
@@ -206,9 +208,10 @@ function handle(req, res) {
     const authed = config.validSession(cookieToken(req));
     ctx.authed = authed;
     // Add-ons on this PC post here without signing in (ATAS); everything else is the app itself.
-    const addonRoute = /^\/api\/atas\/(trades|heartbeat|reset)/.test(req.url);
+    const riskAddon = (req.method === 'GET' && req.url.startsWith('/api/atas/risk/rules')) || (req.method === 'POST' && req.url.startsWith('/api/atas/risk/status'));
+    const addonRoute = /^\/api\/atas\/(trades|heartbeat|reset)/.test(req.url) || riskAddon;
     // ATAS on another computer (the journal on a Mac, Linux box or home server) sends the Webhook / API token instead
-    if (addonRoute && !loopback && !isReplica && req.method === 'POST' && connectApi.tokenOk(req, false)) return atasRoute(req, res);
+    if (addonRoute && !loopback && !isReplica && (req.method === 'POST' || riskAddon) && connectApi.tokenOk(req, false)) return riskAddon ? riskApi(req, res) : atasRoute(req, res);
     const needLogin = !isReplica && (!loopback || (config.get().requireLocal && !addonRoute));
     if (needLogin) {
       // Another device on the network: network access must be on, and it must sign in with the password.
@@ -227,6 +230,7 @@ function handle(req, res) {
 
     if (req.url.startsWith('/api/data')) return dataApi(req, res, null, ctx);
     if (req.url.startsWith('/api/net')) return netApi(req, res, null, ctx);
+    if (req.url.startsWith('/api/atas/risk')) return isReplica ? sendJson(res, 403, { error: 'forbidden' }) : riskApi(req, res);
     if (req.url.startsWith('/api/atas')) return atasRoute(req, res);
     if (req.url.startsWith('/api/ai')) return aiRoute(req, res);
     if (req.url.startsWith('/api/candles')) return candleApi(req, res);

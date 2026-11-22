@@ -29,6 +29,8 @@ import { DayPopupContext, ReviewPopupContext } from '../lib/dayPopup';
 import { DiaryDayModal } from '../views/Diary';
 import { fmtDate, fmtTime12 } from '../lib/stats';
 import { useShotInbox } from '../lib/shotInbox';
+import { useRiskEnforceSync } from '../lib/riskEnforce';
+import { IS_VIEWER } from '../lib/shareMode';
 
 /** On the home-server copy: whether the PC is reachable. Returns null everywhere else (the PC answers 404). */
 function useReplicaStatus() {
@@ -80,6 +82,7 @@ export const CoachLogo = ({ size = 100, icon = 44 }) => (
 export default function Layout({ route, crumbs, children }) {
   const { update, state, storage, dismissStorageNotice, setSetting, markAllRead, markRead, clearNotifications, importState, resetAll, resetDemo } = useStore();
   const replica = useReplicaStatus();
+  useRiskEnforceSync(state, !IS_VIEWER && !IS_DEMO && !!state.settings.riskEnforce); // risk rules for the ATAS add-on
   useShotInbox(); // screenshots picked up from your screenshot folder → the right trade or diary day
   const [offlineHidden, setOfflineHidden] = useState(false); // dismissed until the next reload
   const [netOpen, setNetOpen] = useState(false);

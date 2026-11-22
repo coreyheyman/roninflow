@@ -27,7 +27,8 @@ namespace TradeJournal
     [Description("Sends closed trades from every connected account to RoninFlow (http://localhost:5173, or set Journal URL + Token for a journal on another computer).")]
     public class JournalSync : Indicator
     {
-        private const string SyncVersion = "1.5.1";
+        private const string SyncVersion = "1.6.0";
+        internal const string AddonVersion = SyncVersion;
         private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
         private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -69,6 +70,13 @@ namespace TradeJournal
         [Display(Name = "Send tick data when RoninFlow asks (tick-by-tick replay)", GroupName = "Price data", Order = 32)]
         public bool SendTicks { get; set; } = true;
 
+        // Risk enforcement: rules come from RoninFlow → Settings → Risk enforcement (per account, with its risk tier)
+        [Display(Name = "Enforce RoninFlow risk rules (all accounts set up in RoninFlow)", GroupName = "Risk", Order = 40)]
+        public bool EnforceRisk { get; set; } = false;
+
+        [Display(Name = "Also keep ATAS Risk Management in step (loss limit, max trades, losses in a row)", GroupName = "Risk", Order = 41)]
+        public bool SetAtasRiskManagement { get; set; } = true;
+
         [Display(Name = "Resend history every (minutes)", GroupName = "Connection", Order = 20)]
         [Range(1, 1440)]
         public int ResendMinutes { get; set; } = 10;
@@ -99,6 +107,7 @@ namespace TradeJournal
 
         protected override void OnDispose()
         {
+            RiskEnforcer.Detach(this);
             TradingStatisticsProvider.RawStatisticsSourceChanged -= OnStatisticsSourceChanged;
             TradingStatisticsProvider.StatisticsRebuilt -= OnStatisticsRebuilt;
             if (_statistics != null)
@@ -168,6 +177,7 @@ namespace TradeJournal
 
         private void OnTradeAdded(HistoryMyTrade trade)
         {
+            RiskEnforcer.TradeSeen(trade);
             var dto = ToDto(trade);
             if (dto == null)
                 return;
@@ -256,6 +266,8 @@ namespace TradeJournal
                         await RequestTicksIfAsked(token);
                     }
 
+                    RiskEnforcer.Heartbeat(this, EnforceRisk, SetAtasRiskManagement);
+
                     if (DateTime.UtcNow >= nextHeartbeat)
                     {
                         var trades = Snapshot();
@@ -333,6 +345,43 @@ namespace TradeJournal
                 }
             }
             return true;
+        }
+
+        // ---------- used by RiskEnforcer ----------
+
+        internal ITradingStatistics? RiskStatistics => _statistics;
+
+        /// <summary>The connector behind this chart's trading (a fallback when ATAS's trading core can't be found).</summary>
+        internal IDataFeedConnector? ChartConnector()
+        {
+            var tm = TradingManager;
+            foreach (var o in new[] { Prop(tm, "TradingProvider"), Prop(tm, "Connector"), Prop(tm, "DataFeedConnector"), Prop(tm, "TradingConnector") })
+                if (o is IDataFeedConnector c)
+                    return c;
+            return null;
+        }
+
+        internal async Task<string> GetText(string path, CancellationToken token)
+        {
+            var ask = new HttpRequestMessage(HttpMethod.Get, BaseUrl() + path);
+            if (!string.IsNullOrWhiteSpace(Token))
+                ask.Headers.TryAddWithoutValidation("Authorization", "Bearer " + Token.Trim());
+            using var reply = await Http.SendAsync(ask, token);
+            reply.EnsureSuccessStatusCode();
+            return await reply.Content.ReadAsStringAsync(token);
+        }
+
+        internal async Task PostRiskStatus(object payload, CancellationToken token)
+        {
+            try
+            {
+                using var content = new StringContent(JsonSerializer.Serialize(payload, Json), Encoding.UTF8, "application/json");
+                using var response = await Send(BaseUrl() + "/api/atas/risk/status", content, token);
+            }
+            catch
+            {
+                // RoninFlow not running: try again next time
+            }
         }
 
         private string BaseUrl()

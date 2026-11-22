@@ -2,6 +2,14 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 2.1.0
+
+- **Risk enforcement in ATAS (Settings → Risk enforcement):** RoninFlow can now hold ATAS to your risk plan, account by account. Switch an account on and set its rules: the daily loss limit (follows its current risk tier unless you set your own), a trailing drawdown on the day's closed P&L (the same as the daily loss limit unless you change it), trading windows and days, trades per day, losing trades in a row, and contracts per position. The page shows the account's current tier and, live from ATAS, today's closed and open P&L, the day's high, where the trailing stop sits, trades taken and whether new orders are blocked.
+- **How it's enforced:** the Journal Sync add-on joins ATAS's own pre-order check, so while a rule is broken that account is reduce-only — new positions are refused, closing still works. Hitting the loss limit or trailing drawdown also closes open positions; a window ending can too; positions over the contract limit are trimmed. It keeps each account's ATAS Risk Management in step (loss limit, max trades, losses in a row), lowering ATAS's loss limit as the trailing drawdown tightens. It works on every connected account, copy-trade followers included, whether or not a chart has them selected.
+- **Journal Sync 1.6.0:** a new **Enforce RoninFlow risk rules** switch in the indicator's settings (off until you turn it on), and **Also keep ATAS Risk Management in step**.
+
+**Updating:** restart RoninFlow, then reinstall the ATAS add-on (Start menu → RoninFlow → Install platform add-ons → ATAS) with ATAS closed. In ATAS, open Journal Sync's settings and switch on Enforce RoninFlow risk rules. Try it on a simulation account first.
+
 ## 2.0.0
 
 RoninFlow 2.0 brings together everything from the 1.9 series. If you're coming from 1.8, here's what's new — each 1.9.x section below has the details.

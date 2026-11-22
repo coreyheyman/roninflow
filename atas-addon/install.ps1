@@ -76,7 +76,7 @@ Ok ".NET 10 SDK found"
 $proj = Join-Path $PSScriptRoot "JournalSync.csproj"
 Write-Host "  .. building"
 Remove-Item (Join-Path $PSScriptRoot "obj") -Recurse -Force -ErrorAction SilentlyContinue  # stale restore files from the old project name
-& dotnet build $proj -c Release -nologo -v quiet "-p:ATAS_BASE=$atas"
+& dotnet build $proj -c Release -nologo -v quiet "-p:ATAS_BASE=$atas" 2>&1 | Tee-Object -FilePath (Join-Path $PSScriptRoot "build.log")
 if ($LASTEXITCODE -ne 0) { Fail "Build failed. Copy the error lines above into an issue at https://github.com/coreyheyman/roninflow/issues" }
 $dll = Get-ChildItem (Join-Path $PSScriptRoot "bin\Release") -Recurse -Filter "JournalSync.dll" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $dll) { Fail "Build succeeded but JournalSync.dll wasn't found." }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Camera, Check, Download, RefreshCw, ShieldCheck, Globe, CandlestickChart, Archive, Info, KeyRound, TriangleExclamationPoint as TriangleAlert, ExternalLink } from 'lucide-react';
+import { Camera, ShieldAlert, Check, Download, RefreshCw, ShieldCheck, Globe, CandlestickChart, Archive, Info, KeyRound, TriangleExclamationPoint as TriangleAlert, ExternalLink } from 'lucide-react';
 import { useStore } from '../store/store';
 import { Modal, ModalHead, Switch, useToast } from './ui';
 import { LANGS } from '../lib/i18n';
@@ -7,6 +7,7 @@ import { fmtDate, fmtTime12 } from '../lib/stats';
 import { useNetStatus } from './NetworkAccess';
 import { IS_DEMO, DOWNLOAD_URL } from '../lib/demoMode';
 import ShotSettings from './ShotSettings';
+import RiskEnforce from './RiskEnforce';
 
 const jsonOf = async (r) => ((r.headers.get('content-type') || '').includes('json') ? r.json() : null);
 const ZONES = (() => { try { return Intl.supportedValuesOf('timeZone'); } catch { return ['UTC', 'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Europe/London', 'Europe/Berlin', 'Asia/Tokyo']; } })();
@@ -14,6 +15,7 @@ const ZONES = (() => { try { return Intl.supportedValuesOf('timeZone'); } catch 
 const TABS = [
   ['general', 'General', Globe],
   ['security', 'Security & privacy', ShieldCheck],
+  ['risk', 'Risk enforcement', ShieldAlert],
   ['prices', 'Price data', CandlestickChart],
   ['shots', 'Screenshots', Camera],
   ['backups', 'Backups & updates', Archive],
@@ -42,7 +44,8 @@ export default function SettingsCenter({ open, tab: initialTab = 'general', onCl
         </nav>
         <div className="set-body">
           {tab === 'general' && <General onCurrency={onCurrency} onPlaybook={onPlaybook} />}
-          {IS_DEMO && ['security', 'prices', 'shots', 'backups'].includes(tab) && <DemoNote />}
+          {IS_DEMO && ['security', 'risk', 'prices', 'shots', 'backups'].includes(tab) && <DemoNote />}
+          {!IS_DEMO && tab === 'risk' && <RiskEnforce />}
           {!IS_DEMO && tab === 'security' && <Security onNetwork={onNetwork} />}
           {!IS_DEMO && tab === 'prices' && <Prices />}
           {!IS_DEMO && tab === 'shots' && <ShotSettings />}
