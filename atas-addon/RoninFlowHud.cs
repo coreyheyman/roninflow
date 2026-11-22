@@ -72,6 +72,7 @@ namespace TradeJournal
         private sealed class AccountInfo { public string TierName = "", TierColor = ""; public int Level, Of; public decimal DailyLoss, Trail; public int MaxTrades; public bool Enforced, Enforcing, Blocked, Windowed, InWindow = true; public string Reason = ""; public int? WindowMin; }
         private sealed class Snapshot { public long DayStartUtc; public string Market = ""; public AccountInfo? Account; public Gex? Gex; public List<EventItem> Events = new(); public List<NewsItem> News = new(); public string Error = ""; public DateTime At; }
         private sealed class DayStats { public decimal Realised, Peak, AvgWin, AvgLoss, Best, Worst, GrossWin, GrossLoss; public int Trades, Wins, Losses; }
+        private sealed class PosRow { public string Account = "", Code = ""; public decimal Volume; public decimal? Pnl; }
         private sealed class Popup { public string Key = "", Kind = "news", Meta = "", Title = "", Impact = ""; public List<Tag> Tags = new(); public string[]? Nums; public DateTime Shown; }
 
         private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(8) };
@@ -93,6 +94,8 @@ namespace TradeJournal
         private bool _statsCollapsed;
         private bool _collapseInit;
         private Rectangle _statsRect = Rectangle.Empty;
+        private Rectangle _accountRect = Rectangle.Empty;
+        private volatile List<PosRow> _positions = new();
         private float _k = 1f; // the account panel's size while it's drawn (chip padding follows it)
         private string _aKey = "";
         private RenderFont _aFont = new("Consolas", 9), _aBold = new("Consolas", 9, FontStyle.Bold), _aSmall = new("Consolas", 8), _aBig = new("Consolas", 11, FontStyle.Bold);
@@ -145,6 +148,9 @@ namespace TradeJournal
 
         [Display(Name = "Start with the stats collapsed", GroupName = "2. Account panel", Order = 29)]
         public bool StatsStartCollapsed { get; set; } = false;
+
+        [Display(Name = "Open positions on every account (under the panel)", GroupName = "2. Account panel", Order = 32)]
+        public bool ShowAllPositions { get; set; } = true;
 
         [Display(Name = "Risk tier chip", GroupName = "2. Account panel", Order = 25)]
         public bool ShowTierChip { get; set; } = true;
@@ -478,6 +484,11 @@ namespace TradeJournal
         {
             List<(string Sound, string Message, string Kind)> due;
             lock (_alertQueue) { due = _alertQueue.ToList(); _alertQueue.Clear(); }
+            if (ShowAllPositions)
+            {
+                try { RefreshPositions(); }
+                catch { }
+            }
             foreach (var (sound, message, kind) in due)
             {
                 var bg = kind == "win" || kind == "target" ? PositiveColor : kind == "warn" ? WarningColor : NegativeColor;
@@ -637,6 +648,34 @@ namespace TradeJournal
             try { CheckAlerts(today, d, snap, account!, dayStart); }
             catch { }
         }
+
+        /// <summary>Every connected account's open positions (copy-trade followers included), from ATAS's trading core.</summary>
+        private void RefreshPositions()
+        {
+            var core = RiskEnforcer.TradingCore(this);
+            if (core == null)
+            {
+                var tm = TradingManager;
+                foreach (var name in new[] { "TradingProvider", "Connector", "DataFeedConnector", "TradingConnector" })
+                {
+                    try
+                    {
+                        if (tm?.GetType().GetProperty(name)?.GetValue(tm) is IDataFeedConnector c) { core = c; break; }
+                    }
+                    catch { }
+                }
+            }
+            if (core == null) return;
+            List<Position> all;
+            try { all = core.Positions.Where(p => p != null && p.Volume != 0).ToList(); }
+            catch (InvalidOperationException) { return; } // changed while reading: next second
+            _positions = all
+                .Select(p => new PosRow { Account = p.AccountID ?? p.Portfolio?.AccountID ?? "", Code = p.Security?.Code ?? "", Volume = p.Volume, Pnl = p.OpenPnL })
+                .OrderBy(p => p.Account, StringComparer.OrdinalIgnoreCase).ThenBy(p => p.Code)
+                .ToList();
+        }
+
+        private static string Mask(string id) => id.Length > 9 ? id.Substring(0, 4) + "•••" + id.Substring(id.Length - 3) : id;
 
         private void Alert(string sound, string message, string kind, string title, string meta)
         {
@@ -937,7 +976,7 @@ namespace TradeJournal
             try { if (ShowGamma && snap?.Gex != null) DrawGamma(g, snap.Gex); } catch { }
             try { if (ShowMarkers && snap != null) DrawMarkers(g, snap); } catch { }
             try { if (ShowNews) DrawNews(g, snap); else _newsHeader = Rectangle.Empty; } catch { }
-            try { if (ShowAccount) DrawAccount(g, snap); } catch { }
+            try { if (ShowAccount || ShowAllPositions) DrawAccount(g, snap); } catch { }
             try { if (ShowPopups || PreviewPopup) DrawPopups(g, snap); } catch { }
         }
 
@@ -1093,7 +1132,12 @@ namespace TradeJournal
             }
             var (f0, f1, f2, f3) = (_font, _bold, _small, _big);
             (_font, _bold, _small, _big, _k) = (_aFont, _aBold, _aSmall, _aBig, k);
-            try { DrawAccountBody(g, s, k); }
+            try
+            {
+                if (ShowAccount) DrawAccountBody(g, s, k);
+                else { _accountRect = Rectangle.Empty; _statsRect = Rectangle.Empty; }
+                if (ShowAllPositions) DrawPositions(g, k);
+            }
             finally { (_font, _bold, _small, _big, _k) = (f0, f1, f2, f3, 1f); }
         }
 
@@ -1150,6 +1194,7 @@ namespace TradeJournal
 
             var p = Place(AccountPlacement, w, h, AccountX, AccountY);
             var rect = new Rectangle(p.X, p.Y, w, h);
+            _accountRect = rect;
             Panel(g, rect);
             var x = p.X + pad;
             var y = p.Y + pad;
@@ -1326,6 +1371,62 @@ namespace TradeJournal
                         }
                     }
                 }
+            }
+        }
+
+        // ---------- open positions on every account ----------
+
+        private void DrawPositions(RenderContext g, float k)
+        {
+            var rows = _positions;
+            if (rows.Count == 0) return; // nothing open: nothing shown
+            var pad = (int)Math.Round(8 * k);
+            var sh = g.MeasureString("Ag", _small).Height;
+            var lh = g.MeasureString("Ag", _font).Height;
+            var rowH = lh + (int)Math.Round(5 * k);
+            var w = _accountRect.Width > 0 ? _accountRect.Width : (int)Math.Round(AccountWidth * k);
+            var h = pad + sh + (int)Math.Round(5 * k) + rows.Count * rowH + pad / 2;
+            Point p;
+            if (_accountRect.Width > 0)
+            {
+                p = new Point(_accountRect.X, _accountRect.Bottom + (int)Math.Round(6 * k));
+                if (p.Y + h > Container.Region.Bottom - 4) p = new Point(_accountRect.X, _accountRect.Top - (int)Math.Round(6 * k) - h); // no room below: above it
+            }
+            else p = Place(AccountPlacement, w, h, AccountX, AccountY);
+            var rect = new Rectangle(p.X, p.Y, w, h);
+            Panel(g, rect);
+
+            var x = rect.X + pad + 2;
+            var y = rect.Y + pad - 2;
+            var total = rows.Sum(r => r.Pnl ?? 0m);
+            var accounts = rows.Select(r => r.Account).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+            g.DrawString($"OPEN POSITIONS · {accounts} ACCOUNT{(accounts == 1 ? "" : "S")}", _small, MutedColor, x, y);
+            var tot = Num(total, true);
+            var tw = g.MeasureString(tot, _small).Width;
+            g.DrawString(tot, _small, total > 0 ? PositiveColor : total < 0 ? NegativeColor : MutedColor, rect.Right - pad - 2 - tw, y);
+            y += sh + (int)Math.Round(5 * k);
+
+            var mine = TradingManager?.Portfolio?.AccountID ?? "";
+            var acctW = rows.Max(r => g.MeasureString(Mask(r.Account), _font).Width);
+            var sideW = rows.Max(r => g.MeasureString($"{(r.Volume > 0 ? "LONG" : "SHORT")} {Math.Abs(r.Volume):0.##}", _bold).Width);
+            var dot = Math.Max(5, (int)Math.Round(6 * k));
+            foreach (var r in rows)
+            {
+                var c = r.Volume > 0 ? PositiveColor : NegativeColor;
+                if (string.Equals(r.Account, mine, StringComparison.OrdinalIgnoreCase))
+                    g.FillRectangle(A(AccentColor, 26), new Rectangle(rect.Left + 1, y - 1, rect.Width - 2, rowH));
+                g.FillEllipse(c, new Rectangle(x, y + (lh - dot) / 2, dot, dot));
+                var cx = x + dot + (int)Math.Round(7 * k);
+                g.DrawString(Mask(r.Account), _font, TextColor, cx, y);
+                cx += acctW + (int)Math.Round(10 * k);
+                g.DrawString($"{(r.Volume > 0 ? "LONG" : "SHORT")} {Math.Abs(r.Volume):0.##}", _bold, c, cx, y);
+                cx += sideW + (int)Math.Round(10 * k);
+                var pnl = r.Pnl == null ? "—" : Num(r.Pnl.Value, true);
+                var pw = g.MeasureString(pnl, _bold).Width;
+                var px = rect.Right - pad - 2 - pw;
+                if (r.Code.Length > 0) g.DrawString(Fit(g, r.Code, _small, px - cx - 6), _small, MutedColor, cx, y + (lh - sh) / 2);
+                g.DrawString(pnl, _bold, r.Pnl > 0 ? PositiveColor : r.Pnl < 0 ? NegativeColor : MutedColor, px, y);
+                y += rowH;
             }
         }
 

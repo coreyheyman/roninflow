@@ -121,6 +121,28 @@ namespace TradeJournal
         private static object? _proxy;
         private static PropertyInfo? _guardProp;
 
+        private static DateTime _coreTriedAt = DateTime.MinValue;
+
+        /// <summary>ATAS's trading core (every connected account's positions and orders), for the RoninFlow HUD too.</summary>
+        internal static IDataFeedConnector? TradingCore(object anchor)
+        {
+            if (_core != null)
+                return _core;
+            if (DateTime.UtcNow - _coreTriedAt < TimeSpan.FromSeconds(30))
+                return null;
+            _coreTriedAt = DateTime.UtcNow;
+            try
+            {
+                var t = FindType("OFT.Platform.Core.Providers.IPlatformTradingCore");
+                _core = t != null ? Resolve(t, anchor) as IDataFeedConnector : null;
+            }
+            catch
+            {
+                _core = null;
+            }
+            return _core;
+        }
+
         public static bool IsBlocked(string account) => Blocked.TryGetValue(account ?? "", out var b) && b;
 
         public static void TradeSeen(HistoryMyTrade t)
