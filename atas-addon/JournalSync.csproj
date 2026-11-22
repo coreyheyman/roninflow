@@ -41,6 +41,10 @@
       <HintPath>$(ATAS_BASE)\System.Drawing.Common.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="OFT.Attributes">
+      <HintPath>$(ATAS_BASE)\OFT.Attributes.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Utils.Common">
       <HintPath>$(ATAS_BASE)\Utils.Common.dll</HintPath>
       <Private>False</Private>

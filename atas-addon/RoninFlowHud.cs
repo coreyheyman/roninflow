@@ -26,6 +26,7 @@ using ATAS.DataFeedsCore;
 using ATAS.DataFeedsCore.Statistics;
 using ATAS.Indicators;
 
+using OFT.Attributes.Editors;
 using OFT.Rendering;
 using OFT.Rendering.Context;
 using OFT.Rendering.Control;
@@ -33,26 +34,6 @@ using OFT.Rendering.Tools;
 
 namespace TradeJournal
 {
-    /// <summary>Lists ATAS's sounds (its Sounds folder, yours included) as choices for an alert's sound.</summary>
-    public class AtasSoundList : StringConverter
-    {
-        public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
-        public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => false;
-        public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
-        {
-            var names = new List<string>();
-            try
-            {
-                foreach (var dir in new[] { System.IO.Path.Combine(AppContext.BaseDirectory, "Sounds"), System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ATAS X", "Sounds") })
-                    if (System.IO.Directory.Exists(dir))
-                        names.AddRange(System.IO.Directory.GetFiles(dir, "*.wav").Select(f => System.IO.Path.GetFileNameWithoutExtension(f) ?? "").Where(n => n.Length > 0));
-            }
-            catch { }
-            if (names.Count == 0) names.AddRange(new[] { "alert1", "alert2", "alert3", "alert4", "alert5" });
-            return new StandardValuesCollection(names.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList());
-        }
-    }
-
     [DisplayName("RoninFlow HUD")]
     [Description("RoninFlow on your chart: account panel with risk tier and gamma regime, gamma levels, the news feed and news pop-ups. Each part can be switched on or off and placed in the settings.")]
     public class RoninFlowHud : Indicator
@@ -65,7 +46,7 @@ namespace TradeJournal
 
         // ---------- data from RoninFlow ----------
         private sealed class Tag { public string M = ""; public int Dir; }
-        private sealed class NewsItem { public string Id = "", Title = "", Src = ""; public long T; public int Importance, Dir; public List<Tag> Tags = new(); }
+        private sealed class NewsItem { public string Id = "", Title = "", Src = "", Summary = "", Link = "", Story = "", Driver = "", Actual = "", Forecast = "", Previous = ""; public long T; public int Importance, Dir; public List<Tag> Tags = new(); }
         private sealed class EventItem { public string Id = "", Title = "", Ccy = "", Impact = "", Actual = "", Forecast = "", Previous = ""; public long T; }
         private sealed class Level { public decimal Price; public string Kind = ""; }
         private sealed class Gex { public string Index = "", Zone = "", Error = ""; public decimal Total; public decimal? Flip, CallWall, PutWall; public List<Level> Pos = new(), Neg = new(); public bool Delayed; public long At; }
@@ -95,6 +76,11 @@ namespace TradeJournal
         private bool _collapseInit;
         private Rectangle _statsRect = Rectangle.Empty;
         private Rectangle _accountRect = Rectangle.Empty;
+        private NewsItem? _detail;                                   // the headline open in its pop-up
+        private Rectangle _detailRect = Rectangle.Empty;
+        private readonly List<(Rectangle Box, NewsItem Item)> _newsRows = new();
+        private readonly List<(Rectangle Box, string Action)> _detailButtons = new();
+        private readonly List<(Rectangle Box, string Key)> _popupBodies = new();
         private volatile List<PosRow> _positions = new();
         private float _k = 1f; // the account panel's size while it's drawn (chip padding follows it)
         private string _aKey = "";
@@ -355,7 +341,7 @@ namespace TradeJournal
         public bool AlertWin { get; set; } = true;
 
         [Display(Name = "Winning trade: sound", GroupName = "8. Alerts", Order = 151)]
-        [TypeConverter(typeof(AtasSoundList))]
+        [SelectFileEditor(InitialFolder = @"C:\Program Files\ATAS X\Sounds", Filter = "Sounds (*.wav)|*.wav", IsTextEditable = false)]
         public string WinSound { get; set; } = "alert1";
 
         [Display(Name = "Winning trade: only above ($, 0 = any)", GroupName = "8. Alerts", Order = 152)]
@@ -366,7 +352,7 @@ namespace TradeJournal
         public bool AlertLoss { get; set; } = true;
 
         [Display(Name = "Losing trade: sound", GroupName = "8. Alerts", Order = 161)]
-        [TypeConverter(typeof(AtasSoundList))]
+        [SelectFileEditor(InitialFolder = @"C:\Program Files\ATAS X\Sounds", Filter = "Sounds (*.wav)|*.wav", IsTextEditable = false)]
         public string LossSound { get; set; } = "alert2";
 
         [Display(Name = "Losing trade: only below (−$, 0 = any)", GroupName = "8. Alerts", Order = 162)]
@@ -377,7 +363,7 @@ namespace TradeJournal
         public bool AlertDll { get; set; } = true;
 
         [Display(Name = "Daily loss limit hit: sound", GroupName = "8. Alerts", Order = 171)]
-        [TypeConverter(typeof(AtasSoundList))]
+        [SelectFileEditor(InitialFolder = @"C:\Program Files\ATAS X\Sounds", Filter = "Sounds (*.wav)|*.wav", IsTextEditable = false)]
         public string DllSound { get; set; } = "alert4";
 
         [Display(Name = "Daily loss limit ($, 0 = the RoninFlow tier's)", GroupName = "8. Alerts", Order = 172)]
@@ -389,14 +375,14 @@ namespace TradeJournal
         public int DllWarnPercent { get; set; } = 80;
 
         [Display(Name = "Warning: sound", GroupName = "8. Alerts", Order = 174)]
-        [TypeConverter(typeof(AtasSoundList))]
+        [SelectFileEditor(InitialFolder = @"C:\Program Files\ATAS X\Sounds", Filter = "Sounds (*.wav)|*.wav", IsTextEditable = false)]
         public string DllWarnSound { get; set; } = "alert3";
 
         [Display(Name = "Profit target hit", GroupName = "8. Alerts", Order = 180)]
         public bool AlertTarget { get; set; } = true;
 
         [Display(Name = "Profit target hit: sound", GroupName = "8. Alerts", Order = 181)]
-        [TypeConverter(typeof(AtasSoundList))]
+        [SelectFileEditor(InitialFolder = @"C:\Program Files\ATAS X\Sounds", Filter = "Sounds (*.wav)|*.wav", IsTextEditable = false)]
         public string TargetSound { get; set; } = "alert5";
 
         [Display(Name = "Daily profit target ($, 0 = off)", GroupName = "8. Alerts", Order = 182)]
@@ -492,7 +478,7 @@ namespace TradeJournal
             foreach (var (sound, message, kind) in due)
             {
                 var bg = kind == "win" || kind == "target" ? PositiveColor : kind == "warn" ? WarningColor : NegativeColor;
-                try { AddAlert(string.IsNullOrWhiteSpace(sound) ? "alert1" : sound.Trim(), InstrumentInfo?.Instrument ?? "", message, bg, Color.Black, AlertAtasPopup); }
+                try { AddAlert(SoundName(sound), InstrumentInfo?.Instrument ?? "", message, bg, Color.Black, AlertAtasPopup); }
                 catch { }
             }
             // countdowns, pop-up timers
@@ -587,6 +573,11 @@ namespace TradeJournal
                     if (n.TryGetProperty("tags", out var tg) && tg.ValueKind == JsonValueKind.Array)
                         foreach (var x in tg.EnumerateArray())
                             item.Tags.Add(new Tag { M = Str(x, "m"), Dir = (int)Dec(x, "dir") });
+                    item.Summary = Str(n, "summary"); item.Link = Str(n, "link"); item.Story = Str(n, "story"); item.Driver = Str(n, "driver");
+                    if (n.TryGetProperty("data", out var dt) && dt.ValueKind == JsonValueKind.Object)
+                    {
+                        item.Actual = Str(dt, "actual"); item.Forecast = Str(dt, "forecast"); item.Previous = Str(dt, "previous");
+                    }
                     snap.News.Add(item);
                 }
             _snap = snap;
@@ -676,6 +667,24 @@ namespace TradeJournal
         }
 
         private static string Mask(string id) => id.Length > 9 ? id.Substring(0, 4) + "•••" + id.Substring(id.Length - 3) : id;
+
+        /// <summary>A sound picked in the file chooser is a full path: ATAS plays its own sounds by name ("alert1").</summary>
+        private static string SoundName(string sound)
+        {
+            var v = (sound ?? "").Trim().Trim('"');
+            if (v.Length == 0) return "alert1";
+            try
+            {
+                if (v.Contains('\\') || v.Contains('/'))
+                {
+                    var dir = System.IO.Path.GetDirectoryName(v) ?? "";
+                    var inAtas = dir.TrimEnd('\\', '/').EndsWith("Sounds", StringComparison.OrdinalIgnoreCase);
+                    return inAtas ? System.IO.Path.GetFileNameWithoutExtension(v) : v; // one from elsewhere: by its path
+                }
+                return v.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ? v.Substring(0, v.Length - 4) : v;
+            }
+            catch { return v; }
+        }
 
         private void Alert(string sound, string message, string kind, string title, string meta)
         {
@@ -815,6 +824,19 @@ namespace TradeJournal
 
         public override bool ProcessMouseDown(RenderControlMouseEventArgs e)
         {
+            if (_detail != null)
+            {
+                foreach (var (box, action) in _detailButtons.ToList())
+                {
+                    if (!box.Contains(e.Location)) continue;
+                    if (action == "close") _detail = null;
+                    else Open(action);
+                    RedrawChart();
+                    return true;
+                }
+                if (!_detailRect.Contains(e.Location)) { _detail = null; RedrawChart(); return true; } // a click outside closes it
+                return true;
+            }
             if (ShowNews && _newsHeader.Contains(e.Location))
             {
                 _newsCollapsed = !_newsCollapsed;
@@ -827,6 +849,13 @@ namespace TradeJournal
                 RedrawChart();
                 return true;
             }
+            foreach (var (box, item) in _newsRows.ToList())
+            {
+                if (!box.Contains(e.Location)) continue;
+                _detail = item;
+                RedrawChart();
+                return true;
+            }
             foreach (var (box, key) in _closeBoxes.ToList())
             {
                 if (!box.Contains(e.Location)) continue;
@@ -835,12 +864,22 @@ namespace TradeJournal
                 RedrawChart();
                 return true;
             }
+            foreach (var (box, key) in _popupBodies.ToList())
+            {
+                if (!box.Contains(e.Location) || !key.StartsWith("n:")) continue;
+                var item = _snap?.News.FirstOrDefault(n => "n:" + n.Id == key);
+                if (item == null) continue;
+                _detail = item;
+                RedrawChart();
+                return true;
+            }
             return base.ProcessMouseDown(e);
         }
 
         public override StdCursor GetCursor(RenderControlMouseEventArgs e)
         {
-            if ((ShowNews && _newsHeader.Contains(e.Location)) || (ShowAccount && ShowStats && _statsRect.Contains(e.Location)) || _closeBoxes.Any(b => b.Box.Contains(e.Location)))
+            if ((ShowNews && _newsHeader.Contains(e.Location)) || (ShowAccount && ShowStats && _statsRect.Contains(e.Location)) || _closeBoxes.Any(b => b.Box.Contains(e.Location))
+                || _newsRows.Any(b => b.Box.Contains(e.Location)) || _detailButtons.Any(b => b.Box.Contains(e.Location)) || _popupBodies.Any(b => b.Box.Contains(e.Location) && b.Key.StartsWith("n:")))
                 return StdCursor.Hand;
             return base.GetCursor(e);
         }
@@ -972,12 +1011,15 @@ namespace TradeJournal
             Fonts();
             if (!_collapseInit) { _newsCollapsed = NewsStartCollapsed; _statsCollapsed = StatsStartCollapsed; _collapseInit = true; }
             _closeBoxes.Clear();
+            _newsRows.Clear();
+            _popupBodies.Clear();
             var snap = _snap;
             try { if (ShowGamma && snap?.Gex != null) DrawGamma(g, snap.Gex); } catch { }
             try { if (ShowMarkers && snap != null) DrawMarkers(g, snap); } catch { }
             try { if (ShowNews) DrawNews(g, snap); else _newsHeader = Rectangle.Empty; } catch { }
             try { if (ShowAccount || ShowAllPositions) DrawAccount(g, snap); } catch { }
             try { if (ShowPopups || PreviewPopup) DrawPopups(g, snap); } catch { }
+            try { if (_detail != null) DrawDetail(g, _detail); else { _detailRect = Rectangle.Empty; _detailButtons.Clear(); } } catch { }
         }
 
         // ---------- gamma levels ----------
@@ -1374,6 +1416,108 @@ namespace TradeJournal
             }
         }
 
+        // ---------- a headline's pop-up ----------
+
+        private void Open(string url)
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+            catch { }
+        }
+
+        private void DrawDetail(RenderContext g, NewsItem n)
+        {
+            _detailButtons.Clear();
+            var r = Container.Region;
+            var w = Math.Min(560, r.Width - 40);
+            var pad = 16;
+            var lh = g.MeasureString("Ag", _font).Height;
+            var sh = g.MeasureString("Ag", _small).Height;
+            var bh = g.MeasureString("Ag", _big).Height;
+            var textW = w - pad * 2;
+            var title = Wrap(g, n.Title, _big, textW - 20, 4);
+            var summary = n.Summary.Length > 0 && !string.Equals(n.Summary, n.Title, StringComparison.OrdinalIgnoreCase) ? Wrap(g, n.Summary, _font, textW, 9) : new List<string>();
+            var hasNums = n.Actual.Length > 0 || n.Forecast.Length > 0;
+            var h = 3 + pad + sh + 8 + title.Count * (bh + 3) + 6
+                + (n.Story.Length > 0 ? sh + 8 : 0)
+                + (summary.Count > 0 ? summary.Count * (lh + 3) + 10 : 0)
+                + (hasNums ? sh + lh + 22 : 0)
+                + (n.Tags.Count > 0 ? sh + 6 + lh + 14 : 0)
+                + lh + 14 + pad;
+            var rect = new Rectangle(r.Left + (r.Width - w) / 2, r.Top + Math.Max(16, (r.Height - h) / 2), w, h);
+            _detailRect = rect;
+            var c = n.Importance >= 3 ? NegativeColor : n.Importance >= 2 ? WarningColor : AccentColor;
+            g.FillRectangle(Color.FromArgb(250, Math.Min(255, Background.R + 6), Math.Min(255, Background.G + 6), Math.Min(255, Background.B + 6)), rect, Radius + 2);
+            g.DrawRectangle(new RenderPen(BorderColor, 1), rect, Radius + 2);
+            g.FillRectangle(c, new Rectangle(rect.X + 1, rect.Y + 1, rect.Width - 2, 3), 1);
+            var x = rect.X + pad;
+            var y = rect.Y + 3 + pad;
+
+            var meta = $"{Pretty(n.Src)} · {DateTimeOffset.FromUnixTimeMilliseconds(n.T).LocalDateTime:ddd HH:mm}" + (n.Importance >= 3 ? " · High impact" : n.Importance >= 2 ? " · Important" : "");
+            g.DrawString(meta, _small, n.Importance >= 2 ? c : MutedColor, x, y);
+            var xr = new Rectangle(rect.Right - pad - 12, y - 2, 14, 14);
+            g.DrawString("✕", _font, MutedColor, xr.X, xr.Y);
+            _detailButtons.Add((Rectangle.Inflate(xr, 6, 6), "close"));
+            y += sh + 8;
+            foreach (var l in title) { g.DrawString(l, _big, TextColor, x, y); y += bh + 3; }
+            y += 6;
+            if (n.Story.Length > 0)
+            {
+                g.DrawString(Fit(g, "Story: " + n.Story + (n.Driver.Length > 0 ? " · " + n.Driver : ""), _small, textW), _small, MutedColor, x, y);
+                y += sh + 8;
+            }
+            if (summary.Count > 0)
+            {
+                foreach (var l in summary) { g.DrawString(l, _font, A(TextColor, 220), x, y); y += lh + 3; }
+                y += 10;
+            }
+            if (hasNums)
+            {
+                var cw = (textW - 12) / 3;
+                var names = new[] { "ACTUAL", "FORECAST", "PREVIOUS" };
+                var vals = new[] { n.Actual, n.Forecast, n.Previous };
+                for (var k = 0; k < 3; k++)
+                {
+                    var nr = new Rectangle(x + k * (cw + 6), y, cw, sh + lh + 12);
+                    g.FillRectangle(TileColor, nr, 4);
+                    g.DrawRectangle(new RenderPen(BorderColor, 1), nr, 4);
+                    g.DrawString(names[k], _small, MutedColor, nr.X + 8, nr.Y + 4);
+                    g.DrawString(vals[k].Length > 0 ? vals[k] : "—", _bold, k == 0 ? c : TextColor, nr.X + 8, nr.Y + 5 + sh);
+                }
+                y += sh + lh + 22;
+            }
+            if (n.Tags.Count > 0)
+            {
+                g.DrawString("USUALLY MOVES", _small, A(MutedColor, 170), x, y);
+                y += sh + 6;
+                var cx = x;
+                foreach (var t in n.Tags)
+                {
+                    var label = t.M + (t.Dir > 0 ? " ↑" : t.Dir < 0 ? " ↓" : "");
+                    var cwid = g.MeasureString(label, _small).Width + 14;
+                    if (cx + cwid > rect.Right - pad) break;
+                    cx += Chip(g, label, t.Dir > 0 ? PositiveColor : t.Dir < 0 ? NegativeColor : MutedColor, cx, y, lh) + 5;
+                }
+                y += lh + 14;
+            }
+
+            // buttons
+            var bx = x;
+            var buttons = new List<(string Label, string Action, bool Primary)>();
+            if (n.Link.StartsWith("http", StringComparison.OrdinalIgnoreCase)) buttons.Add(("Open the article", n.Link, true));
+            buttons.Add(("Open News Flow", Root() + "/#/macro/news", n.Link.Length == 0));
+            buttons.Add(("Close", "close", false));
+            foreach (var (label, action, primary) in buttons)
+            {
+                var bw = g.MeasureString(label, _font).Width + 22;
+                var br = new Rectangle(bx, y, bw, lh + 10);
+                g.FillRectangle(primary ? AccentColor : TileColor, br, Math.Min(Radius, 5));
+                g.DrawRectangle(new RenderPen(primary ? AccentColor : BorderColor, 1), br, Math.Min(Radius, 5));
+                g.DrawString(label, _font, primary ? Color.White : TextColor, br.X + 11, br.Y + 5);
+                _detailButtons.Add((br, action));
+                bx += bw + 8;
+            }
+        }
+
         // ---------- open positions on every account ----------
 
         private void DrawPositions(RenderContext g, float k)
@@ -1534,6 +1678,7 @@ namespace TradeJournal
                 if (news.Count == 0) { g.DrawString(s == null ? "Waiting for RoninFlow…" : "No headlines yet", _font, MutedColor, x, y + 2); y += rowH; }
                 foreach (var n in news)
                 {
+                    _newsRows.Add((new Rectangle(rect.Left + 1, y, rect.Width - 2, rowH), n));
                     var fresh = nowMs - n.T < 10 * 60_000;
                     if (fresh)
                     {
@@ -1632,6 +1777,7 @@ namespace TradeJournal
                 var xr = new Rectangle(rect.Right - pad - 12, rect.Y + pad - 2, 14, 14);
                 g.DrawString("✕", _small, MutedColor, xr.X + 2, xr.Y);
                 _closeBoxes.Add((Rectangle.Inflate(xr, 4, 4), pop.Key));
+                _popupBodies.Add((rect, pop.Key));
                 if (pop.Key != "preview")
                 {
                     var left = 1 - Math.Min(1, (DateTime.UtcNow - pop.Shown).TotalSeconds / Math.Max(1, PopupSeconds));

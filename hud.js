@@ -74,9 +74,13 @@ export function createHudHandler({ gexApi, newsApi, macroApi, riskApi, log = () 
       .sort((a, b) => b.t - a.t)
       .slice(0, 40)
       .map((x) => {
-        const tags = Object.entries(x.impacts || {}).filter(([, v]) => v).slice(0, 4).map(([m, v]) => ({ m, dir: v > 0 ? 1 : -1 }));
+        const tags = Object.entries(x.impacts || {}).filter(([, v]) => v).slice(0, 10).map(([m, v]) => ({ m, dir: v > 0 ? 1 : -1 }));
         if (market && x.impacts?.[market]) tags.sort((a, b) => (a.m === market ? -1 : b.m === market ? 1 : 0));
-        return { id: x.id, t: x.t, title: x.title, src: x.src, importance: x.importance || 0, dir: market ? Math.sign(x.impacts?.[market] || 0) : 0, tags, data: x.data || null };
+        return {
+          id: x.id, t: x.t, title: x.title, src: x.src, importance: x.importance || 0, dir: market ? Math.sign(x.impacts?.[market] || 0) : 0, tags,
+          summary: String(x.summary || '').replace(/\s+/g, ' ').trim().slice(0, 700), link: x.link || '', story: x.storyTitle || '', driver: x.driver || '',
+          data: x.data ? { actual: x.data.actual ?? '', forecast: x.data.forecast ?? '', previous: x.data.previous ?? '' } : null,
+        };
       });
   }
 
