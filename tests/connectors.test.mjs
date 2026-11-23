@@ -73,3 +73,54 @@ test('a MetaTrader trade written inside the Mac MT5 app reaches the journal', ()
     assert.equal(got[0].trades[0].symbol, 'EURUSD');
   } finally { process.env.HOME = realHome; }
 });
+
+test('Webull request signature matches the documented example', async () => {
+  const { webullSign } = await import('../connect-markets.js');
+  const sig = webullSign({
+    path: '/trade/place_order',
+    query: { a1: 'webull', a2: '123', a3: 'xxx', q1: 'yyy' },
+    headers: { 'x-app-key': '776da210ab4a452795d74e726ebd74b6', 'x-timestamp': '2022-01-04T03:55:31Z', 'x-signature-version': '1.0', 'x-signature-algorithm': 'HMAC-SHA1', 'x-signature-nonce': '48ef5afed43d4d91ae514aaeafbc29ba', host: 'api.webull.com' },
+    body: '{"k1":123,"k2":"this is the api request body","k3":true,"k4":{"foo":[1,2]}}',
+    secret: '0f50a2e853334a9aae1a783bee120c1f',
+  });
+  assert.equal(sig, 'kvlS6opdZDhEBo5jq40nHYXaLvM=');
+});
+
+test('Webull: token approval in the app, then filled orders become fills', async () => {
+  const { createWebull } = await import('../connect-markets.js');
+  const real = globalThis.fetch;
+  let approved = false, creates = 0;
+  const calls = [];
+  globalThis.fetch = async (url, opt) => {
+    const u = new URL(url);
+    calls.push(`${opt.method} ${u.pathname}`);
+    assert.ok(opt.headers['x-signature'] && opt.headers['x-app-key'] === 'K');
+    const json = (o, status = 200) => new Response(JSON.stringify(o), { status });
+    if (u.pathname === '/auth/tokens/create') { creates++; return json({ token: 'TOK', status: 'PENDING' }); }
+    if (u.pathname === '/auth/tokens/check') return json({ token: 'TOK', status: approved ? 'NORMAL' : 'PENDING' });
+    const tokOk = opt.headers['x-access-token'] === 'TOK' && approved;
+    if (u.pathname === '/trading/accounts/list') return tokOk ? json([{ account_id: 'A1', account_number: '5UX123', account_type: 'MARGIN' }]) : json({ message: 'token not verified' }, 401);
+    if (u.pathname === '/trading/orders/historical-orders/list') {
+      assert.equal(u.searchParams.get('account_id'), 'A1');
+      return json([
+        { client_order_id: 'c1', order_id: 'o1', side: 'BUY', status: 'FILLED', filled_time_at: '2026-11-20T15:31:02Z', items: [{ order_id: 'o1', symbol: 'AAPL', side: 'BUY', filled_quantity: '10', filled_price: '190.5', status: 'FILLED' }] },
+        { client_order_id: 'c2', order_id: 'o2', side: 'SELL', status: 'FILLED', filled_time_at: 1795700000000, items: [{ order_id: 'o2', symbol: 'AAPL', side: 'SELL', filled_quantity: '10', filled_price: '191.25', status: 'FILLED' }] },
+        { client_order_id: 'c3', order_id: 'o3', side: 'BUY', status: 'CANCELLED', items: [{ order_id: 'o3', symbol: 'TSLA', side: 'BUY', filled_quantity: '0', status: 'CANCELLED' }] },
+      ]);
+    }
+    return json({}, 404);
+  };
+  try {
+    const cfg = { appKey: 'K', appSecret: 'S' };
+    const api = createWebull(cfg);
+    await assert.rejects(api.test(), /Webull app/);
+    assert.equal(cfg.accessToken, 'TOK');
+    approved = true;
+    assert.match(await api.test(), /1 account\(s\): 5UX123 \(MARGIN\)/);
+    assert.equal(creates, 1, 'no second SMS while the first request is still valid');
+    const out = await api.poll({ since: null });
+    assert.equal(out.fills.length, 2);
+    assert.deepEqual(out.fills.map((f) => [f.side, f.qty, f.price, f.account, f.pointValue]), [['Buy', 10, 190.5, '5UX123', 1], ['Sell', 10, 191.25, '5UX123', 1]]);
+    assert.equal(out.fills[1].time, new Date(1795700000000).toISOString());
+  } finally { globalThis.fetch = real; }
+});

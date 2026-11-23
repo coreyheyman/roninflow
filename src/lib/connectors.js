@@ -243,6 +243,18 @@ export const CONNECTORS = [
       ['Paste the address and connect', 'Copy the address the browser lands on, paste it below and press Connect.'],
     ],
     notes: ['You only sign in once — TradeStation’s refresh tokens don’t expire unless your key was set up to rotate them.', 'Fills are taken per order (average fill price at the order’s close time). The last 90 days come in first.'] },
+  { id: 'webull', name: 'Webull', group: 'api', status: 'ready', beta: true, blurb: 'Stocks, options and futures orders via the Webull OpenAPI. Checks every 2 minutes.',
+    fields: [
+      { key: 'env', label: 'Environment', options: [{ value: 'live', label: 'Live' }, { value: 'sandbox', label: 'Sandbox (test keys)' }] },
+      { key: 'appKey', label: 'App Key' },
+      { key: 'appSecret', label: 'App Secret', secret: true },
+    ],
+    setup: [
+      ['Apply for API access (once)', 'developer.webull.com → sign in with your Webull account → apply for OpenAPI access as an individual. Once Webull approves it, create an application and copy its App Key and App Secret.'],
+      ['Connect', 'Paste the key and secret below and press Connect. Webull texts a verification code to the phone on your account.'],
+      ['Approve it in the Webull app', 'In the Webull app: Menu → Messages → OpenAPI Notifications → the latest verification → Check Now, enter the code and Confirm. Then press Connect again (within 5 minutes).'],
+    ],
+    notes: ['Beta: built from Webull’s published documentation and not yet tried against a real Webull account — tell us if anything looks off.', 'The approval lasts while RoninFlow keeps syncing; if Webull ever asks again this card shows “Paused” — press Connect and approve in the app again.', 'Trades are built from filled orders (average fill price per order). The last 60 days come in first. Options use the 100× multiplier; futures use the contract’s point value.', 'Webull’s order history doesn’t include fees, so commissions show as 0.'] },
   // crypto
   { id: 'bybit', name: 'Bybit', group: 'crypto', status: 'ready', blurb: 'USDT/USDC perpetuals and spot. Checks every 2 minutes.',
     fields: [

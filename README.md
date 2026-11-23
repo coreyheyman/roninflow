@@ -19,7 +19,7 @@ reviews and screenshots stay on your own machine.
 ## Features
 
 - **Automatic trade import** from ATAS, NinjaTrader, MetaTrader 4/5, cTrader, Sierra Chart, Quantower, TopstepX/ProjectX,
-  Tradovate, Interactive Brokers, Schwab, TradeStation, Alpaca, OANDA, tastytrade, Bybit, Binance, OKX, Bitget,
+  Tradovate, Interactive Brokers, Schwab, TradeStation, Webull (beta), Alpaca, OANDA, tastytrade, Bybit, Binance, OKX, Bitget,
   Hyperliquid, Coinbase and Kraken — plus file import from most platforms and a webhook for anything else.
 - **Build your own dashboards:** drag, resize and add from 30+ widgets; add, rename and delete as many dashboards as you like,
   each with its own layout. Includes the **Ronin Score** (one 0–100 health score from six parts, with a "weakest part"
@@ -301,7 +301,7 @@ On the server, check the service with `systemctl --user status trade-journal` an
 
 **Connections** in the sidebar lists every way to get trades in: live add-ons (ATAS, NinjaTrader 8, MetaTrader 4/5,
 cTrader, Sierra Chart, Quantower beta), broker APIs (TopstepX/ProjectX, Tradovate, Interactive Brokers Flex, Alpaca,
-OANDA, tastytrade, Charles Schwab, TradeStation), crypto exchanges (Bybit, Binance, OKX, Bitget, Hyperliquid, Coinbase, Kraken),
+OANDA, tastytrade, Charles Schwab, TradeStation, Webull beta), crypto exchanges (Bybit, Binance, OKX, Bitget, Hyperliquid, Coinbase, Kraken),
 the webhook, and file imports with
 export steps per platform (ATAS, TradingView, DeepCharts, NinjaTrader, Tradovate, R | Trader Pro, TopstepX, any CSV).
 
@@ -378,6 +378,7 @@ Set up in Connections; credentials are encrypted in `data/connect.json` and neve
 | Bitget | `/api/v2/mix/position/history-position` (classic) + `/api/v3/position/history-position` (unified), `/api/v2/mix/account/accounts` | 2 min |
 | Charles Schwab | OAuth (sign-in pasted back, refresh token lasts 7 days) → `/trader/v1/accounts/accountNumbers`, `/accounts/{hash}/transactions?types=TRADE`, `/accounts/{hash}` | 2 min |
 | TradeStation | OAuth (non-expiring refresh token) → `/v3/brokerage/accounts`, `/historicalorders`, `/orders`, `/balances` | 2 min |
+| Webull (beta) | App Key + Secret (HMAC-SHA1 signed requests), access token approved once in the Webull app → `/trading/accounts/list`, `/trading/orders/historical-orders/list` | 2 min |
 
 Code: `connect-apis.js` (prop firms / futures brokers, file drops) and `connect-markets.js` (stock, forex and crypto).
 A failed connection test pauses that connection so bad credentials aren't retried in the background. Crypto P&L uses

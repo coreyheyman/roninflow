@@ -12,6 +12,8 @@
 //   alpaca       Alpaca              GET /v2/account/activities/FILL, /v2/account
 //   oanda        OANDA v20           GET /v3/accounts, /v3/accounts/{id}/trades?state=CLOSED, /v3/accounts/{id}/summary
 //   tastytrade   tastytrade          OAuth refresh token → GET /accounts/{n}/transactions, /accounts/{n}/balances
+//   webull       Webull OpenAPI      App key + secret (HMAC-SHA1 signed), access token approved in the Webull app →
+//                                    GET /trading/accounts/list, /trading/orders/historical-orders/list
 //
 // Crypto quantities are in coins, so P&L = price move × quantity (pointValue 1). Spot fills are flagged `spot`
 // (they can't open shorts), and fills that the exchange reports as closing a position opened before the history
@@ -647,6 +649,153 @@ export function createTradestation(cfg) {
   };
 }
 
+// ====================================================================== Webull OpenAPI (US)
+/** Webull's request signature: sorted query + signing headers, MD5 of the body, URL-encoded, HMAC-SHA1 with "secret&". */
+export function webullSign({ path, query = {}, headers, body = '', secret }) {
+  const all = { ...query, ...headers };
+  const str1 = Object.keys(all).sort().map((k) => `${k}=${all[k]}`).join('&');
+  const str3 = body ? `${path}&${str1}&${crypto.createHash('md5').update(body).digest('hex').toUpperCase()}` : `${path}&${str1}`;
+  const encoded = encodeURIComponent(str3).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return hmac('sha1', `${secret}&`, encoded, 'base64');
+}
+
+export function createWebull(cfg) {
+  const base = trim(cfg.baseUrl) || (cfg.env === 'sandbox' ? 'https://api.sandbox.webull.com' : 'https://api.webull.com');
+  const host = new URL(base).host;
+  if (cfg.accessToken && cfg.tokenKey !== `${cfg.appKey || ''}|${base}`) { cfg.accessToken = ''; cfg.tokenAt = 0; } // a different key or environment: its own token
+  let lastCall = 0;
+  async function call(method, path, { query = {}, body, token = true } = {}) {
+    need(cfg, ['appKey', 'appSecret'], 'App Key and App Secret');
+    const wait = 1100 - (Date.now() - lastCall); // most account and order endpoints allow 2 calls per 2 seconds
+    if (wait > 0) await sleep(wait);
+    lastCall = Date.now();
+    const text = body === undefined ? '' : JSON.stringify(body);
+    const headers = {
+      'x-app-key': cfg.appKey.trim(),
+      'x-signature-algorithm': 'HMAC-SHA1',
+      'x-signature-version': '1.0',
+      'x-signature-nonce': crypto.randomUUID().replace(/-/g, ''),
+      'x-timestamp': new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    };
+    const q = Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => [k, String(v)]));
+    const signature = webullSign({ path, query: q, headers: { ...headers, host }, body: text, secret: cfg.appSecret.trim() });
+    const query_ = qs(q);
+    return req(`${base}${path}${query_ ? `?${query_}` : ''}`, {
+      method,
+      body: text || undefined,
+      headers: { ...headers, 'x-signature': signature, 'x-version': 'v3', ...(text ? { 'Content-Type': 'application/json' } : {}), ...(token && cfg.accessToken ? { 'x-access-token': cfg.accessToken } : {}) },
+    });
+  }
+  const errOf = (r) => r.json?.message || r.json?.msg || r.json?.error_msg || r.json?.error || r.json?.code || `HTTP ${r.status}`;
+  const listOf = (j, ...keys) => { if (Array.isArray(j)) return j; for (const k of [...keys, 'data', 'list', 'items', 'result']) { const v = j?.[k]; if (Array.isArray(v)) return v; if (v && typeof v === 'object') { const inner = listOf(v, ...keys); if (inner.length) return inner; } } return []; };
+  const tokenOf = (j) => j?.token || j?.access_token || j?.accessToken || j?.data?.token || j?.data?.access_token || '';
+  const statusOf = (j) => String(j?.status || j?.token_status || j?.data?.status || '').toUpperCase();
+
+  async function accounts() {
+    let r = await call('GET', '/trading/accounts/list');
+    if (r.status === 404) r = await call('GET', '/openapi/account/list'); // the older path some regions still use
+    if (r.status === 401 || r.status === 403 || r.status === 417) {
+      const e = new Error(`Webull didn’t accept the access token (${errOf(r)}) — press Connect to request a new one and approve it in the Webull app.`);
+      e.fatal = true; e.tokenProblem = true;
+      throw e;
+    }
+    if (!r.ok || !r.json) throw new Error(`Webull: ${errOf(r)}`);
+    return listOf(r.json, 'accounts').map((a) => ({ id: String(a.account_id ?? a.accountId ?? a.secAccountId ?? a.id ?? ''), label: String(a.account_number ?? a.accountNumber ?? a.account_id ?? ''), type: String(a.account_type ?? a.account_class ?? a.accountType ?? '') })).filter((a) => a.id);
+  }
+
+  /** The token needs approving in the Webull app (an SMS code, entered under Messages → OpenAPI Notifications). */
+  async function ensureToken() {
+    if (cfg.accessToken) {
+      try { await accounts(); return 'ok'; } catch (e) { if (!e.tokenProblem) throw e; }
+      // still waiting for the approval (it lapses after 5 minutes)
+      if (cfg.tokenAt && Date.now() - cfg.tokenAt < 5 * 60e3) {
+        const r = await call('POST', '/auth/tokens/check', { body: { token: cfg.accessToken }, token: false });
+        const st = statusOf(r.json);
+        if (st === 'NORMAL') return 'ok';
+        return 'pending';
+      }
+    }
+    const r = await call('POST', '/auth/tokens/create', { token: false });
+    const token = tokenOf(r.json);
+    if (!r.ok || !token) throw new Error(`Webull couldn’t create an access token: ${errOf(r)}`);
+    cfg.accessToken = token;
+    cfg.tokenAt = Date.now();
+    cfg.tokenKey = `${cfg.appKey.trim()}|${base}`;
+    return statusOf(r.json) === 'NORMAL' ? 'ok' : 'pending';
+  }
+
+  const num = (v) => n(String(v ?? '').replace(/,/g, ''));
+  const timeOf = (v) => { if (v == null || v === '') return null; const x = Number(v); const t = Number.isFinite(x) && x > 1e9 ? (x < 1e12 ? x * 1000 : x) : Date.parse(String(v)); return Number.isFinite(t) ? new Date(t).toISOString() : null; };
+  const isOption = (sym, type) => /OPTION/i.test(type || '') || /^[A-Z.]{1,6}\d{6}[CP]\d{8}$/.test(String(sym || '').replace(/\s+/g, ''));
+  const isFuture = (type) => /FUTURE/i.test(type || '');
+
+  function toFills(order, account, out) {
+    const groups = Array.isArray(order.orders) && order.orders.length ? order.orders : [order]; // group (bracket / combo) orders come together
+    for (const o of groups) {
+      const items = Array.isArray(o.items) && o.items.length ? o.items : [o];
+      const orderTime = timeOf(o.filled_time_at ?? o.filled_time ?? o.filledTime ?? o.update_time_at ?? o.place_time_at ?? o.create_time_at);
+      items.forEach((it, k) => {
+        const qty = num(it.filled_quantity ?? it.filled_qty ?? it.filledQuantity ?? (k === 0 ? o.filled_quantity : 0));
+        const price = num(it.filled_price ?? it.avg_filled_price ?? it.filledPrice ?? it.average_price ?? o.filled_price ?? o.avg_filled_price);
+        if (!(qty > 0) || !(price > 0)) return;
+        const sym = String(it.symbol ?? o.symbol ?? '').trim();
+        const type = String(it.instrument_type ?? it.category ?? o.instrument_type ?? o.category ?? '');
+        const side = String(it.side ?? o.side ?? '');
+        const time = timeOf(it.filled_time_at ?? it.filled_time ?? it.update_time_at) || orderTime;
+        if (!sym || !time) return;
+        const id = String(it.order_id ?? o.order_id ?? o.client_order_id ?? '');
+        out.push({
+          id: `wb-${id}-${k}`, account, symbol: sym, side: /^BUY/i.test(side) ? 'Buy' : 'Sell', qty, price, time,
+          commission: Math.abs(num(it.commission ?? o.commission ?? o.fee ?? 0)),
+          ...(isOption(sym, type) ? { pointValue: 100 } : isFuture(type) ? {} : { pointValue: 1 }),
+          ...(/CLOSE|COVER/i.test(side) ? { closes: qty } : {}),
+        });
+      });
+    }
+  }
+
+  async function history(acct, from, out) {
+    let path = '/trading/orders/historical-orders/list';
+    let last;
+    const seen = new Set();
+    for (let page = 0; page < 100; page++) {
+      const query = { account_id: acct.id, start_date: from, end_date: new Date().toISOString().slice(0, 10), page_size: 100, last_client_order_id: last };
+      let r = await call('GET', path, { query });
+      if (r.status === 404 && path.startsWith('/trading')) { path = '/openapi/account/orders/history'; r = await call('GET', path, { query }); }
+      if (!r.ok || !r.json) throw new Error(`Webull orders (${acct.label || acct.id}): ${errOf(r)}`);
+      const rows = listOf(r.json, 'orders');
+      let fresh = 0;
+      for (const o of rows) {
+        const key = String(o.client_order_id ?? o.order_id ?? '');
+        if (key && seen.has(key)) continue;
+        if (key) seen.add(key);
+        fresh++;
+        toFills(o, acct.label || acct.id, out);
+      }
+      const next = rows.length ? String(rows[rows.length - 1].client_order_id ?? '') : '';
+      if (!fresh || !next || next === last || rows.length < 100) break;
+      last = next;
+    }
+  }
+
+  return {
+    async test() {
+      const st = await ensureToken();
+      if (st === 'pending') throw new Error('Approve the access request in the Webull app: open the app → Menu → Messages → OpenAPI Notifications → the latest verification → Check Now, enter the SMS code and Confirm. Then press Connect again within 5 minutes.');
+      const list = await accounts();
+      return `${list.length} account(s): ${list.map((a) => `${a.label || a.id}${a.type ? ` (${a.type})` : ''}`).join(', ')}`;
+    },
+    async poll({ since }) {
+      if (!cfg.accessToken) throw fatal('Press Connect to request a Webull access token and approve it in the Webull app.');
+      const list = await accounts();
+      const from = new Date(startFrom(since, 60)).toISOString().slice(0, 10);
+      const fills = [];
+      for (const a of list) await history(a, from, fills);
+      return { fills, accounts: list.map((a) => a.label || a.id) };
+    },
+  };
+}
+
 // ====================================================================== Bitget (closed futures positions; classic and unified accounts)
 export function createBitget(cfg) {
   const base = trim(cfg.baseUrl) || 'https://api.bitget.com';
@@ -733,4 +882,5 @@ export const MARKET_DEFS = {
   schwab: { name: 'Charles Schwab', every: 2 * 60e3, make: createSchwab, secrets: ['appSecret', 'refreshToken', 'usedCode'] },
   tradestation: { name: 'TradeStation', every: 2 * 60e3, make: createTradestation, secrets: ['apiSecret', 'refreshToken', 'usedCode'] },
   bitget: { name: 'Bitget', every: 2 * 60e3, make: createBitget, secrets: ['apiSecret', 'passphrase'] },
+  webull: { name: 'Webull', every: 2 * 60e3, make: createWebull, secrets: ['appSecret', 'accessToken'] },
 };
