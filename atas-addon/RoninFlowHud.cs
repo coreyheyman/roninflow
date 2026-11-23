@@ -143,7 +143,7 @@ namespace TradeJournal
         [Tab(TabName = "Account", TabOrder = 2)]
         public bool AccountFit { get; set; } = true;
 
-        [Display(Name = "Start with the stats collapsed", GroupName = "What it shows", Order = 29)]
+        [Display(Name = "Start with the stats collapsed", GroupName = "What it shows", Order = 31)]
         [Tab(TabName = "Account", TabOrder = 2)]
         public bool StatsStartCollapsed { get; set; } = false;
 
@@ -167,19 +167,19 @@ namespace TradeJournal
         [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowBuffer { get; set; } = true;
 
-        [Display(Name = "Buffer bar moves with", GroupName = "What it shows", Order = 28)]
+        [Display(Name = "Buffer bar moves with", GroupName = "What it shows", Order = 29)]
         [Tab(TabName = "Account", TabOrder = 2)]
         public BufferMode BufferPnl { get; set; } = BufferMode.ClosedAndOpen;
 
-        [Display(Name = "Trade stats", GroupName = "What it shows", Order = 29)]
+        [Display(Name = "Trade stats", GroupName = "What it shows", Order = 30)]
         [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowStats { get; set; } = true;
 
-        [Display(Name = "GEX line", GroupName = "What it shows", Order = 30)]
+        [Display(Name = "GEX line", GroupName = "What it shows", Order = 32)]
         [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowGexLine { get; set; } = true;
 
-        [Display(Name = "\"At the flip\" within (points)", GroupName = "What it shows", Order = 31)]
+        [Display(Name = "\"At the flip\" within (points)", GroupName = "What it shows", Order = 33)]
         [Tab(TabName = "Account", TabOrder = 2)]
         [Range(0, 1000)]
         public decimal FlipNear { get; set; } = 10m;

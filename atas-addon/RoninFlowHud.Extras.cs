@@ -41,7 +41,11 @@ namespace TradeJournal
         [Tab(TabName = "Executions", TabOrder = 3)]
         public bool ExecAllAccounts { get; set; } = false;
 
-        [Display(Name = "Days back (0 = everything ATAS has)", GroupName = "Executions", Order = 302)]
+        [Display(Name = "Include the micro / mini twin (MES trades on an ES chart and back)", GroupName = "Executions", Order = 302)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public bool ExecTwins { get; set; } = true;
+
+        [Display(Name = "Days back (0 = everything ATAS has)", GroupName = "Executions", Order = 303)]
         [Tab(TabName = "Executions", TabOrder = 3)]
         [Range(0, 365)]
         public int ExecDays { get; set; } = 0;
@@ -370,19 +374,33 @@ namespace TradeJournal
         private bool _avgLong;
         private DateTime _execRefreshed = DateTime.MinValue;
 
-        private static string SymKey(string? s)
+        private static readonly Dictionary<string, string> Twins = new(StringComparer.Ordinal)
+        {
+            ["MES"] = "ES", ["MNQ"] = "NQ", ["M2K"] = "RTY", ["MYM"] = "YM", ["MGC"] = "GC", ["MCL"] = "CL",
+            ["SIL"] = "SI", ["MBT"] = "BTC", ["MET"] = "ETH", ["M6E"] = "6E", ["M6B"] = "6B", ["M6A"] = "6A", ["QM"] = "CL", ["QG"] = "NG",
+        };
+
+        /// <summary>"MESZ6@CME_Ind" → ("MES", "Z6"): the root and the contract month.</summary>
+        private static (string Root, string Month) SymParts(string? s)
         {
             s = (s ?? "").Trim().ToUpperInvariant();
-            var i = s.IndexOf('@');
-            return i > 0 ? s.Substring(0, i) : s;
+            var at = s.IndexOf('@');
+            if (at > 0) s = s.Substring(0, at);
+            var m = System.Text.RegularExpressions.Regex.Match(s, "^(.+?)([FGHJKMNQUVXZ]\\d{1,2})$");
+            return m.Success ? (m.Groups[1].Value, m.Groups[2].Value) : (s, "");
         }
 
         private bool SameInstrument(string? code)
         {
-            var a = SymKey(code);
-            var b = SymKey(InstrumentInfo?.Instrument);
-            if (a.Length == 0 || b.Length == 0) return false;
-            return a == b || a.StartsWith(b, StringComparison.Ordinal) || b.StartsWith(a, StringComparison.Ordinal);
+            var a = SymParts(code);
+            var b = SymParts(InstrumentInfo?.Instrument);
+            if (a.Root.Length == 0 || b.Root.Length == 0) return false;
+            if (a.Month.Length > 0 && b.Month.Length > 0 && a.Month[0] != b.Month[0]) return false; // a different contract month
+            if (a.Root == b.Root) return true;
+            if (!ExecTwins) return false;
+            var ra = Twins.TryGetValue(a.Root, out var x) ? x : a.Root;
+            var rb = Twins.TryGetValue(b.Root, out var y) ? y : b.Root;
+            return ra == rb;
         }
 
         /// <summary>The trades for this chart (its account, unless every account is wanted), kept ready for drawing.</summary>
@@ -398,15 +416,25 @@ namespace TradeJournal
             try { list = stats.HistoryMyTrades.ToList(); }
             catch { return; }
             var from = ExecDays > 0 ? DateTime.UtcNow.AddDays(-ExecDays) : DateTime.MinValue;
+            var all = ExecAllAccounts || account.Length == 0; // no account picked on the chart: show them all
             var rows = new List<Exec>();
+            var seen = new Dictionary<string, Exec>();
             foreach (var t in list)
             {
                 if (t == null) continue;
                 var acct = t.AccountID ?? t.Portfolio?.AccountID ?? "";
-                if (!ExecAllAccounts && !string.Equals(acct, account, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!all && !string.Equals(acct, account, StringComparison.OrdinalIgnoreCase)) continue;
                 if (!SameInstrument(t.Security?.Code ?? t.SecurityCode)) continue;
                 if (t.OpenTime < from) continue;
-                rows.Add(new Exec
+                // the same trade copied to several accounts is drawn once, with the combined quantity
+                var key = all ? $"{t.OpenTime:yyyyMMddHHmmss}|{t.OpenPrice}|{t.ClosePrice}|{t.IsComplete}|{Math.Sign(t.OpenVolume)}" : t.Id.ToString();
+                if (all && seen.TryGetValue(key, out var dup))
+                {
+                    dup.Qty += Math.Abs(t.OpenVolume);
+                    dup.Net += t.PnL - Math.Abs(t.Commission ?? 0m);
+                    continue;
+                }
+                var row = new Exec
                 {
                     Open = DateTime.SpecifyKind(t.OpenTime, DateTimeKind.Utc),
                     Close = DateTime.SpecifyKind(t.CloseTime, DateTimeKind.Utc),
@@ -416,7 +444,9 @@ namespace TradeJournal
                     Long = t.OpenVolume > 0,
                     Complete = t.IsComplete,
                     Net = t.PnL - Math.Abs(t.Commission ?? 0m),
-                });
+                };
+                if (all) seen[key] = row;
+                rows.Add(row);
             }
             _execs = rows;
 
