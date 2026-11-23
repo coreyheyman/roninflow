@@ -8,6 +8,7 @@
 //                                                                 inside its trading window right now
 //   POST /api/atas/risk/status  { version, accounts, ... }     ← from the add-on
 //   GET  /api/atas/risk/status                                 ← from the app
+//   POST /api/atas/risk/lock    { accounts: [...], flatten }   ← from the HUD: block these accounts for the rest of the day
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -53,6 +54,8 @@ export function createRiskHandler(dataDir, { log = () => {}, now = () => Date.no
   const file = path.join(dataDir, 'atas-sync', 'risk.json');
   let rules = readJson(file, { tz: '', accounts: [], tiers: {}, at: 0 });
   let status = null; // the add-on's last report (kept in memory)
+  const lockFile = path.join(dataDir, 'atas-sync', 'locks.json');
+  let locks = readJson(lockFile, {}); // account → { day: dayStartUtc, flatten, at }
 
   const send = (res, code, obj) => { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(obj)); };
   const body = (req) => new Promise((resolve, reject) => { let t = ''; req.setEncoding('utf8'); req.on('data', (c) => { t += c; if (t.length > 2e6) req.destroy(); }); req.on('end', () => { try { resolve(JSON.parse(t || '{}')); } catch (e) { reject(e); } }); req.on('error', reject); });
@@ -63,6 +66,11 @@ export function createRiskHandler(dataDir, { log = () => {}, now = () => Date.no
     const c = zoneClock(rules.tz, at);
     const nowMin = c.h * 60 + c.min;
     const dayStartUtc = Date.UTC(c.y, c.m - 1, c.d) - c.offsetMin * 60000; // midnight in your time zone
+    const lockOf = (id) => { const l = locks[id]; return l && l.day === dayStartUtc ? l : null; };
+    const known = new Set((rules.accounts || []).filter((a) => a.on).map((a) => a.account));
+    // accounts you blocked from the HUD that RoninFlow doesn't enforce: still blocked, with no other rules
+    const manualOnly = Object.keys(locks).filter((id) => lockOf(id) && !known.has(id))
+      .map((id) => ({ account: id, on: true, manualOnly: true, setAtas: false, manualLock: true, manualFlatten: !!locks[id].flatten, windowed: false, inWindow: true, windowChangeMin: null }));
     return {
       at: rules.at || 0,
       serverUtc: at.getTime(),
@@ -71,8 +79,9 @@ export function createRiskHandler(dataDir, { log = () => {}, now = () => Date.no
       accounts: (rules.accounts || []).map((a) => {
         const windowed = (a.windows || []).some((w) => toMin(w.from) != null && toMin(w.to) != null);
         const allowed = inWindows(a.windows, a.days, nowMin, c.wd);
-        return { ...a, windowed, inWindow: allowed, windowChangeMin: windowed || (a.days || []).length < 7 ? nextChange(a.windows, a.days, nowMin, c.wd) : null };
-      }),
+        const l = a.on ? lockOf(a.account) : null;
+        return { ...a, windowed, inWindow: allowed, windowChangeMin: windowed || (a.days || []).length < 7 ? nextChange(a.windows, a.days, nowMin, c.wd) : null, manualLock: !!l, manualFlatten: !!l?.flatten };
+      }).concat(manualOnly),
     };
   }
 
@@ -95,6 +104,17 @@ export function createRiskHandler(dataDir, { log = () => {}, now = () => Date.no
         const b = await body(req);
         status = { ...b, receivedAt: now() };
         return send(res, 200, { ok: true });
+      }
+      if (route === '/lock' && req.method === 'POST') {
+        const b = await body(req);
+        const ids = Array.isArray(b.accounts) ? b.accounts.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim().slice(0, 80)).slice(0, 200) : [];
+        if (!ids.length) return send(res, 400, { error: 'no accounts' });
+        const day = forAddon().dayStartUtc;
+        for (const [id, l] of Object.entries(locks)) if (l.day !== day) delete locks[id]; // yesterday's are gone
+        for (const id of ids) locks[id] = { day, flatten: !!b.flatten, at: now() };
+        writeJson(lockFile, locks);
+        log(`[risk] blocked for the day: ${ids.length} account(s)${b.flatten ? ', flattened' : ''}`);
+        return send(res, 200, { ok: true, accounts: ids, dayStartUtc: day });
       }
       if (route === '/status' && req.method === 'GET') return send(res, 200, { status, rules: forAddon() });
       return send(res, 404, { error: 'not found' });

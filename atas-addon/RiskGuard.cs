@@ -41,6 +41,9 @@ namespace TradeJournal
         public decimal Target;              // the day's profit target (0 = none)
         public bool TargetOpen = true;      // open P&L counts toward it
         public bool FlattenTarget;          // close positions and stop for the day when it's hit
+        public bool ManualLock;             // you blocked it from the HUD for the rest of the day
+        public bool ManualFlatten;          // …and asked for its positions to be closed
+        public bool ManualOnly;             // blocked from the HUD but not otherwise enforced by RoninFlow
         public int MaxTrades;
         public int MaxConsec;
         public decimal ConsecMin;
@@ -147,6 +150,12 @@ namespace TradeJournal
             }
             return _core;
         }
+
+        /// <summary>Fetch the rules on the next pass (after a block from the HUD) instead of waiting for the usual refresh.</summary>
+        public static void RefreshSoon() => _rulesAt = DateTime.MinValue;
+
+        /// <summary>Is the enforcer running in this ATAS (a chart with Journal Sync and enforcement switched on)?</summary>
+        public static bool Running => _leader != null && DateTime.UtcNow - _leaderSeen < TimeSpan.FromSeconds(30);
 
         public static bool IsBlocked(string account) => Blocked.TryGetValue(account ?? "", out var b) && b;
 
@@ -287,6 +296,9 @@ namespace TradeJournal
                             Target = Dec(a, "target"),
                             TargetOpen = !a.TryGetProperty("targetOpen", out var to) || to.ValueKind != JsonValueKind.False,
                             FlattenTarget = Bool(a, "flattenTarget"),
+                            ManualLock = Bool(a, "manualLock"),
+                            ManualFlatten = Bool(a, "manualFlatten"),
+                            ManualOnly = Bool(a, "manualOnly"),
                             MaxTrades = (int)Dec(a, "maxTrades"),
                             MaxConsec = (int)Dec(a, "maxConsec"),
                             ConsecMin = Dec(a, "consecMin"),
@@ -566,7 +578,8 @@ namespace TradeJournal
                         ? $"daily loss limit of {r.DailyLoss:0.##} reached"
                         : $"trailing drawdown of {r.Trail:0.##} reached (day's high {v.Peak:0.##}, now {v.Realised:0.##})";
                 }
-                string reason = st.LockedDay != 0 ? st.LockReason
+                string reason = r.ManualLock ? "blocked by you for the rest of the day"
+                    : st.LockedDay != 0 ? st.LockReason
                     : r.MaxTrades > 0 && v.Trades >= r.MaxTrades ? $"{v.Trades} of {r.MaxTrades} trades taken today"
                     : r.MaxConsec > 0 && v.Streak >= r.MaxConsec ? $"{v.Streak} losing trades in a row"
                     : !r.InWindow ? "outside your trading window"
@@ -582,7 +595,7 @@ namespace TradeJournal
                 {
                     try
                     {
-                        var flattenLocked = st.LockedDay != 0 && (st.LockIsTarget ? r.FlattenTarget : r.FlattenLoss);
+                        var flattenLocked = (r.ManualLock && r.ManualFlatten) || (st.LockedDay != 0 && (st.LockIsTarget ? r.FlattenTarget : r.FlattenLoss));
                         if (flattenLocked && (v.Positions.Count > 0 || v.Orders.Count > 0))
                         {
                             st.LastAction = DateTime.UtcNow;

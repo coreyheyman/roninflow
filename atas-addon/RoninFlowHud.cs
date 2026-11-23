@@ -52,8 +52,8 @@ namespace TradeJournal
         private sealed class EventItem { public string Id = "", Title = "", Ccy = "", Impact = "", Actual = "", Forecast = "", Previous = ""; public long T; }
         private sealed class Level { public decimal Price; public string Kind = ""; }
         private sealed class Gex { public string Index = "", Zone = "", Error = ""; public decimal Total; public decimal? Flip, CallWall, PutWall; public List<Level> Pos = new(), Neg = new(); public bool Delayed; public long At; }
-        private sealed class AccountInfo { public string TierName = "", TierColor = ""; public int Level, Of; public decimal DailyLoss, Trail, Target; public int MaxTrades; public bool TargetOpen = true, FlattenLoss, FlattenTarget; public bool Enforced, Enforcing, Blocked, Windowed, InWindow = true; public string Reason = ""; public int? WindowMin; }
-        private sealed class Snapshot { public long DayStartUtc; public string Market = ""; public AccountInfo? Account; public Gex? Gex; public List<EventItem> Events = new(); public List<NewsItem> News = new(); public string Error = ""; public DateTime At; }
+        private sealed class AccountInfo { public string TierName = "", TierColor = ""; public int Level, Of; public decimal DailyLoss, Trail, Target; public int MaxTrades; public bool TargetOpen = true, FlattenLoss, FlattenTarget; public bool Enforced, Enforcing, Blocked, Windowed, InWindow = true, ManualLock; public string Reason = ""; public int? WindowMin; }
+        private sealed class Snapshot { public long DayStartUtc; public string Market = ""; public AccountInfo? Account; public Gex? Gex; public List<EventItem> Events = new(); public List<NewsItem> News = new(); public string Error = ""; public DateTime At; public bool Enforcer; }
         private sealed class DayStats { public decimal Realised, Peak, AvgWin, AvgLoss, Best, Worst, GrossWin, GrossLoss; public int Trades, Wins, Losses; }
         private sealed class PosRow { public string Account = "", Code = ""; public decimal Volume; public decimal? Pnl; }
         private sealed class Popup { public string Key = "", Kind = "news", Meta = "", Title = "", Impact = ""; public List<Tag> Tags = new(); public string[]? Nums; public DateTime Shown; }
@@ -658,7 +658,7 @@ namespace TradeJournal
             var text = await reply.Content.ReadAsStringAsync(token);
             using var doc = JsonDocument.Parse(text);
             var root = doc.RootElement;
-            var snap = new Snapshot { At = DateTime.UtcNow, DayStartUtc = Long(root, "dayStartUtc"), Market = Str(root, "market") };
+            var snap = new Snapshot { At = DateTime.UtcNow, DayStartUtc = Long(root, "dayStartUtc"), Market = Str(root, "market"), Enforcer = Bool(root, "enforcer") };
             if (root.TryGetProperty("account", out var a) && a.ValueKind == JsonValueKind.Object)
             {
                 var ai = new AccountInfo
@@ -666,7 +666,7 @@ namespace TradeJournal
                     DailyLoss = Dec(a, "dailyLoss"), Trail = Dec(a, "trail"), MaxTrades = (int)Dec(a, "maxTrades"),
                     Target = Dec(a, "target"), TargetOpen = !a.TryGetProperty("targetOpen", out var tgo) || tgo.ValueKind != JsonValueKind.False,
                     FlattenLoss = Bool(a, "flattenLoss"), FlattenTarget = Bool(a, "flattenTarget"),
-                    Enforced = Bool(a, "enforced"), Enforcing = Bool(a, "enforcing"), Blocked = Bool(a, "blocked"), Reason = Str(a, "reason"),
+                    Enforced = Bool(a, "enforced"), Enforcing = Bool(a, "enforcing"), Blocked = Bool(a, "blocked"), Reason = Str(a, "reason"), ManualLock = Bool(a, "manualLock"),
                     Windowed = Bool(a, "windowed"), InWindow = !a.TryGetProperty("inWindow", out var iw) || iw.ValueKind != JsonValueKind.False,
                     WindowMin = a.TryGetProperty("windowChangeMin", out var wm) && wm.ValueKind == JsonValueKind.Number ? wm.GetInt32() : null,
                 };
@@ -1050,6 +1050,29 @@ namespace TradeJournal
 
         public override bool ProcessMouseDown(RenderControlMouseEventArgs e)
         {
+            if (_blockAsk)
+            {
+                foreach (var (box, action) in _blockButtons.ToList())
+                {
+                    if (!box.Contains(e.Location)) continue;
+                    BlockAction(action);
+                    RedrawChart();
+                    return true;
+                }
+                if (!_blockRect.Contains(e.Location)) { _blockAsk = false; RedrawChart(); } // a click outside closes it
+                return true;
+            }
+            if (ShowAccount && _stateRect.Contains(e.Location))
+            {
+                _blockAsk = true;
+                _blockScope = "this";
+                _blockFlatten = false;
+                _blockMsg = "";
+                _blockDone = false;
+                _detail = null;
+                RedrawChart();
+                return true;
+            }
             if (_detail != null)
             {
                 foreach (var (box, action) in _detailButtons.ToList())
@@ -1112,7 +1135,8 @@ namespace TradeJournal
         public override StdCursor GetCursor(RenderControlMouseEventArgs e)
         {
             if ((ShowNews && _newsHeader.Contains(e.Location)) || (ShowAccount && ShowStats && _statsRect.Contains(e.Location)) || _closeBoxes.Any(b => b.Box.Contains(e.Location))
-                || _newsRows.Any(b => b.Box.Contains(e.Location)) || _detailButtons.Any(b => b.Box.Contains(e.Location)) || _popupBodies.Any(b => b.Box.Contains(e.Location) && b.Key.StartsWith("n:")) || (ShowHeatmap && HmShowButton && _hmButton.Contains(e.Location)))
+                || _newsRows.Any(b => b.Box.Contains(e.Location)) || _detailButtons.Any(b => b.Box.Contains(e.Location)) || _popupBodies.Any(b => b.Box.Contains(e.Location) && b.Key.StartsWith("n:")) || (ShowHeatmap && HmShowButton && _hmButton.Contains(e.Location))
+                || (ShowAccount && _stateRect.Contains(e.Location)) || (_blockAsk && _blockButtons.Any(b => b.Box.Contains(e.Location))))
                 return StdCursor.Hand;
             return base.GetCursor(e);
         }
@@ -1261,6 +1285,7 @@ namespace TradeJournal
             try { if (ShowAccount || ShowAllPositions) DrawAccount(g, snap); } catch { }
             try { if (ShowPopups || PreviewPopup) DrawPopups(g, snap); } catch { }
             try { if (ShowHeatmap && HmShowButton) DrawHeatmapButton(g); else _hmButton = Rectangle.Empty; } catch { }
+            try { if (_blockAsk) DrawBlockAsk(g); else { _blockRect = Rectangle.Empty; _blockButtons.Clear(); } } catch { }
             try { if (_detail != null) DrawDetail(g, _detail); else { _detailRect = Rectangle.Empty; _detailButtons.Clear(); } } catch { }
         }
 
@@ -1499,7 +1524,10 @@ namespace TradeJournal
             var chips = (ShowTierChip && acct != null && acct.TierName.Length > 0) || (ShowGammaChip && gammaText != null);
             if (chips) h += chipH + 8;
             var blocked = acct != null && acct.Blocked;
-            if (blocked) h += lh * 2 + 14;
+            var blockText = blocked ? "New orders blocked — " + (acct!.Reason.Length > 0 ? acct.Reason : "a risk rule is broken") : "";
+            var blockLines = blocked ? Wrap(g, blockText, _small, w - pad * 2 - 14, 3) : new List<string>();
+            var blockH = blockLines.Count * (sh + 2) + 10;
+            if (blocked) h += blockH + 6;
             var tileH = sh + lh + (int)Math.Round(14 * k);
             if (ShowPnlTiles) h += tileH + 8;
             var dll = acct?.DailyLoss ?? 0;
@@ -1524,7 +1552,14 @@ namespace TradeJournal
             var state = s == null || (DateTime.UtcNow - s.At).TotalSeconds > 20 ? "offline" : blocked ? "blocked" : acct?.Enforcing == true ? "enforcing" : "live";
             var stateColor = state == "offline" ? MutedColor : state == "blocked" ? NegativeColor : PositiveColor;
             var sw = g.MeasureString(state, _small).Width;
-            g.DrawString(state, _small, MutedColor, rect.Right - pad - sw, y + (lh - sh) / 2);
+            _stateRect = new Rectangle(rect.Right - pad - sw - 18, y - 3, sw + 22, lh + 6);
+            var hoverState = _stateRect.Contains(MouseLocationInfo?.LastPosition ?? Point.Empty);
+            if (hoverState || _blockAsk)
+            {
+                g.FillRectangle(A(stateColor, 28), _stateRect, 4);
+                g.DrawRectangle(new RenderPen(A(stateColor, 120), 1), _stateRect, 4);
+            }
+            g.DrawString(state, _small, hoverState ? TextColor : MutedColor, rect.Right - pad - sw, y + (lh - sh) / 2);
             g.FillEllipse(stateColor, new Rectangle(rect.Right - pad - sw - 12, y + lh / 2 - 3, 6, 6));
             y += lh + pad;
             g.DrawLine(new RenderPen(A(BorderColor, 255), 1), rect.Left + 1, y - pad / 2, rect.Right - 1, y - pad / 2);
@@ -1546,12 +1581,11 @@ namespace TradeJournal
 
             if (blocked)
             {
-                var br = new Rectangle(x, y, w - pad * 2, lh * 2 + 8);
+                var br = new Rectangle(x, y, w - pad * 2, blockH);
                 g.FillRectangle(A(NegativeColor, 22), br, 4);
                 g.DrawRectangle(new RenderPen(A(NegativeColor, 110), 1), br, 4);
-                var lines = Wrap(g, "New orders blocked — " + (acct!.Reason.Length > 0 ? acct.Reason : "a risk rule is broken"), _small, br.Width - 14, 2);
-                var ty = br.Y + 4;
-                foreach (var l in lines) { g.DrawString(l, _small, NegativeColor, br.X + 7, ty); ty += lh; }
+                var ty = br.Y + 5;
+                foreach (var l in blockLines) { g.DrawString(l, _small, NegativeColor, br.X + 7, ty); ty += sh + 2; }
                 y += br.Height + 6;
             }
 

@@ -21,6 +21,7 @@
     <Compile Include="RiskGuard.cs" />
     <Compile Include="RoninFlowHud.cs" />
     <Compile Include="RoninFlowHud.Extras.cs" />
+    <Compile Include="RoninFlowHud.Block.cs" />
   </ItemGroup>
 
   <!-- Platform assemblies come from the installed ATAS X and are not copied to the output. -->

@@ -91,6 +91,7 @@ export function createHudHandler({ gexApi, newsApi, macroApi, riskApi, log = () 
     const rule = snap.rules.accounts.find((a) => a.account === id);
     const live = snap.status && now() - snap.status.receivedAt < 20e3 && snap.status.enforcing ? snap.status.accounts?.find((a) => a.account === id) : null;
     if (!tier && !rule) return null;
+    if (rule?.manualOnly && !tier) return { tier: null, dailyLoss: 0, trail: 0, maxTrades: null, target: null, targetOpen: true, flattenLoss: false, flattenTarget: false, enforced: true, enforcing: !!live, blocked: !!live?.blocked, reason: live?.reason || '', windowed: false, inWindow: true, windowChangeMin: null, manualLock: true };
     return {
       tier: tier ? { name: tier.name, level: tier.level, of: tier.of, color: tier.color } : rule?.tier || null,
       dailyLoss: rule?.dailyLoss ?? tier?.dailyLoss ?? 0,
@@ -107,6 +108,7 @@ export function createHudHandler({ gexApi, newsApi, macroApi, riskApi, log = () 
       windowed: !!rule?.windowed,
       inWindow: rule ? rule.inWindow !== false : true,
       windowChangeMin: rule?.windowChangeMin ?? null,
+      manualLock: !!rule?.manualLock,
     };
   }
 
@@ -124,6 +126,7 @@ export function createHudHandler({ gexApi, newsApi, macroApi, riskApi, log = () 
         dayStartUtc: snap?.rules?.dayStartUtc ?? null,
         market, marketLabel: market ? NEWS_MARKETS[market]?.short || market : '',
         account: accountFor(account),
+        enforcer: !!(snap?.status && now() - snap.status.receivedAt < 20e3 && snap.status.enforcing),
         gex: gexFor(indexOf(symbol)),
         events: await eventsToday(),
         news: newsFor(market),

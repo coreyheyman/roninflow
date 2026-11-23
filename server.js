@@ -210,7 +210,7 @@ function handle(req, res) {
     const authed = config.validSession(cookieToken(req));
     ctx.authed = authed;
     // Add-ons on this PC post here without signing in (ATAS); everything else is the app itself.
-    const riskAddon = (req.method === 'GET' && (req.url.startsWith('/api/atas/risk/rules') || req.url.startsWith('/api/atas/hud'))) || (req.method === 'POST' && req.url.startsWith('/api/atas/risk/status'));
+    const riskAddon = (req.method === 'GET' && (req.url.startsWith('/api/atas/risk/rules') || req.url.startsWith('/api/atas/hud'))) || (req.method === 'POST' && (req.url.startsWith('/api/atas/risk/status') || req.url.startsWith('/api/atas/risk/lock')));
     const addonRoute = /^\/api\/atas\/(trades|heartbeat|reset)/.test(req.url) || riskAddon;
     // ATAS on another computer (the journal on a Mac, Linux box or home server) sends the Webhook / API token instead
     if (addonRoute && !loopback && !isReplica && (req.method === 'POST' || riskAddon) && connectApi.tokenOk(req, false)) return riskAddon ? (req.url.startsWith('/api/atas/hud') ? hudApi(req, res) : riskApi(req, res)) : atasRoute(req, res);
