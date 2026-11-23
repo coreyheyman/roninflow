@@ -337,11 +337,25 @@ namespace TradeJournal
         [Display(Name = "Also show it with the news pop-ups", GroupName = "8. Alerts", Order = 142)]
         public bool AlertHudPopup { get; set; } = true;
 
+        [Display(Name = "Trade entered (position opened)", GroupName = "8. Alerts", Order = 143)]
+        public bool AlertEntry { get; set; } = true;
+
+        [Display(Name = "Trade entered: sound", GroupName = "8. Alerts", Order = 144)]
+        [SoundComboBoxEditor]
+        public string EntrySound { get; set; } = "female_order filled";
+
+        [Display(Name = "Every order filled (entries, adds, exits)", GroupName = "8. Alerts", Order = 145)]
+        public bool AlertFill { get; set; } = false;
+
+        [Display(Name = "Order filled: sound", GroupName = "8. Alerts", Order = 146)]
+        [SoundComboBoxEditor]
+        public string FillSound { get; set; } = "bip";
+
         [Display(Name = "Winning trade", GroupName = "8. Alerts", Order = 150)]
         public bool AlertWin { get; set; } = true;
 
         [Display(Name = "Winning trade: sound", GroupName = "8. Alerts", Order = 151)]
-        [SelectFileEditor(InitialFolder = @"C:\Program Files\ATAS X\Sounds", Filter = "Sounds (*.wav)|*.wav", IsTextEditable = false)]
+        [SoundComboBoxEditor]
         public string WinSound { get; set; } = "alert1";
 
         [Display(Name = "Winning trade: only above ($, 0 = any)", GroupName = "8. Alerts", Order = 152)]
@@ -352,7 +366,7 @@ namespace TradeJournal
         public bool AlertLoss { get; set; } = true;
 
         [Display(Name = "Losing trade: sound", GroupName = "8. Alerts", Order = 161)]
-        [SelectFileEditor(InitialFolder = @"C:\Program Files\ATAS X\Sounds", Filter = "Sounds (*.wav)|*.wav", IsTextEditable = false)]
+        [SoundComboBoxEditor]
         public string LossSound { get; set; } = "alert2";
 
         [Display(Name = "Losing trade: only below (−$, 0 = any)", GroupName = "8. Alerts", Order = 162)]
@@ -363,7 +377,7 @@ namespace TradeJournal
         public bool AlertDll { get; set; } = true;
 
         [Display(Name = "Daily loss limit hit: sound", GroupName = "8. Alerts", Order = 171)]
-        [SelectFileEditor(InitialFolder = @"C:\Program Files\ATAS X\Sounds", Filter = "Sounds (*.wav)|*.wav", IsTextEditable = false)]
+        [SoundComboBoxEditor]
         public string DllSound { get; set; } = "alert4";
 
         [Display(Name = "Daily loss limit ($, 0 = the RoninFlow tier's)", GroupName = "8. Alerts", Order = 172)]
@@ -375,14 +389,14 @@ namespace TradeJournal
         public int DllWarnPercent { get; set; } = 80;
 
         [Display(Name = "Warning: sound", GroupName = "8. Alerts", Order = 174)]
-        [SelectFileEditor(InitialFolder = @"C:\Program Files\ATAS X\Sounds", Filter = "Sounds (*.wav)|*.wav", IsTextEditable = false)]
+        [SoundComboBoxEditor]
         public string DllWarnSound { get; set; } = "alert3";
 
         [Display(Name = "Profit target hit", GroupName = "8. Alerts", Order = 180)]
         public bool AlertTarget { get; set; } = true;
 
         [Display(Name = "Profit target hit: sound", GroupName = "8. Alerts", Order = 181)]
-        [SelectFileEditor(InitialFolder = @"C:\Program Files\ATAS X\Sounds", Filter = "Sounds (*.wav)|*.wav", IsTextEditable = false)]
+        [SoundComboBoxEditor]
         public string TargetSound { get; set; } = "alert5";
 
         [Display(Name = "Daily profit target ($, 0 = off)", GroupName = "8. Alerts", Order = 182)]
@@ -453,6 +467,7 @@ namespace TradeJournal
             var token = _cts.Token;
             Task.Run(() => Loop(token), token);
             SubscribeToTimer(TimeSpan.FromSeconds(1), Tick);
+            _fillsFrom = DateTime.UtcNow.AddSeconds(5); // positions ATAS reports while the chart loads aren't new entries
         }
 
         protected override void OnDispose()
@@ -477,7 +492,7 @@ namespace TradeJournal
             }
             foreach (var (sound, message, kind) in due)
             {
-                var bg = kind == "win" || kind == "target" ? PositiveColor : kind == "warn" ? WarningColor : NegativeColor;
+                var bg = kind is "win" or "target" ? PositiveColor : kind == "warn" ? WarningColor : kind is "entry" or "fill" ? AccentColor : NegativeColor;
                 try { AddAlert(SoundName(sound), InstrumentInfo?.Instrument ?? "", message, bg, Color.Black, AlertAtasPopup); }
                 catch { }
             }
@@ -667,6 +682,49 @@ namespace TradeJournal
         }
 
         private static string Mask(string id) => id.Length > 9 ? id.Substring(0, 4) + "•••" + id.Substring(id.Length - 3) : id;
+
+        // ---------- entries and fills (the chart's account) ----------
+
+        private readonly Dictionary<string, decimal> _posVol = new();
+        private DateTime _fillsFrom = DateTime.MaxValue; // set when the chart starts: what was already open doesn't count as an entry
+
+        protected override void OnPositionChanged(Position position)
+        {
+            base.OnPositionChanged(position);
+            try
+            {
+                if (position == null) return;
+                var acct = position.AccountID ?? position.Portfolio?.AccountID ?? "";
+                var key = acct + "|" + (position.Security?.Code ?? "");
+                var vol = position.Volume;
+                var had = _posVol.TryGetValue(key, out var before);
+                _posVol[key] = vol;
+                if (DateTime.UtcNow < _fillsFrom || !AlertsOn || !AlertEntry) return;
+                var mine = TradingManager?.Portfolio?.AccountID;
+                if (!string.Equals(acct, mine, StringComparison.OrdinalIgnoreCase)) return;
+                if ((had ? before : 0m) != 0m || vol == 0m) return; // only flat → open
+                var side = vol > 0 ? "LONG" : "SHORT";
+                var code = position.Security?.Code ?? InstrumentInfo?.Instrument ?? "";
+                var px = position.AveragePrice > 0 ? $" @ {position.AveragePrice:0.####}" : "";
+                Alert(EntrySound, $"Entered {side} {Math.Abs(vol):0.##} {code}{px} · {Mask(acct)}", "entry", $"Entered {side} {Math.Abs(vol):0.##} {code}{px}", $"{Mask(acct)} · trade entered");
+            }
+            catch { }
+        }
+
+        protected override void OnNewMyTrade(MyTrade myTrade)
+        {
+            base.OnNewMyTrade(myTrade);
+            try
+            {
+                if (myTrade == null || DateTime.UtcNow < _fillsFrom || !AlertsOn || !AlertFill) return;
+                var acct = myTrade.AccountID ?? "";
+                if (!string.Equals(acct, TradingManager?.Portfolio?.AccountID, StringComparison.OrdinalIgnoreCase)) return;
+                var side = myTrade.OrderDirection == OrderDirections.Buy ? "BUY" : "SELL";
+                var code = myTrade.Security?.Code ?? InstrumentInfo?.Instrument ?? "";
+                Alert(FillSound, $"Filled {side} {myTrade.Volume:0.##} {code} @ {myTrade.Price:0.####} · {Mask(acct)}", "fill", $"Filled {side} {myTrade.Volume:0.##} {code} @ {myTrade.Price:0.####}", $"{Mask(acct)} · order filled");
+            }
+            catch { }
+        }
 
         /// <summary>A sound picked in the file chooser is a full path: ATAS plays its own sounds by name ("alert1").</summary>
         private static string SoundName(string sound)
@@ -1737,7 +1795,7 @@ namespace TradeJournal
 
                 var ir = new Rectangle(rect.X + pad, rect.Y + pad + 2, icon, icon);
                 g.FillRectangle(A(c, 40), ir, 5);
-                var glyph = pop.Kind switch { "high" or "release" or "warn" => "!", "soon" => "◷", "win" => "↑", "loss" => "↓", "target" => "★", _ => "N" };
+                var glyph = pop.Kind switch { "high" or "release" or "warn" => "!", "soon" => "◷", "win" => "↑", "loss" => "↓", "target" => "★", "entry" or "fill" => "✓", _ => "N" };
                 var gsz = g.MeasureString(glyph, _bold);
                 g.DrawString(glyph, _bold, c, ir.X + (icon - gsz.Width) / 2, ir.Y + (icon - gsz.Height) / 2);
 
