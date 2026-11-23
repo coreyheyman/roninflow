@@ -1179,26 +1179,44 @@ namespace TradeJournal
             var mouse = MouseLocationInfo?.LastPosition ?? Point.Empty;
             EventItem? hover = null;
             var hoverX = 0;
+            var lastBar = CurrentBar - 1;
+            var lastCandle = GetCandle(lastBar);
+            var span = BarSeconds();
+            var step = (double)(ChartInfo.PriceChartContainer.BarsWidth + ChartInfo.PriceChartContainer.BarSpacing);
             foreach (var e in s.Events.Where(e => Passes(MarkerFilter, e.Impact)))
             {
                 var at = DateTimeOffset.FromUnixTimeMilliseconds(e.T).UtcDateTime;
-                int bar = -1;
-                for (var b = last; b >= first; b--)
+                var upcoming = at > lastCandle.LastTime;
+                int x;
+                if (!upcoming)
                 {
-                    if (GetCandle(b).Time <= at) { bar = b; break; }
+                    int bar = -1;
+                    for (var b = last; b >= first; b--)
+                    {
+                        if (GetCandle(b).Time <= at) { bar = b; break; }
+                    }
+                    if (bar < 0) continue;
+                    x = ChartInfo.GetXByBar(bar, false);
                 }
-                if (bar < 0) continue;
-                if (bar == last && at > GetCandle(last).LastTime) continue; // still to come
-                var x = ChartInfo.GetXByBar(bar) + (int)(ChartInfo.PriceChartContainer.BarsWidth / 2);
+                else
+                {
+                    // still to come: out in the empty space right of the last bar, as far as its time is away
+                    if (span <= 0) continue;
+                    var barsAhead = (at - lastCandle.Time).TotalSeconds / span;
+                    x = ChartInfo.GetXByBar(lastBar, false) + (int)Math.Round(barsAhead * step);
+                    if (x > r.Right - 6) continue; // beyond what the chart shows
+                }
+                if (x < r.Left) continue;
                 var c = e.Impact == "high" ? NegativeColor : e.Impact == "medium" ? WarningColor : MutedColor;
                 var label = e.Impact == "high" ? "HIGH" : e.Impact == "medium" ? "MED" : "LOW";
+                if (upcoming) label += " " + Clock(e.T);
                 var size = g.MeasureString(label, _small);
                 var box = new Rectangle(x - size.Width / 2 - 5, r.Bottom - size.Height - 10, size.Width + 10, size.Height + 4);
                 if (MarkerLines)
-                    g.DrawLine(new RenderPen(A(c, 90), 1, System.Drawing.Drawing2D.DashStyle.Dash), x, r.Top, x, box.Top);
-                g.FillRectangle(A(c, 40), box, 3);
-                g.DrawRectangle(new RenderPen(A(c, 140), 1), box, 3);
-                g.DrawString(label, _small, c, box.X + 5, box.Y + 2);
+                    g.DrawLine(new RenderPen(A(c, upcoming ? 70 : 90), 1, upcoming ? System.Drawing.Drawing2D.DashStyle.Dot : System.Drawing.Drawing2D.DashStyle.Dash), x, r.Top, x, box.Top);
+                g.FillRectangle(A(c, upcoming ? 14 : 40), box, 3);
+                g.DrawRectangle(new RenderPen(A(c, upcoming ? 110 : 140), 1), box, 3);
+                g.DrawString(label, _small, upcoming ? A(c, 220) : c, box.X + 5, box.Y + 2);
                 if (box.Contains(mouse)) { hover = e; hoverX = x; }
             }
             if (hover != null)
@@ -1213,6 +1231,20 @@ namespace TradeJournal
                 var y = rect.Y + 6;
                 foreach (var (t, c) in lines) { g.DrawString(t, _font, c, rect.X + 10, y); y += lh; }
             }
+        }
+
+        /// <summary>How long one bar lasts, from the last bars (the median, so a gap like the session break doesn't skew it).</summary>
+        private double BarSeconds()
+        {
+            var gaps = new List<double>();
+            for (var b = CurrentBar - 1; b > 0 && gaps.Count < 30; b--)
+            {
+                var d = (GetCandle(b).Time - GetCandle(b - 1).Time).TotalSeconds;
+                if (d > 0) gaps.Add(d);
+            }
+            if (gaps.Count == 0) return 0;
+            gaps.Sort();
+            return gaps[gaps.Count / 2];
         }
 
         // ---------- account panel ----------
