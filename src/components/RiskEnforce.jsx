@@ -2,7 +2,7 @@
 // limit, a trailing drawdown on realised P&L, trading windows, trade counts and position size — plus what the add-on
 // reports back live.
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash, TriangleExclamationPoint as TriangleAlert, Check, ShieldCheck, Copy } from 'lucide-react';
+import { Plus, Trash, TriangleExclamationPoint as TriangleAlert, Check, ShieldCheck, Copy, LockOpen } from 'lucide-react';
 import { useStore } from '../store/store';
 import { Switch, useToast } from './ui';
 import { enforceOf, rulesFor, tierOf, DEFAULT_ENFORCE } from '../lib/riskEnforce';
@@ -193,6 +193,111 @@ export default function RiskEnforce() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      <EmergencyUnblock live={live} reload={() => fetch('/api/atas/risk/status', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => j && setLive(j)).catch(() => {})} />
+    </div>
+  );
+}
+
+const maskId = (id) => (id.length > 9 ? `${id.slice(0, 4)}•••${id.slice(-3)}` : id);
+const WAIT = 10; // seconds before the unblock button works
+
+/** The escape hatch for a block caused by a glitch: deliberately slow — open it, pick, type UNBLOCK, wait. */
+function EmergencyUnblock({ live, reload }) {
+  const { state } = useStore();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [pick, setPick] = useState('');
+  const [pause, setPause] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [left, setLeft] = useState(WAIT);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!open) return undefined;
+    setLeft(WAIT);
+    const t0 = Date.now();
+    const iv = setInterval(() => { const l = Math.max(0, WAIT - Math.floor((Date.now() - t0) / 1000)); setLeft(l); if (!l) clearInterval(iv); }, 250);
+    return () => clearInterval(iv);
+  }, [open]);
+
+  const st = live?.status;
+  const fresh = st && Date.now() - st.receivedAt < 20e3;
+  const nameOf = (id) => { const a = state.accounts.find((x) => x.id === id); return a?.name && a.name !== id ? `${a.name} (${maskId(id)})` : maskId(id); };
+  const blocked = new Map();
+  for (const a of (fresh ? st.accounts || [] : [])) if (a.blocked) blocked.set(a.account, a.reason || 'blocked');
+  for (const m of live?.blocks?.manual || []) if (!blocked.has(m.account)) blocked.set(m.account, 'blocked by you for the rest of the day');
+  const paused = live?.blocks?.paused || [];
+  const others = [...new Set([...(st?.accounts || []).map((a) => a.account), ...state.accounts.map((a) => a.id)])].filter((id) => id && !blocked.has(id));
+  const choice = pick || (blocked.size ? '__all' : '');
+  const targets = choice === '__all' ? [...blocked.keys()] : choice ? [choice] : [];
+  const ready = targets.length > 0 && typed.trim().toUpperCase() === 'UNBLOCK' && left === 0 && !busy;
+
+  const post = async (url, body) => { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`); };
+  const unblock = async () => {
+    setBusy(true);
+    try {
+      await post('/api/atas/risk/unlock', { accounts: targets, pause });
+      toast(`Unblocked ${targets.length === 1 ? nameOf(targets[0]) : `${targets.length} accounts`}${pause ? ' — rules paused until midnight' : ''}`);
+      setOpen(false); setTyped(''); setPick(''); setPause(false);
+      reload();
+    } catch (e) { toast(`Couldn’t unblock: ${e.message}`); }
+    setBusy(false);
+  };
+  const resume = async (id) => { try { await post('/api/atas/risk/unpause', { accounts: [id] }); toast(`Rules back on for ${nameOf(id)}`); reload(); } catch (e) { toast(`Couldn’t resume: ${e.message}`); } };
+
+  return (
+    <div className="panel col gap8" style={{ padding: 14, borderColor: open ? 'var(--neg, #e5484d)' : undefined }}>
+      <div className="row between gap8 wrap">
+        <div className="col" style={{ gap: 2 }}>
+          <b style={{ fontWeight: 600 }}>Emergency unblock</b>
+          <span className="muted" style={{ fontSize: 12.5 }}>Only for a block caused by a glitch or malfunction — not for talking yourself back into the market.</span>
+        </div>
+        {!open && <button className="btn sm" onClick={() => setOpen(true)}><LockOpen size={13} /> Open…</button>}
+      </div>
+
+      {paused.length > 0 && (
+        <div className="col gap6">
+          {paused.map((p) => (
+            <div key={p.account} className="row gap8 wrap" style={{ fontSize: 13, alignItems: 'center' }}>
+              <TriangleAlert size={14} style={{ color: 'var(--warn, #e8b043)' }} />
+              <span>Rules paused until midnight on <b>{nameOf(p.account)}</b> — nothing is enforced on it today.</span>
+              <button className="btn xs" onClick={() => resume(p.account)}>Turn rules back on</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {open && (
+        <div className="col gap12" style={{ marginTop: 4 }}>
+          <div className="ec-warn"><TriangleAlert size={14} /> This lifts today’s block straight away, including one set by a rule (daily loss limit, trailing drawdown, profit target, trade count…) or from the RoninFlow HUD. It’s logged, and ATAS’s own Risk Management limits aren’t touched.</div>
+
+          <div className="row gap8 wrap" style={{ alignItems: 'center' }}>
+            <span className="label" style={{ margin: 0 }}>Account</span>
+            <select className="select" style={{ maxWidth: 360 }} value={choice} onChange={(e) => setPick(e.target.value)}>
+              {!blocked.size && <option value="">Choose an account…</option>}
+              {blocked.size > 1 && <option value="__all">All blocked accounts ({blocked.size})</option>}
+              {blocked.size > 0 && <optgroup label="Blocked now">{[...blocked].map(([id, why]) => <option key={id} value={id}>{nameOf(id)} — {why}</option>)}</optgroup>}
+              {others.length > 0 && <optgroup label="Not blocked">{others.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}</optgroup>}
+            </select>
+          </div>
+
+          <label className="row gap8" style={{ fontSize: 13 }}>
+            <input type="checkbox" className="cbx" checked={pause} onChange={(e) => setPause(e.target.checked)} />
+            Also pause this account’s rules until midnight
+          </label>
+          <div className="re-help" style={{ marginTop: -6 }}>{pause ? 'Nothing will block or close positions on it for the rest of the day.' : 'Without this, a rule that’s still broken (say you’re still past the loss limit) blocks it again within seconds.'}</div>
+
+          <div className="row gap8 wrap" style={{ alignItems: 'center' }}>
+            <span style={{ fontSize: 13 }}>Type <b>UNBLOCK</b> to confirm</span>
+            <input className="input" style={{ width: 140 }} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="UNBLOCK" autoComplete="off" spellCheck={false} />
+          </div>
+
+          <div className="row gap8">
+            <button className="btn danger" disabled={!ready} onClick={unblock}><LockOpen size={14} /> {busy ? 'Unblocking…' : left > 0 ? `Unblock (wait ${left}s)` : 'Unblock now'}</button>
+            <button className="btn" onClick={() => { setOpen(false); setTyped(''); }}>Cancel</button>
+          </div>
         </div>
       )}
     </div>

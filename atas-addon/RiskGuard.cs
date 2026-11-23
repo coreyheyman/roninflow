@@ -44,6 +44,8 @@ namespace TradeJournal
         public bool ManualLock;             // you blocked it from the HUD for the rest of the day
         public bool ManualFlatten;          // …and asked for its positions to be closed
         public bool ManualOnly;             // blocked from the HUD but not otherwise enforced by RoninFlow
+        public bool Paused;                 // emergency unblock in RoninFlow: rules paused until midnight
+        public long ClearAt;                // emergency unblock: lift any block set before this (ms UTC)
         public int MaxTrades;
         public int MaxConsec;
         public decimal ConsecMin;
@@ -65,6 +67,7 @@ namespace TradeJournal
         public long LockedDay;              // dayStartUtc of the day the loss limit / trailing drawdown was hit
         public string LockReason = "";
         public bool LockIsTarget;           // locked by the profit target (not the loss limit)
+        public long ClearSeen;              // the last emergency unblock applied
         public bool? WasInWindow;
         public DateTime LastAction = DateTime.MinValue;
         public DateTime NativeCheckedAt = DateTime.MinValue;
@@ -299,6 +302,8 @@ namespace TradeJournal
                             ManualLock = Bool(a, "manualLock"),
                             ManualFlatten = Bool(a, "manualFlatten"),
                             ManualOnly = Bool(a, "manualOnly"),
+                            Paused = Bool(a, "paused"),
+                            ClearAt = (long)Dec(a, "clearAt"),
                             MaxTrades = (int)Dec(a, "maxTrades"),
                             MaxConsec = (int)Dec(a, "maxConsec"),
                             ConsecMin = Dec(a, "consecMin"),
@@ -554,6 +559,21 @@ namespace TradeJournal
                     st.LockedDay = 0; // a new day
                     st.LockReason = "";
                     st.LockIsTarget = false;
+                }
+                if (r.ClearAt > st.ClearSeen)
+                {
+                    st.ClearSeen = r.ClearAt; // emergency unblock from RoninFlow: today's block is lifted
+                    st.LockedDay = 0;
+                    st.LockReason = "";
+                    st.LockIsTarget = false;
+                }
+                if (r.Paused)
+                {
+                    // rules paused until midnight: nothing blocks, nothing is closed
+                    st.LockedDay = 0;
+                    Blocked[r.Account] = false;
+                    st.Report = new { account = r.Account, tier = r.Tier, realised = Math.Round(v.Realised, 2), unrealised = Math.Round(v.Unrealised, 2), peak = Math.Round(v.Peak, 2), floor = Math.Round(r.Trail > 0 ? v.Peak - r.Trail : -r.DailyLoss, 2), target = r.Target, targetHit = false, trades = v.Trades, streak = v.Streak, positions = v.Positions.Count, orders = v.Orders.Count, blocked = false, reason = "", paused = true, seen = v.Portfolio != null, native = st.Native, error = "" };
+                    continue;
                 }
                 if (st.LockedDay != 0 && st.LockIsTarget && !(r.FlattenTarget && r.Target > 0))
                 {

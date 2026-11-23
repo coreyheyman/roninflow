@@ -52,7 +52,7 @@ namespace TradeJournal
         private sealed class EventItem { public string Id = "", Title = "", Ccy = "", Impact = "", Actual = "", Forecast = "", Previous = ""; public long T; }
         private sealed class Level { public decimal Price; public string Kind = ""; }
         private sealed class Gex { public string Index = "", Zone = "", Error = ""; public decimal Total; public decimal? Flip, CallWall, PutWall; public List<Level> Pos = new(), Neg = new(); public bool Delayed; public long At; }
-        private sealed class AccountInfo { public string TierName = "", TierColor = ""; public int Level, Of; public decimal DailyLoss, Trail, Target; public int MaxTrades; public bool TargetOpen = true, FlattenLoss, FlattenTarget; public bool Enforced, Enforcing, Blocked, Windowed, InWindow = true, ManualLock; public string Reason = ""; public int? WindowMin; }
+        private sealed class AccountInfo { public string TierName = "", TierColor = ""; public int Level, Of; public decimal DailyLoss, Trail, Target; public int MaxTrades; public bool TargetOpen = true, FlattenLoss, FlattenTarget; public bool Enforced, Enforcing, Blocked, Windowed, InWindow = true, ManualLock, Paused; public string Reason = ""; public int? WindowMin; }
         private sealed class Snapshot { public long DayStartUtc; public string Market = ""; public AccountInfo? Account; public Gex? Gex; public List<EventItem> Events = new(); public List<NewsItem> News = new(); public string Error = ""; public DateTime At; public bool Enforcer; }
         private sealed class DayStats { public decimal Realised, Peak, AvgWin, AvgLoss, Best, Worst, GrossWin, GrossLoss; public int Trades, Wins, Losses; }
         private sealed class PosRow { public string Account = "", Code = ""; public decimal Volume; public decimal? Pnl; }
@@ -666,7 +666,7 @@ namespace TradeJournal
                     DailyLoss = Dec(a, "dailyLoss"), Trail = Dec(a, "trail"), MaxTrades = (int)Dec(a, "maxTrades"),
                     Target = Dec(a, "target"), TargetOpen = !a.TryGetProperty("targetOpen", out var tgo) || tgo.ValueKind != JsonValueKind.False,
                     FlattenLoss = Bool(a, "flattenLoss"), FlattenTarget = Bool(a, "flattenTarget"),
-                    Enforced = Bool(a, "enforced"), Enforcing = Bool(a, "enforcing"), Blocked = Bool(a, "blocked"), Reason = Str(a, "reason"), ManualLock = Bool(a, "manualLock"),
+                    Enforced = Bool(a, "enforced"), Enforcing = Bool(a, "enforcing"), Blocked = Bool(a, "blocked"), Reason = Str(a, "reason"), ManualLock = Bool(a, "manualLock"), Paused = Bool(a, "paused"),
                     Windowed = Bool(a, "windowed"), InWindow = !a.TryGetProperty("inWindow", out var iw) || iw.ValueKind != JsonValueKind.False,
                     WindowMin = a.TryGetProperty("windowChangeMin", out var wm) && wm.ValueKind == JsonValueKind.Number ? wm.GetInt32() : null,
                 };
@@ -1549,8 +1549,8 @@ namespace TradeJournal
             cx += Txt(g, "Flow", _bold, AccentColor, cx, y) + 8;
             var id = portfolio?.AccountID ?? "no account";
             Txt(g, id.Length > 9 ? id.Substring(0, 4) + "•••" + id.Substring(id.Length - 3) : id, _font, MutedColor, cx, y);
-            var state = s == null || (DateTime.UtcNow - s.At).TotalSeconds > 20 ? "offline" : blocked ? "blocked" : acct?.Enforcing == true ? "enforcing" : "live";
-            var stateColor = state == "offline" ? MutedColor : state == "blocked" ? NegativeColor : PositiveColor;
+            var state = s == null || (DateTime.UtcNow - s.At).TotalSeconds > 20 ? "offline" : blocked ? "blocked" : acct?.Paused == true ? "rules paused" : acct?.Enforcing == true ? "enforcing" : "live";
+            var stateColor = state == "offline" ? MutedColor : state == "blocked" ? NegativeColor : state == "rules paused" ? WarningColor : PositiveColor;
             var sw = g.MeasureString(state, _small).Width;
             _stateRect = new Rectangle(rect.Right - pad - sw - 18, y - 3, sw + 22, lh + 6);
             var hoverState = _stateRect.Contains(MouseLocationInfo?.LastPosition ?? Point.Empty);

@@ -9,6 +9,8 @@
 //   POST /api/atas/risk/status  { version, accounts, ... }     ← from the add-on
 //   GET  /api/atas/risk/status                                 ← from the app
 //   POST /api/atas/risk/lock    { accounts: [...], flatten }   ← from the HUD: block these accounts for the rest of the day
+//   POST /api/atas/risk/unlock  { accounts: [...], pause }     ← from the app only (Settings → Risk enforcement → Emergency
+//                                                                 unblock): lift today's blocks, optionally pausing the rules
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -55,7 +57,13 @@ export function createRiskHandler(dataDir, { log = () => {}, now = () => Date.no
   let rules = readJson(file, { tz: '', accounts: [], tiers: {}, at: 0 });
   let status = null; // the add-on's last report (kept in memory)
   const lockFile = path.join(dataDir, 'atas-sync', 'locks.json');
-  let locks = readJson(lockFile, {}); // account → { day: dayStartUtc, flatten, at }
+  const saved = readJson(lockFile, {});
+  // account → { day: dayStartUtc, flatten, at }: blocked from the HUD; pauses: rules paused for the day; clears: when a
+  // rule's block was lifted (the add-on lifts any block it set before then)
+  let locks = saved.locks || (saved.pauses || saved.clears ? {} : saved);
+  let pauses = saved.pauses || {};
+  let clears = saved.clears || {};
+  const saveLocks = () => writeJson(lockFile, { locks, pauses, clears });
 
   const send = (res, code, obj) => { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(obj)); };
   const body = (req) => new Promise((resolve, reject) => { let t = ''; req.setEncoding('utf8'); req.on('data', (c) => { t += c; if (t.length > 2e6) req.destroy(); }); req.on('end', () => { try { resolve(JSON.parse(t || '{}')); } catch (e) { reject(e); } }); req.on('error', reject); });
@@ -67,6 +75,8 @@ export function createRiskHandler(dataDir, { log = () => {}, now = () => Date.no
     const nowMin = c.h * 60 + c.min;
     const dayStartUtc = Date.UTC(c.y, c.m - 1, c.d) - c.offsetMin * 60000; // midnight in your time zone
     const lockOf = (id) => { const l = locks[id]; return l && l.day === dayStartUtc ? l : null; };
+    const pausedOf = (id) => pauses[id]?.day === dayStartUtc;
+    const clearOf = (id) => (clears[id]?.day === dayStartUtc ? clears[id].at : 0);
     const known = new Set((rules.accounts || []).filter((a) => a.on).map((a) => a.account));
     // accounts you blocked from the HUD that RoninFlow doesn't enforce: still blocked, with no other rules
     const manualOnly = Object.keys(locks).filter((id) => lockOf(id) && !known.has(id))
@@ -80,7 +90,7 @@ export function createRiskHandler(dataDir, { log = () => {}, now = () => Date.no
         const windowed = (a.windows || []).some((w) => toMin(w.from) != null && toMin(w.to) != null);
         const allowed = inWindows(a.windows, a.days, nowMin, c.wd);
         const l = a.on ? lockOf(a.account) : null;
-        return { ...a, windowed, inWindow: allowed, windowChangeMin: windowed || (a.days || []).length < 7 ? nextChange(a.windows, a.days, nowMin, c.wd) : null, manualLock: !!l, manualFlatten: !!l?.flatten };
+        return { ...a, windowed, inWindow: allowed, windowChangeMin: windowed || (a.days || []).length < 7 ? nextChange(a.windows, a.days, nowMin, c.wd) : null, manualLock: !!l, manualFlatten: !!l?.flatten, paused: pausedOf(a.account), clearAt: clearOf(a.account) };
       }).concat(manualOnly),
     };
   }
@@ -112,11 +122,36 @@ export function createRiskHandler(dataDir, { log = () => {}, now = () => Date.no
         const day = forAddon().dayStartUtc;
         for (const [id, l] of Object.entries(locks)) if (l.day !== day) delete locks[id]; // yesterday's are gone
         for (const id of ids) locks[id] = { day, flatten: !!b.flatten, at: now() };
-        writeJson(lockFile, locks);
+        saveLocks();
         log(`[risk] blocked for the day: ${ids.length} account(s)${b.flatten ? ', flattened' : ''}`);
         return send(res, 200, { ok: true, accounts: ids, dayStartUtc: day });
       }
-      if (route === '/status' && req.method === 'GET') return send(res, 200, { status, rules: forAddon() });
+      if (route === '/unlock' && req.method === 'POST') {
+        const b = await body(req);
+        const ids = Array.isArray(b.accounts) ? b.accounts.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim().slice(0, 80)).slice(0, 200) : [];
+        if (!ids.length) return send(res, 400, { error: 'no accounts' });
+        const day = forAddon().dayStartUtc;
+        for (const id of ids) {
+          delete locks[id];
+          clears[id] = { day, at: now() };
+          if (b.pause) pauses[id] = { day, at: now() };
+        }
+        saveLocks();
+        log(`[risk] EMERGENCY UNBLOCK: ${ids.join(', ')}${b.pause ? ' (rules paused until midnight)' : ''}`);
+        return send(res, 200, { ok: true, accounts: ids });
+      }
+      if (route === '/unpause' && req.method === 'POST') {
+        const b = await body(req);
+        const ids = Array.isArray(b.accounts) ? b.accounts.filter((x) => typeof x === 'string') : [];
+        for (const id of ids) delete pauses[id];
+        saveLocks();
+        return send(res, 200, { ok: true });
+      }
+      if (route === '/status' && req.method === 'GET') {
+        const r = forAddon();
+        const today = (m) => Object.entries(m).filter(([, v]) => v?.day === r.dayStartUtc).map(([id, v]) => ({ account: id, at: v.at || 0, flatten: !!v.flatten }));
+        return send(res, 200, { status, rules: r, blocks: { manual: today(locks), paused: today(pauses) } });
+      }
       return send(res, 404, { error: 'not found' });
     } catch (e) {
       return send(res, 400, { error: e.message });

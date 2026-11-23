@@ -109,6 +109,7 @@ export function createHudHandler({ gexApi, newsApi, macroApi, riskApi, log = () 
       inWindow: rule ? rule.inWindow !== false : true,
       windowChangeMin: rule?.windowChangeMin ?? null,
       manualLock: !!rule?.manualLock,
+      paused: !!rule?.paused,
     };
   }
 
