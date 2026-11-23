@@ -26,6 +26,7 @@ using ATAS.DataFeedsCore;
 using ATAS.DataFeedsCore.Statistics;
 using ATAS.Indicators;
 
+using OFT.Attributes;
 using OFT.Attributes.Editors;
 using OFT.Rendering;
 using OFT.Rendering.Context;
@@ -36,7 +37,7 @@ namespace TradeJournal
 {
     [DisplayName("RoninFlow HUD")]
     [Description("RoninFlow on your chart: account panel with risk tier and gamma regime, gamma levels, the news feed and news pop-ups. Each part can be switched on or off and placed in the settings.")]
-    public class RoninFlowHud : Indicator
+    public partial class RoninFlowHud : Indicator
     {
         public enum Placement { TopLeft, TopCenter, TopRight, MiddleLeft, Center, MiddleRight, BottomLeft, BottomCenter, BottomRight }
         public enum GammaDrawing { Lines, Zones }
@@ -97,66 +98,84 @@ namespace TradeJournal
 
         #region Settings — connection
 
-        [Display(Name = "RoninFlow address", GroupName = "1. Connection", Order = 10)]
+        [Display(Name = "RoninFlow address", GroupName = "Connection", Order = 10)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public string JournalUrl { get; set; } = "http://localhost:5173";
 
-        [Display(Name = "Token (RoninFlow on another computer only)", GroupName = "1. Connection", Order = 11)]
+        [Display(Name = "Token (RoninFlow on another computer only)", GroupName = "Connection", Order = 11)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public string Token { get; set; } = "";
 
         #endregion
 
         #region Settings — account panel
 
-        [Display(Name = "Show the account panel", GroupName = "2. Account panel", Order = 20)]
+        [Display(Name = "Show the account panel", GroupName = "Panel", Order = 20)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowAccount { get; set; } = true;
 
-        [Display(Name = "Placement", GroupName = "2. Account panel", Order = 21)]
+        [Display(Name = "Placement", GroupName = "Panel", Order = 21)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         public Placement AccountPlacement { get; set; } = Placement.TopRight;
 
-        [Display(Name = "X offset", GroupName = "2. Account panel", Order = 22)]
+        [Display(Name = "X offset", GroupName = "Panel", Order = 22)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         [Range(-3000, 3000)]
         public int AccountX { get; set; } = 16;
 
-        [Display(Name = "Y offset", GroupName = "2. Account panel", Order = 23)]
+        [Display(Name = "Y offset", GroupName = "Panel", Order = 23)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         [Range(-3000, 3000)]
         public int AccountY { get; set; } = 16;
 
-        [Display(Name = "Width", GroupName = "2. Account panel", Order = 24)]
+        [Display(Name = "Width", GroupName = "Panel", Order = 24)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         [Range(220, 700)]
         public int AccountWidth { get; set; } = 330;
 
-        [Display(Name = "Size (%)", GroupName = "2. Account panel", Order = 24)]
+        [Display(Name = "Size (%)", GroupName = "Panel", Order = 24)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         [Range(50, 250)]
         public int AccountScale { get; set; } = 100;
 
-        [Display(Name = "Shrink to fit narrow charts", GroupName = "2. Account panel", Order = 24)]
+        [Display(Name = "Shrink to fit narrow charts", GroupName = "Panel", Order = 24)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         public bool AccountFit { get; set; } = true;
 
-        [Display(Name = "Start with the stats collapsed", GroupName = "2. Account panel", Order = 29)]
+        [Display(Name = "Start with the stats collapsed", GroupName = "What it shows", Order = 29)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         public bool StatsStartCollapsed { get; set; } = false;
 
-        [Display(Name = "Open positions on every account (under the panel)", GroupName = "2. Account panel", Order = 32)]
+        [Display(Name = "Open positions on every account (under the panel)", GroupName = "Open positions on every account", Order = 32)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowAllPositions { get; set; } = true;
 
-        [Display(Name = "Risk tier chip", GroupName = "2. Account panel", Order = 25)]
+        [Display(Name = "Risk tier chip", GroupName = "What it shows", Order = 25)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowTierChip { get; set; } = true;
 
-        [Display(Name = "Gamma regime chip", GroupName = "2. Account panel", Order = 26)]
+        [Display(Name = "Gamma regime chip", GroupName = "What it shows", Order = 26)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowGammaChip { get; set; } = true;
 
-        [Display(Name = "P&L tiles", GroupName = "2. Account panel", Order = 27)]
+        [Display(Name = "P&L tiles", GroupName = "What it shows", Order = 27)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowPnlTiles { get; set; } = true;
 
-        [Display(Name = "Buffer to daily loss limit", GroupName = "2. Account panel", Order = 28)]
+        [Display(Name = "Buffer to daily loss limit", GroupName = "What it shows", Order = 28)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowBuffer { get; set; } = true;
 
-        [Display(Name = "Trade stats", GroupName = "2. Account panel", Order = 29)]
+        [Display(Name = "Trade stats", GroupName = "What it shows", Order = 29)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowStats { get; set; } = true;
 
-        [Display(Name = "GEX line", GroupName = "2. Account panel", Order = 30)]
+        [Display(Name = "GEX line", GroupName = "What it shows", Order = 30)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowGexLine { get; set; } = true;
 
-        [Display(Name = "\"At the flip\" within (points)", GroupName = "2. Account panel", Order = 31)]
+        [Display(Name = "\"At the flip\" within (points)", GroupName = "What it shows", Order = 31)]
+        [Tab(TabName = "Account", TabOrder = 2)]
         [Range(0, 1000)]
         public decimal FlipNear { get; set; } = 10m;
 
@@ -164,150 +183,192 @@ namespace TradeJournal
 
         #region Settings — gamma levels
 
-        [Display(Name = "Show gamma levels", GroupName = "3. Gamma levels", Order = 40)]
+        [Display(Name = "Show gamma levels", GroupName = "Gamma levels", Order = 40)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public bool ShowGamma { get; set; } = true;
 
-        [Display(Name = "Draw as", GroupName = "3. Gamma levels", Order = 41)]
+        [Display(Name = "Draw as", GroupName = "Lines or zones", Order = 41)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public GammaDrawing GammaStyle { get; set; } = GammaDrawing.Lines;
 
-        [Display(Name = "Zone width (points)", GroupName = "3. Gamma levels", Order = 42)]
+        [Display(Name = "Zone width (points)", GroupName = "Lines or zones", Order = 42)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         [Range(0.25, 500)]
         public decimal ZoneWidth { get; set; } = 6m;
 
-        [Display(Name = "Zone opacity (%)", GroupName = "3. Gamma levels", Order = 43)]
+        [Display(Name = "Zone opacity (%)", GroupName = "Lines or zones", Order = 43)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         [Range(3, 100)]
         public int ZoneOpacity { get; set; } = 18;
 
-        [Display(Name = "Line width", GroupName = "3. Gamma levels", Order = 44)]
+        [Display(Name = "Line width", GroupName = "Lines or zones", Order = 44)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         [Range(1, 6)]
         public int LineWidth { get; set; } = 2;
 
-        [Display(Name = "Call wall", GroupName = "3. Gamma levels", Order = 45)]
+        [Display(Name = "Call wall", GroupName = "Which levels", Order = 45)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public bool ShowCallWall { get; set; } = true;
 
-        [Display(Name = "Put wall", GroupName = "3. Gamma levels", Order = 46)]
+        [Display(Name = "Put wall", GroupName = "Which levels", Order = 46)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public bool ShowPutWall { get; set; } = true;
 
-        [Display(Name = "Zero gamma (flip)", GroupName = "3. Gamma levels", Order = 47)]
+        [Display(Name = "Zero gamma (flip)", GroupName = "Which levels", Order = 47)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public bool ShowFlip { get; set; } = true;
 
-        [Display(Name = "Other big strikes (+GEX / −GEX)", GroupName = "3. Gamma levels", Order = 48)]
+        [Display(Name = "Other big strikes (+GEX / −GEX)", GroupName = "Which levels", Order = 48)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public bool ShowMajors { get; set; } = true;
 
-        [Display(Name = "Shade the regime (above / below the flip)", GroupName = "3. Gamma levels", Order = 49)]
+        [Display(Name = "Shade the regime (above / below the flip)", GroupName = "Which levels", Order = 49)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public bool ShowShading { get; set; } = true;
 
-        [Display(Name = "Level names on the chart", GroupName = "3. Gamma levels", Order = 50)]
+        [Display(Name = "Level names on the chart", GroupName = "Labels", Order = 50)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public bool ShowLevelNames { get; set; } = true;
 
-        [Display(Name = "Level names: where", GroupName = "3. Gamma levels", Order = 50)]
+        [Display(Name = "Level names: where", GroupName = "Labels", Order = 50)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public LabelSide LevelNameSide { get; set; } = LabelSide.Left;
 
-        [Display(Name = "Level names: X offset", GroupName = "3. Gamma levels", Order = 50)]
+        [Display(Name = "Level names: X offset", GroupName = "Labels", Order = 50)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         [Range(-2000, 2000)]
         public int LevelNameX { get; set; } = 8;
 
-        [Display(Name = "Price tags on the price axis", GroupName = "3. Gamma levels", Order = 51)]
+        [Display(Name = "Price tags on the price axis", GroupName = "Labels", Order = 51)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public bool ShowAxisTags { get; set; } = true;
 
-        [Display(Name = "Call wall colour", GroupName = "3. Gamma levels", Order = 52)]
+        [Display(Name = "Call wall colour", GroupName = "Colours", Order = 52)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public Color CallWallColor { get; set; } = Color.FromArgb(255, 43, 196, 138);
 
-        [Display(Name = "Put wall colour", GroupName = "3. Gamma levels", Order = 53)]
+        [Display(Name = "Put wall colour", GroupName = "Colours", Order = 53)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public Color PutWallColor { get; set; } = Color.FromArgb(255, 229, 72, 77);
 
-        [Display(Name = "Flip colour", GroupName = "3. Gamma levels", Order = 54)]
+        [Display(Name = "Flip colour", GroupName = "Colours", Order = 54)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public Color FlipColor { get; set; } = Color.FromArgb(255, 232, 176, 67);
 
-        [Display(Name = "+GEX strike colour", GroupName = "3. Gamma levels", Order = 55)]
+        [Display(Name = "+GEX strike colour", GroupName = "Colours", Order = 55)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public Color PosGexColor { get; set; } = Color.FromArgb(160, 43, 196, 138);
 
-        [Display(Name = "−GEX strike colour", GroupName = "3. Gamma levels", Order = 56)]
+        [Display(Name = "−GEX strike colour", GroupName = "Colours", Order = 56)]
+        [Tab(TabName = "Gamma", TabOrder = 4)]
         public Color NegGexColor { get; set; } = Color.FromArgb(160, 229, 72, 77);
 
         #endregion
 
         #region Settings — news feed
 
-        [Display(Name = "Show the news feed", GroupName = "4. News feed", Order = 60)]
+        [Display(Name = "Show the news feed", GroupName = "News feed", Order = 60)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public bool ShowNews { get; set; } = true;
 
-        [Display(Name = "Placement", GroupName = "4. News feed", Order = 61)]
+        [Display(Name = "Placement", GroupName = "News feed", Order = 61)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public Placement NewsPlacement { get; set; } = Placement.BottomLeft;
 
-        [Display(Name = "X offset", GroupName = "4. News feed", Order = 62)]
+        [Display(Name = "X offset", GroupName = "News feed", Order = 62)]
+        [Tab(TabName = "News", TabOrder = 5)]
         [Range(-3000, 3000)]
         public int NewsX { get; set; } = 16;
 
-        [Display(Name = "Y offset", GroupName = "4. News feed", Order = 63)]
+        [Display(Name = "Y offset", GroupName = "News feed", Order = 63)]
+        [Tab(TabName = "News", TabOrder = 5)]
         [Range(-3000, 3000)]
         public int NewsY { get; set; } = 40;
 
-        [Display(Name = "Width", GroupName = "4. News feed", Order = 64)]
+        [Display(Name = "Width", GroupName = "News feed", Order = 64)]
+        [Tab(TabName = "News", TabOrder = 5)]
         [Range(240, 800)]
         public int NewsWidth { get; set; } = 380;
 
-        [Display(Name = "Start collapsed", GroupName = "4. News feed", Order = 65)]
+        [Display(Name = "Start collapsed", GroupName = "News feed", Order = 65)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public bool NewsStartCollapsed { get; set; } = false;
 
-        [Display(Name = "Headlines shown", GroupName = "4. News feed", Order = 66)]
+        [Display(Name = "Headlines shown", GroupName = "News feed", Order = 66)]
+        [Tab(TabName = "News", TabOrder = 5)]
         [Range(0, 30)]
         public int NewsLines { get; set; } = 6;
 
-        [Display(Name = "Today's events", GroupName = "4. News feed", Order = 67)]
+        [Display(Name = "Today's events", GroupName = "News feed", Order = 67)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public bool ShowEvents { get; set; } = true;
 
-        [Display(Name = "Events shown", GroupName = "4. News feed", Order = 68)]
+        [Display(Name = "Events shown", GroupName = "News feed", Order = 68)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public EventLevel EventFilter { get; set; } = EventLevel.MediumAndHigh;
 
-        [Display(Name = "Headlines shown", GroupName = "4. News feed", Order = 69)]
+        [Display(Name = "Headlines shown", GroupName = "News feed", Order = 69)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public NewsLevel NewsFilter { get; set; } = NewsLevel.AllNews;
 
-        [Display(Name = "Only news that moves this market", GroupName = "4. News feed", Order = 70)]
+        [Display(Name = "Only news that moves this market", GroupName = "News feed", Order = 70)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public bool OnlyThisMarket { get; set; } = false;
 
         #endregion
 
         #region Settings — pop-ups
 
-        [Display(Name = "Show news pop-ups", GroupName = "5. News pop-ups", Order = 80)]
+        [Display(Name = "Show news pop-ups", GroupName = "Pop-ups", Order = 80)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public bool ShowPopups { get; set; } = true;
 
-        [Display(Name = "Where they pop up", GroupName = "5. News pop-ups", Order = 81)]
+        [Display(Name = "Where they pop up", GroupName = "Pop-ups", Order = 81)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public Placement PopupPlacement { get; set; } = Placement.TopCenter;
 
-        [Display(Name = "X offset", GroupName = "5. News pop-ups", Order = 82)]
+        [Display(Name = "X offset", GroupName = "Pop-ups", Order = 82)]
+        [Tab(TabName = "News", TabOrder = 5)]
         [Range(-3000, 3000)]
         public int PopupX { get; set; } = 0;
 
-        [Display(Name = "Y offset", GroupName = "5. News pop-ups", Order = 83)]
+        [Display(Name = "Y offset", GroupName = "Pop-ups", Order = 83)]
+        [Tab(TabName = "News", TabOrder = 5)]
         [Range(-3000, 3000)]
         public int PopupY { get; set; } = 16;
 
-        [Display(Name = "Preview: show a sample where they pop up", GroupName = "5. News pop-ups", Order = 84)]
+        [Display(Name = "Preview: show a sample where they pop up", GroupName = "Pop-ups", Order = 84)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public bool PreviewPopup { get; set; } = false;
 
-        [Display(Name = "Seconds on screen", GroupName = "5. News pop-ups", Order = 85)]
+        [Display(Name = "Seconds on screen", GroupName = "Pop-ups", Order = 85)]
+        [Tab(TabName = "News", TabOrder = 5)]
         [Range(3, 120)]
         public int PopupSeconds { get; set; } = 12;
 
-        [Display(Name = "Headlines that pop up", GroupName = "5. News pop-ups", Order = 86)]
+        [Display(Name = "Headlines that pop up", GroupName = "Pop-ups", Order = 86)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public NewsLevel PopupFilter { get; set; } = NewsLevel.ImportantOnly;
 
-        [Display(Name = "Only news that moves this market", GroupName = "5. News pop-ups", Order = 87)]
+        [Display(Name = "Only news that moves this market", GroupName = "Pop-ups", Order = 87)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public bool PopupThisMarket { get; set; } = true;
 
-        [Display(Name = "Warn before events (minutes, 0 = off)", GroupName = "5. News pop-ups", Order = 88)]
+        [Display(Name = "Warn before events (minutes, 0 = off)", GroupName = "Pop-ups", Order = 88)]
+        [Tab(TabName = "News", TabOrder = 5)]
         [Range(0, 120)]
         public int EventWarnMinutes { get; set; } = 5;
 
-        [Display(Name = "Pop up releases (actual vs forecast)", GroupName = "5. News pop-ups", Order = 89)]
+        [Display(Name = "Pop up releases (actual vs forecast)", GroupName = "Pop-ups", Order = 89)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public bool PopupReleases { get; set; } = true;
 
-        [Display(Name = "Events that pop up", GroupName = "5. News pop-ups", Order = 90)]
+        [Display(Name = "Events that pop up", GroupName = "Pop-ups", Order = 90)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public EventLevel PopupEventFilter { get; set; } = EventLevel.MediumAndHigh;
 
-        [Display(Name = "Pop-up width", GroupName = "5. News pop-ups", Order = 91)]
+        [Display(Name = "Pop-up width", GroupName = "Pop-ups", Order = 91)]
+        [Tab(TabName = "News", TabOrder = 5)]
         [Range(240, 800)]
         public int PopupWidth { get; set; } = 400;
 
@@ -315,136 +376,173 @@ namespace TradeJournal
 
         #region Settings — event markers
 
-        [Display(Name = "Mark today's events on the time axis", GroupName = "6. Event markers", Order = 100)]
+        [Display(Name = "Mark today's events on the time axis", GroupName = "Event markers", Order = 100)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public bool ShowMarkers { get; set; } = true;
 
-        [Display(Name = "Events marked", GroupName = "6. Event markers", Order = 101)]
+        [Display(Name = "Events marked", GroupName = "Event markers", Order = 101)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public EventLevel MarkerFilter { get; set; } = EventLevel.AllEvents;
 
-        [Display(Name = "Dashed line up the chart", GroupName = "6. Event markers", Order = 102)]
+        [Display(Name = "Dashed line up the chart", GroupName = "Event markers", Order = 102)]
+        [Tab(TabName = "News", TabOrder = 5)]
         public bool MarkerLines { get; set; } = true;
 
         #endregion
 
         #region Settings — alerts
 
-        [Display(Name = "Alerts on", GroupName = "8. Alerts", Order = 140)]
+        [Display(Name = "Alerts on", GroupName = "Alerts", Order = 140)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         public bool AlertsOn { get; set; } = true;
 
-        [Display(Name = "Also show ATAS's alert pop-up", GroupName = "8. Alerts", Order = 141)]
+        [Display(Name = "Also show ATAS's alert pop-up", GroupName = "Alerts", Order = 141)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         public bool AlertAtasPopup { get; set; } = false;
 
-        [Display(Name = "Also show it with the news pop-ups", GroupName = "8. Alerts", Order = 142)]
+        [Display(Name = "Also show it with the news pop-ups", GroupName = "Alerts", Order = 142)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         public bool AlertHudPopup { get; set; } = true;
 
-        [Display(Name = "Trade entered (position opened)", GroupName = "8. Alerts", Order = 143)]
+        [Display(Name = "Trade entered (position opened)", GroupName = "Trades", Order = 143)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         public bool AlertEntry { get; set; } = true;
 
-        [Display(Name = "Trade entered: sound", GroupName = "8. Alerts", Order = 144)]
+        [Display(Name = "Trade entered: sound", GroupName = "Trades", Order = 144)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
         public string EntrySound { get; set; } = "female_order filled";
 
-        [Display(Name = "Every order filled (entries, adds, exits)", GroupName = "8. Alerts", Order = 145)]
+        [Display(Name = "Every order filled (entries, adds, exits)", GroupName = "Trades", Order = 145)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         public bool AlertFill { get; set; } = false;
 
-        [Display(Name = "Order filled: sound", GroupName = "8. Alerts", Order = 146)]
+        [Display(Name = "Order filled: sound", GroupName = "Trades", Order = 146)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
         public string FillSound { get; set; } = "bip";
 
-        [Display(Name = "Winning trade", GroupName = "8. Alerts", Order = 150)]
+        [Display(Name = "Winning trade", GroupName = "Trades", Order = 150)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         public bool AlertWin { get; set; } = true;
 
-        [Display(Name = "Winning trade: sound", GroupName = "8. Alerts", Order = 151)]
+        [Display(Name = "Winning trade: sound", GroupName = "Trades", Order = 151)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
         public string WinSound { get; set; } = "alert1";
 
-        [Display(Name = "Winning trade: only above ($, 0 = any)", GroupName = "8. Alerts", Order = 152)]
+        [Display(Name = "Winning trade: only above ($, 0 = any)", GroupName = "Trades", Order = 152)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [Range(0, 1000000)]
         public decimal WinMin { get; set; } = 0;
 
-        [Display(Name = "Losing trade", GroupName = "8. Alerts", Order = 160)]
+        [Display(Name = "Losing trade", GroupName = "Trades", Order = 160)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         public bool AlertLoss { get; set; } = true;
 
-        [Display(Name = "Losing trade: sound", GroupName = "8. Alerts", Order = 161)]
+        [Display(Name = "Losing trade: sound", GroupName = "Trades", Order = 161)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
         public string LossSound { get; set; } = "alert2";
 
-        [Display(Name = "Losing trade: only below (−$, 0 = any)", GroupName = "8. Alerts", Order = 162)]
+        [Display(Name = "Losing trade: only below (−$, 0 = any)", GroupName = "Trades", Order = 162)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [Range(0, 1000000)]
         public decimal LossMin { get; set; } = 0;
 
-        [Display(Name = "Daily loss limit hit", GroupName = "8. Alerts", Order = 170)]
+        [Display(Name = "Daily loss limit hit", GroupName = "Daily loss limit and profit target", Order = 170)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         public bool AlertDll { get; set; } = true;
 
-        [Display(Name = "Daily loss limit hit: sound", GroupName = "8. Alerts", Order = 171)]
+        [Display(Name = "Daily loss limit hit: sound", GroupName = "Daily loss limit and profit target", Order = 171)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
         public string DllSound { get; set; } = "alert4";
 
-        [Display(Name = "Daily loss limit ($, 0 = the RoninFlow tier's)", GroupName = "8. Alerts", Order = 172)]
+        [Display(Name = "Daily loss limit ($, 0 = the RoninFlow tier's)", GroupName = "Daily loss limit and profit target", Order = 172)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [Range(0, 1000000)]
         public decimal DllOverride { get; set; } = 0;
 
-        [Display(Name = "Warn when this much of it is used (%, 0 = off)", GroupName = "8. Alerts", Order = 173)]
+        [Display(Name = "Warn when this much of it is used (%, 0 = off)", GroupName = "Daily loss limit and profit target", Order = 173)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [Range(0, 99)]
         public int DllWarnPercent { get; set; } = 80;
 
-        [Display(Name = "Warning: sound", GroupName = "8. Alerts", Order = 174)]
+        [Display(Name = "Warning: sound", GroupName = "Daily loss limit and profit target", Order = 174)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
         public string DllWarnSound { get; set; } = "alert3";
 
-        [Display(Name = "Profit target hit", GroupName = "8. Alerts", Order = 180)]
+        [Display(Name = "Profit target hit", GroupName = "Daily loss limit and profit target", Order = 180)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         public bool AlertTarget { get; set; } = true;
 
-        [Display(Name = "Profit target hit: sound", GroupName = "8. Alerts", Order = 181)]
+        [Display(Name = "Profit target hit: sound", GroupName = "Daily loss limit and profit target", Order = 181)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
         public string TargetSound { get; set; } = "alert5";
 
-        [Display(Name = "Daily profit target ($, 0 = off)", GroupName = "8. Alerts", Order = 182)]
+        [Display(Name = "Daily profit target ($, 0 = off)", GroupName = "Daily loss limit and profit target", Order = 182)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         [Range(0, 1000000)]
         public decimal ProfitTarget { get; set; } = 0;
 
-        [Display(Name = "Count open P&L toward the limit and target", GroupName = "8. Alerts", Order = 183)]
+        [Display(Name = "Count open P&L toward the limit and target", GroupName = "Daily loss limit and profit target", Order = 183)]
+        [Tab(TabName = "Alerts", TabOrder = 8)]
         public bool AlertIncludeOpen { get; set; } = true;
 
         #endregion
 
         #region Settings — colours
 
-        [Display(Name = "Panel background", GroupName = "7. Colours and text", Order = 120)]
+        [Display(Name = "Panel background", GroupName = "Colours and text", Order = 120)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public Color Background { get; set; } = Color.FromArgb(235, 10, 10, 10);
 
-        [Display(Name = "Panel border", GroupName = "7. Colours and text", Order = 121)]
+        [Display(Name = "Panel border", GroupName = "Colours and text", Order = 121)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public Color BorderColor { get; set; } = Color.FromArgb(255, 42, 42, 42);
 
-        [Display(Name = "Tile background", GroupName = "7. Colours and text", Order = 122)]
+        [Display(Name = "Tile background", GroupName = "Colours and text", Order = 122)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public Color TileColor { get; set; } = Color.FromArgb(255, 15, 15, 15);
 
-        [Display(Name = "Text", GroupName = "7. Colours and text", Order = 123)]
+        [Display(Name = "Text", GroupName = "Colours and text", Order = 123)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public Color TextColor { get; set; } = Color.FromArgb(255, 244, 244, 245);
 
-        [Display(Name = "Muted text", GroupName = "7. Colours and text", Order = 124)]
+        [Display(Name = "Muted text", GroupName = "Colours and text", Order = 124)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public Color MutedColor { get; set; } = Color.FromArgb(255, 139, 139, 143);
 
-        [Display(Name = "Accent", GroupName = "7. Colours and text", Order = 125)]
+        [Display(Name = "Accent", GroupName = "Colours and text", Order = 125)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public Color AccentColor { get; set; } = Color.FromArgb(255, 139, 109, 255);
 
-        [Display(Name = "Positive", GroupName = "7. Colours and text", Order = 126)]
+        [Display(Name = "Positive", GroupName = "Colours and text", Order = 126)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public Color PositiveColor { get; set; } = Color.FromArgb(255, 43, 196, 138);
 
-        [Display(Name = "Negative", GroupName = "7. Colours and text", Order = 127)]
+        [Display(Name = "Negative", GroupName = "Colours and text", Order = 127)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public Color NegativeColor { get; set; } = Color.FromArgb(255, 229, 72, 77);
 
-        [Display(Name = "Warning", GroupName = "7. Colours and text", Order = 128)]
+        [Display(Name = "Warning", GroupName = "Colours and text", Order = 128)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public Color WarningColor { get; set; } = Color.FromArgb(255, 232, 176, 67);
 
-        [Display(Name = "Font", GroupName = "7. Colours and text", Order = 129)]
+        [Display(Name = "Font", GroupName = "Colours and text", Order = 129)]
+        [Tab(TabName = "General", TabOrder = 1)]
         public string FontName { get; set; } = "Consolas";
 
-        [Display(Name = "Font size", GroupName = "7. Colours and text", Order = 130)]
+        [Display(Name = "Font size", GroupName = "Colours and text", Order = 130)]
+        [Tab(TabName = "General", TabOrder = 1)]
         [Range(6, 24)]
         public float FontSize { get; set; } = 9;
 
-        [Display(Name = "Corner radius", GroupName = "7. Colours and text", Order = 131)]
+        [Display(Name = "Corner radius", GroupName = "Colours and text", Order = 131)]
+        [Tab(TabName = "General", TabOrder = 1)]
         [Range(0, 16)]
         public int Radius { get; set; } = 6;
 
@@ -454,8 +552,8 @@ namespace TradeJournal
         {
             DenyToChangePanel = true;
             EnableCustomDrawing = true;
-            SubscribeToDrawingEvents(DrawingLayouts.Final);
-            DrawAbovePrice = true;
+            SubscribeToDrawingEvents(DrawingLayouts.Historical | DrawingLayouts.Final);
+            DrawAbovePrice = false; // the heatmap goes behind the candles; everything else is drawn on top (the final layer)
             DataSeries[0].IsHidden = true;
             ((ValueDataSeries)DataSeries[0]).VisualType = VisualMode.Hide;
         }
@@ -468,6 +566,7 @@ namespace TradeJournal
             Task.Run(() => Loop(token), token);
             SubscribeToTimer(TimeSpan.FromSeconds(1), Tick);
             _fillsFrom = DateTime.UtcNow.AddSeconds(5); // positions ATAS reports while the chart loads aren't new entries
+            HeatmapInit();
         }
 
         protected override void OnDispose()
@@ -475,6 +574,7 @@ namespace TradeJournal
             _cts?.Cancel();
             try { UnsubscribeFromTimer(TimeSpan.FromSeconds(1), Tick); }
             catch { }
+            try { if (_stats != null) _stats.HistoryMyTrades.Added -= OnStatsTrade; } catch { }
         }
 
         protected override void OnCalculate(int bar, decimal value)
@@ -490,6 +590,10 @@ namespace TradeJournal
                 try { RefreshPositions(); }
                 catch { }
             }
+            try { AttachStats(); CheckLimits(); }
+            catch { }
+            try { HeatmapTick(); UpdateLayering(); RefreshExecutions(); }
+            catch { }
             foreach (var (sound, message, kind) in due)
             {
                 var bg = kind is "win" or "target" ? PositiveColor : kind == "warn" ? WarningColor : kind is "entry" or "fill" ? AccentColor : NegativeColor;
@@ -688,6 +792,29 @@ namespace TradeJournal
         private readonly Dictionary<string, decimal> _posVol = new();
         private DateTime _fillsFrom = DateTime.MaxValue; // set when the chart starts: what was already open doesn't count as an entry
 
+        private ITradingStatistics? _stats;
+
+        /// <summary>Hears each trade the moment ATAS closes it, so win / loss alerts don't wait for the next refresh.</summary>
+        private void AttachStats()
+        {
+            var st = TradingStatisticsProvider?.RawStatistics;
+            if (ReferenceEquals(st, _stats)) return;
+            try { if (_stats != null) _stats.HistoryMyTrades.Added -= OnStatsTrade; } catch { }
+            _stats = st;
+            try { if (_stats != null) _stats.HistoryMyTrades.Added += OnStatsTrade; } catch { }
+        }
+
+        private void OnStatsTrade(HistoryMyTrade trade)
+        {
+            Task.Run(() =>
+            {
+                try { ComputeDay(); }
+                catch { }
+                try { RefreshExecutions(true); }
+                catch { }
+            });
+        }
+
         protected override void OnPositionChanged(Position position)
         {
             base.OnPositionChanged(position);
@@ -746,7 +873,17 @@ namespace TradeJournal
 
         private void Alert(string sound, string message, string kind, string title, string meta)
         {
-            lock (_alertQueue) _alertQueue.Add((sound, message, kind));
+            // straight away; if ATAS won't take it from this thread, the chart's next timer tick raises it
+            try
+            {
+                var bg = kind is "win" or "target" ? PositiveColor : kind == "warn" ? WarningColor : kind is "entry" or "fill" ? AccentColor : NegativeColor;
+                AddAlert(SoundName(sound), InstrumentInfo?.Instrument ?? "", message, bg, Color.Black, AlertAtasPopup);
+            }
+            catch
+            {
+                lock (_alertQueue) _alertQueue.Add((sound, message, kind));
+            }
+            try { RedrawChart(); } catch { }
             if (!AlertHudPopup) return;
             lock (_popLock)
             {
@@ -755,7 +892,14 @@ namespace TradeJournal
             }
         }
 
+        private readonly object _alertLock = new();
+
         private void CheckAlerts(List<HistoryMyTrade> today, DayStats d, Snapshot? snap, string account, DateTime dayStart)
+        {
+            lock (_alertLock) CheckAlertsLocked(today, d, snap, account, dayStart);
+        }
+
+        private void CheckAlertsLocked(List<HistoryMyTrade> today, DayStats d, Snapshot? snap, string account, DateTime dayStart)
         {
             var dayKey = dayStart.Ticks;
             if (dayKey != _alertDay) { _alertDay = dayKey; _dllFired = _dllWarned = _targetFired = false; }
@@ -777,8 +921,21 @@ namespace TradeJournal
             }
             _tradesPrimed = true;
             if (_tradesSeen.Count > 5000) _tradesSeen.Clear();
-            if (!AlertsOn) return;
+            CheckLimitsLocked(d, snap, account);
+        }
 
+        /// <summary>The daily loss limit and profit target, with live open P&L — every second from the chart's timer too.</summary>
+        private void CheckLimits()
+        {
+            var account = TradingManager?.Portfolio?.AccountID;
+            if (string.IsNullOrEmpty(account) || !_tradesPrimed) return;
+            lock (_alertLock) CheckLimitsLocked(_day, _snap, account);
+        }
+
+        private void CheckLimitsLocked(DayStats d, Snapshot? snap, string account)
+        {
+            if (!AlertsOn) return;
+            var label = Mask(account);
             var open = AlertIncludeOpen ? TradingManager?.Portfolio?.OpenPnL ?? 0m : 0m;
             var now = d.Realised + open;
             var dll = DllOverride > 0 ? DllOverride : snap?.Account?.DailyLoss ?? 0;
@@ -907,6 +1064,13 @@ namespace TradeJournal
                 RedrawChart();
                 return true;
             }
+            if (ShowHeatmap && HmShowButton && _hmButton.Contains(e.Location))
+            {
+                _hmEnabled = !_hmEnabled;
+                UpdateLayering();
+                RedrawChart();
+                return true;
+            }
             foreach (var (box, item) in _newsRows.ToList())
             {
                 if (!box.Contains(e.Location)) continue;
@@ -937,7 +1101,7 @@ namespace TradeJournal
         public override StdCursor GetCursor(RenderControlMouseEventArgs e)
         {
             if ((ShowNews && _newsHeader.Contains(e.Location)) || (ShowAccount && ShowStats && _statsRect.Contains(e.Location)) || _closeBoxes.Any(b => b.Box.Contains(e.Location))
-                || _newsRows.Any(b => b.Box.Contains(e.Location)) || _detailButtons.Any(b => b.Box.Contains(e.Location)) || _popupBodies.Any(b => b.Box.Contains(e.Location) && b.Key.StartsWith("n:")))
+                || _newsRows.Any(b => b.Box.Contains(e.Location)) || _detailButtons.Any(b => b.Box.Contains(e.Location)) || _popupBodies.Any(b => b.Box.Contains(e.Location) && b.Key.StartsWith("n:")) || (ShowHeatmap && HmShowButton && _hmButton.Contains(e.Location)))
                 return StdCursor.Hand;
             return base.GetCursor(e);
         }
@@ -1067,6 +1231,14 @@ namespace TradeJournal
             if (ChartInfo == null || Container == null)
                 return;
             Fonts();
+            if (layout == DrawingLayouts.Historical)
+            {
+                try { if (ShowHeatmap && HeatmapBehind) DrawHeatmap(g, Container.Region); } catch { }
+                return;
+            }
+            try { if (ShowHeatmap && !HeatmapBehind) DrawHeatmap(g, Container.Region); } catch { }
+            try { if (ShowCandles) DrawCandles(g); } catch { }
+            try { if (ShowExecutions) DrawExecutions(g); } catch { }
             if (!_collapseInit) { _newsCollapsed = NewsStartCollapsed; _statsCollapsed = StatsStartCollapsed; _collapseInit = true; }
             _closeBoxes.Clear();
             _newsRows.Clear();
@@ -1077,6 +1249,7 @@ namespace TradeJournal
             try { if (ShowNews) DrawNews(g, snap); else _newsHeader = Rectangle.Empty; } catch { }
             try { if (ShowAccount || ShowAllPositions) DrawAccount(g, snap); } catch { }
             try { if (ShowPopups || PreviewPopup) DrawPopups(g, snap); } catch { }
+            try { if (ShowHeatmap && HmShowButton) DrawHeatmapButton(g); else _hmButton = Rectangle.Empty; } catch { }
             try { if (_detail != null) DrawDetail(g, _detail); else { _detailRect = Rectangle.Empty; _detailButtons.Clear(); } } catch { }
         }
 
