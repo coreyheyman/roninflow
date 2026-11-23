@@ -7,8 +7,8 @@
 //     rule is broken the account is "reduce only" — new positions are refused, closing still works;
 //   * keeps the account's ATAS Risk Management settings in step (loss limit, max trades, losses in a row) through the
 //     same service ATAS's Risk Management window uses;
-//   * closes positions when the loss limit or trailing drawdown is hit (and, if asked, when a trading window ends),
-//     and trims positions bigger than the contract limit.
+//   * closes positions when the loss limit or trailing drawdown is hit, or the profit target (each if asked; and, if
+//     asked, when a trading window ends), and trims positions bigger than the contract limit.
 // Everything is found by reflection and wrapped in try/catch: if ATAS changes, enforcement reports what it couldn't do
 // to RoninFlow (Settings → Risk enforcement) instead of affecting the platform.
 
@@ -36,7 +36,11 @@ namespace TradeJournal
         public decimal Trail;
         public bool Windowed;
         public bool InWindow = true;
-        public bool Flatten;
+        public bool Flatten;                // close positions when a trading window ends
+        public bool FlattenLoss = true;     // close positions when the loss limit / trailing drawdown is hit
+        public decimal Target;              // the day's profit target (0 = none)
+        public bool TargetOpen = true;      // open P&L counts toward it
+        public bool FlattenTarget;          // close positions and stop for the day when it's hit
         public int MaxTrades;
         public int MaxConsec;
         public decimal ConsecMin;
@@ -57,6 +61,7 @@ namespace TradeJournal
     {
         public long LockedDay;              // dayStartUtc of the day the loss limit / trailing drawdown was hit
         public string LockReason = "";
+        public bool LockIsTarget;           // locked by the profit target (not the loss limit)
         public bool? WasInWindow;
         public DateTime LastAction = DateTime.MinValue;
         public DateTime NativeCheckedAt = DateTime.MinValue;
@@ -278,6 +283,10 @@ namespace TradeJournal
                             Windowed = Bool(a, "windowed"),
                             InWindow = !a.TryGetProperty("inWindow", out var iw) || iw.ValueKind != JsonValueKind.False,
                             Flatten = Bool(a, "flatten"),
+                            FlattenLoss = !a.TryGetProperty("flattenLoss", out var fl) || fl.ValueKind != JsonValueKind.False,
+                            Target = Dec(a, "target"),
+                            TargetOpen = !a.TryGetProperty("targetOpen", out var to) || to.ValueKind != JsonValueKind.False,
+                            FlattenTarget = Bool(a, "flattenTarget"),
                             MaxTrades = (int)Dec(a, "maxTrades"),
                             MaxConsec = (int)Dec(a, "maxConsec"),
                             ConsecMin = Dec(a, "consecMin"),
@@ -532,12 +541,27 @@ namespace TradeJournal
                 {
                     st.LockedDay = 0; // a new day
                     st.LockReason = "";
+                    st.LockIsTarget = false;
+                }
+                if (st.LockedDay != 0 && st.LockIsTarget && !(r.FlattenTarget && r.Target > 0))
+                {
+                    st.LockedDay = 0; // the target's flatten switch was turned off
+                    st.LockReason = "";
+                    st.LockIsTarget = false;
                 }
                 var lossHit = r.DailyLoss > 0 && v.Realised + v.Unrealised <= -r.DailyLoss;
                 var trailHit = r.Trail > 0 && v.Peak - v.Realised >= r.Trail;
-                if ((lossHit || trailHit) && st.LockedDay == 0)
+                var targetHit = r.FlattenTarget && r.Target > 0 && v.Realised + (r.TargetOpen ? v.Unrealised : 0m) >= r.Target;
+                if (targetHit && !lossHit && !trailHit && st.LockedDay == 0)
                 {
                     st.LockedDay = _dayStartUtc;
+                    st.LockIsTarget = true;
+                    st.LockReason = $"profit target of {r.Target:0.##} reached — done for the day";
+                }
+                if ((lossHit || trailHit) && (st.LockedDay == 0 || st.LockIsTarget))
+                {
+                    st.LockedDay = _dayStartUtc;
+                    st.LockIsTarget = false;
                     st.LockReason = lossHit
                         ? $"daily loss limit of {r.DailyLoss:0.##} reached"
                         : $"trailing drawdown of {r.Trail:0.##} reached (day's high {v.Peak:0.##}, now {v.Realised:0.##})";
@@ -558,7 +582,8 @@ namespace TradeJournal
                 {
                     try
                     {
-                        if (st.LockedDay != 0 && (v.Positions.Count > 0 || v.Orders.Count > 0))
+                        var flattenLocked = st.LockedDay != 0 && (st.LockIsTarget ? r.FlattenTarget : r.FlattenLoss);
+                        if (flattenLocked && (v.Positions.Count > 0 || v.Orders.Count > 0))
                         {
                             st.LastAction = DateTime.UtcNow;
                             await Flatten(core, v);
@@ -609,6 +634,8 @@ namespace TradeJournal
                     unrealised = Math.Round(v.Unrealised, 2),
                     peak = Math.Round(v.Peak, 2),
                     floor = Math.Round(r.Trail > 0 ? v.Peak - r.Trail : -r.DailyLoss, 2),
+                    target = r.Target,
+                    targetHit = st.LockedDay != 0 && st.LockIsTarget,
                     trades = v.Trades,
                     streak = v.Streak,
                     positions = v.Positions.Count,

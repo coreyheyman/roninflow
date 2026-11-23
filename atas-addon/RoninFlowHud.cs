@@ -44,6 +44,7 @@ namespace TradeJournal
         public enum LabelSide { Left, Middle, Right }
         public enum NewsLevel { AllNews, ImportantOnly, HighImpactOnly }
         public enum EventLevel { AllEvents, MediumAndHigh, HighOnly }
+        public enum BufferMode { ClosedAndOpen, ClosedOnly }
 
         // ---------- data from RoninFlow ----------
         private sealed class Tag { public string M = ""; public int Dir; }
@@ -51,7 +52,7 @@ namespace TradeJournal
         private sealed class EventItem { public string Id = "", Title = "", Ccy = "", Impact = "", Actual = "", Forecast = "", Previous = ""; public long T; }
         private sealed class Level { public decimal Price; public string Kind = ""; }
         private sealed class Gex { public string Index = "", Zone = "", Error = ""; public decimal Total; public decimal? Flip, CallWall, PutWall; public List<Level> Pos = new(), Neg = new(); public bool Delayed; public long At; }
-        private sealed class AccountInfo { public string TierName = "", TierColor = ""; public int Level, Of; public decimal DailyLoss, Trail; public int MaxTrades; public bool Enforced, Enforcing, Blocked, Windowed, InWindow = true; public string Reason = ""; public int? WindowMin; }
+        private sealed class AccountInfo { public string TierName = "", TierColor = ""; public int Level, Of; public decimal DailyLoss, Trail, Target; public int MaxTrades; public bool TargetOpen = true, FlattenLoss, FlattenTarget; public bool Enforced, Enforcing, Blocked, Windowed, InWindow = true; public string Reason = ""; public int? WindowMin; }
         private sealed class Snapshot { public long DayStartUtc; public string Market = ""; public AccountInfo? Account; public Gex? Gex; public List<EventItem> Events = new(); public List<NewsItem> News = new(); public string Error = ""; public DateTime At; }
         private sealed class DayStats { public decimal Realised, Peak, AvgWin, AvgLoss, Best, Worst, GrossWin, GrossLoss; public int Trades, Wins, Losses; }
         private sealed class PosRow { public string Account = "", Code = ""; public decimal Volume; public decimal? Pnl; }
@@ -162,9 +163,13 @@ namespace TradeJournal
         [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowPnlTiles { get; set; } = true;
 
-        [Display(Name = "Buffer to daily loss limit", GroupName = "What it shows", Order = 28)]
+        [Display(Name = "Buffer bar (loss limit → profit target)", GroupName = "What it shows", Order = 28)]
         [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowBuffer { get; set; } = true;
+
+        [Display(Name = "Buffer bar moves with", GroupName = "What it shows", Order = 28)]
+        [Tab(TabName = "Account", TabOrder = 2)]
+        public BufferMode BufferPnl { get; set; } = BufferMode.ClosedAndOpen;
 
         [Display(Name = "Trade stats", GroupName = "What it shows", Order = 29)]
         [Tab(TabName = "Account", TabOrder = 2)]
@@ -483,7 +488,7 @@ namespace TradeJournal
         [SoundComboBoxEditor]
         public string TargetSound { get; set; } = "alert5";
 
-        [Display(Name = "Daily profit target ($, 0 = off)", GroupName = "Daily loss limit and profit target", Order = 182)]
+        [Display(Name = "Daily profit target ($, 0 = the account's target in RoninFlow)", GroupName = "Daily loss limit and profit target", Order = 182)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
         [Range(0, 1000000)]
         public decimal ProfitTarget { get; set; } = 0;
@@ -659,6 +664,8 @@ namespace TradeJournal
                 var ai = new AccountInfo
                 {
                     DailyLoss = Dec(a, "dailyLoss"), Trail = Dec(a, "trail"), MaxTrades = (int)Dec(a, "maxTrades"),
+                    Target = Dec(a, "target"), TargetOpen = !a.TryGetProperty("targetOpen", out var tgo) || tgo.ValueKind != JsonValueKind.False,
+                    FlattenLoss = Bool(a, "flattenLoss"), FlattenTarget = Bool(a, "flattenTarget"),
                     Enforced = Bool(a, "enforced"), Enforcing = Bool(a, "enforcing"), Blocked = Bool(a, "blocked"), Reason = Str(a, "reason"),
                     Windowed = Bool(a, "windowed"), InWindow = !a.TryGetProperty("inWindow", out var iw) || iw.ValueKind != JsonValueKind.False,
                     WindowMin = a.TryGetProperty("windowChangeMin", out var wm) && wm.ValueKind == JsonValueKind.Number ? wm.GetInt32() : null,
@@ -952,12 +959,16 @@ namespace TradeJournal
                     Alert(DllWarnSound, $"{DllWarnPercent}% of the daily loss limit used: {Money(now, true)} · {label}", "warn", $"{DllWarnPercent}% of your daily loss limit used", $"{label} · day {Money(now, true)} · {Money(dll + now)} left");
                 }
             }
-            if (ProfitTarget > 0 && AlertTarget && !_targetFired && now >= ProfitTarget)
+            var target = TargetFor(snap);
+            if (target > 0 && AlertTarget && !_targetFired && now >= target)
             {
                 _targetFired = true;
-                Alert(TargetSound, $"Profit target hit: {Money(now, true)} · {label}", "target", "Profit target hit", $"{label} · day {Money(now, true)} · target {Money(ProfitTarget)}");
+                Alert(TargetSound, $"Profit target hit: {Money(now, true)} · {label}", "target", "Profit target hit", $"{label} · day {Money(now, true)} · target {Money(target)}");
             }
         }
+
+        /// <summary>The day's profit target: the one set here, otherwise the account's own target from RoninFlow.</summary>
+        private decimal TargetFor(Snapshot? snap) => ProfitTarget > 0 ? ProfitTarget : snap?.Account?.Target ?? 0;
 
         // ---------- pop-ups ----------
 
@@ -1492,7 +1503,8 @@ namespace TradeJournal
             var tileH = sh + lh + (int)Math.Round(14 * k);
             if (ShowPnlTiles) h += tileH + 8;
             var dll = acct?.DailyLoss ?? 0;
-            if (ShowBuffer && dll > 0) h += sh + 10 + 6 + sh + 10;
+            var target = TargetFor(s);
+            if (ShowBuffer && (dll > 0 || target > 0)) h += sh + 10 + 6 + sh + 10;
             if (ShowStats && day.Trades > 0) h += _statsCollapsed ? sh + (int)Math.Round(12 * k) : statRowH * (8 / cols) + 2;
             else _statsRect = Rectangle.Empty;
             if (ShowGexLine && gx != null) h += lh + 12;
@@ -1566,35 +1578,70 @@ namespace TradeJournal
                 y += tileH + 8;
             }
 
-            // buffer to the daily loss limit
-            if (ShowBuffer && dll > 0)
+            // the buffer bar: from the stop (loss limit or trailing drawdown) up to the profit target
+            if (ShowBuffer && (dll > 0 || target > 0))
             {
-                var open = portfolio?.OpenPnL ?? 0m;
+                var open = BufferPnl == BufferMode.ClosedAndOpen ? portfolio?.OpenPnL ?? 0m : 0m;
                 var now = day.Realised + open;
-                var buffer = dll + now;
                 var trail = acct?.Trail ?? 0;
-                var stop = trail > 0 ? Math.Max(-dll, day.Peak - trail) : -dll; // the tighter of the two
+                var stop = dll > 0 ? (trail > 0 ? Math.Max(-dll, day.Peak - trail) : -dll) : 0m; // the tighter of the two
                 var room = now - stop;
-                Txt(g, "Buffer to loss limit", _small, MutedColor, x, y);
-                var right = $"{Money(Math.Max(0, room))} of {Money(dll)}";
-                var rw = g.MeasureString(right, _small).Width;
-                g.DrawString(right, _small, room <= dll * 0.25m ? NegativeColor : TextColor, rect.Right - pad - rw, y);
+                var closedOnly = BufferPnl == BufferMode.ClosedOnly;
+                if (dll > 0)
+                {
+                    Txt(g, closedOnly ? "Buffer to loss limit (closed)" : "Buffer to loss limit", _small, MutedColor, x, y);
+                    var right = $"{Money(Math.Max(0, room))} of {Money(dll)}";
+                    var rw = g.MeasureString(right, _small).Width;
+                    g.DrawString(right, _small, room <= dll * 0.25m ? NegativeColor : TextColor, rect.Right - pad - rw, y);
+                }
+                else
+                {
+                    Txt(g, closedOnly ? "To profit target (closed)" : "To profit target", _small, MutedColor, x, y);
+                    var togo = Math.Max(0, target - now);
+                    var right = togo > 0 ? $"{Money(togo)} to go" : "hit";
+                    var rw = g.MeasureString(right, _small).Width;
+                    g.DrawString(right, _small, togo > 0 ? TextColor : PositiveColor, rect.Right - pad - rw, y);
+                }
                 y += sh + 6;
                 var bar = new Rectangle(x, y, w - pad * 2, 6);
-                var lo = -dll;
-                var hi = Math.Max(Math.Max(day.Peak, now), dll * 0.5m);
+                var lo = dll > 0 ? -dll : Math.Min(Math.Min(0m, now), -target / 2);
+                var hi = Math.Max(Math.Max(day.Peak, now), target > 0 ? target : dll * 0.5m);
+                if (hi <= lo) hi = lo + 1;
                 int Xof(decimal v) => bar.X + (int)Math.Round((double)((Math.Max(lo, Math.Min(hi, v)) - lo) / (hi - lo)) * bar.Width);
                 g.FillRectangle(A(NegativeColor, 80), A(PositiveColor, 80), bar, false);
-                var sx = Xof(stop);
-                g.FillRectangle(NegativeColor, new Rectangle(sx - 1, bar.Y - 2, 2, bar.Height + 4));
+                if (dll > 0)
+                {
+                    var sx = Xof(stop);
+                    g.FillRectangle(NegativeColor, new Rectangle(sx - 1, bar.Y - 2, 2, bar.Height + 4));
+                }
+                if (target > 0)
+                {
+                    var tx = Math.Min(bar.Right - 2, Xof(target));
+                    g.FillRectangle(PositiveColor, new Rectangle(tx - 1, bar.Y - 2, 2, bar.Height + 4));
+                }
                 var nx = Xof(now);
                 g.FillRectangle(Color.White, new Rectangle(nx - 1, bar.Y - 3, 3, bar.Height + 6));
                 y += 6 + 4;
-                var l1 = $"stop {Num(stop, true)}";
-                var l2 = $"day high {Num(day.Peak, true)}";
-                g.DrawString(l1, _small, MutedColor, x, y);
+                // labels: the stop on the left, the day's high in the middle, the target on the right ("⏻" = flattens there)
+                var enforcing = acct != null && acct.Enforcing;
+                var l1 = dll > 0 ? $"stop {Num(stop, true)}{(enforcing && acct!.FlattenLoss ? " ⏻" : "")}" : "";
+                var l2 = $"high {Num(day.Peak, true)}";
+                var l3 = target > 0 ? $"target {Num(target, true)}{(enforcing && acct!.FlattenTarget && ProfitTarget <= 0 ? " ⏻" : "")}" : "";
+                if (l1.Length > 0) g.DrawString(l1, _small, MutedColor, x, y);
                 var l2w = g.MeasureString(l2, _small).Width;
-                g.DrawString(l2, _small, MutedColor, rect.Right - pad - l2w, y);
+                if (l3.Length > 0)
+                {
+                    var l3w = g.MeasureString(l3, _small).Width;
+                    g.DrawString(l3, _small, PositiveColor, rect.Right - pad - l3w, y);
+                    var l1w = l1.Length > 0 ? g.MeasureString(l1, _small).Width : 0;
+                    var mid = x + (w - pad * 2 - l2w) / 2;
+                    if (mid > x + l1w + 8 && mid + l2w < rect.Right - pad - l3w - 8)
+                        g.DrawString(l2, _small, MutedColor, mid, y);
+                }
+                else
+                {
+                    g.DrawString(l2, _small, MutedColor, rect.Right - pad - l2w, y);
+                }
                 y += sh + 10;
             }
 

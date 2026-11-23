@@ -6,7 +6,7 @@ import { balanceGap } from './balance';
 import { homeTimeZone } from './stats';
 
 export const WEEKDAYS = [1, 2, 3, 4, 5];
-export const DEFAULT_ENFORCE = { on: false, setAtas: true, dll: null, trail: null, windows: [], days: WEEKDAYS, flatten: true, maxTrades: null, maxConsec: null, consecMin: null, maxContracts: null };
+export const DEFAULT_ENFORCE = { on: false, setAtas: true, dll: null, trail: null, windows: [], days: WEEKDAYS, flatten: true, flattenLoss: true, flattenTarget: false, target: null, targetOpen: true, maxTrades: null, maxConsec: null, consecMin: null, maxContracts: null };
 
 /** An account's enforcement settings, with defaults filled in. */
 export const enforceOf = (state, id) => ({ ...DEFAULT_ENFORCE, ...(state.settings.riskEnforce?.[id] || {}) });
@@ -40,6 +40,10 @@ export function rulesFor(state, id) {
     windows: (cfg.windows || []).filter((w) => w?.from && w?.to),
     days: Array.isArray(cfg.days) ? cfg.days : WEEKDAYS,
     flatten: !!cfg.flatten,
+    flattenLoss: cfg.flattenLoss !== false,
+    target: pos(cfg.target),
+    targetOpen: cfg.targetOpen !== false,
+    flattenTarget: !!cfg.flattenTarget && pos(cfg.target) != null,
     maxTrades: posInt(cfg.maxTrades),
     maxConsec: posInt(cfg.maxConsec),
     consecMin: pos(cfg.consecMin) ?? 0,
@@ -60,7 +64,7 @@ export function allTiers(state) {
       if (!r) continue;
       const cfg = enforceOf(state, a.id);
       const dll = pos(cfg.dll) ?? (Number(r.tier.dailyLL) || 0);
-      out[a.id] = { name: r.tier.name, level: r.level, of: r.tiers.length, color: r.tier.color || '', dailyLoss: dll, trail: pos(cfg.trail) ?? dll, riskMin: Number(r.tier.riskMin) || 0, riskMax: Number(r.tier.riskMax) || 0, enforced: !!cfg.on, maxTrades: posInt(cfg.maxTrades) };
+      out[a.id] = { name: r.tier.name, level: r.level, of: r.tiers.length, color: r.tier.color || '', dailyLoss: dll, trail: pos(cfg.trail) ?? dll, riskMin: Number(r.tier.riskMin) || 0, riskMax: Number(r.tier.riskMax) || 0, enforced: !!cfg.on, maxTrades: posInt(cfg.maxTrades), target: pos(cfg.target), targetOpen: cfg.targetOpen !== false, flattenLoss: !!cfg.on && cfg.flattenLoss !== false, flattenTarget: !!cfg.on && !!cfg.flattenTarget && pos(cfg.target) != null };
     } catch { /* an account without trades yet */ }
   }
   return out;

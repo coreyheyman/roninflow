@@ -64,7 +64,7 @@ export default function RiskEnforce() {
   return (
     <div className="col gap16 re">
       <div className="muted" style={{ fontSize: 13 }}>
-        RoninFlow can hold ATAS to your risk plan: the Journal Sync add-on sets each account’s ATAS Risk Management to its current tier, and blocks new orders (closing a position still works) when a rule below is broken — on every connected account, copy-trade followers included, whether or not a chart has it selected.
+        RoninFlow can hold ATAS to your risk plan: the Journal Sync add-on sets each account’s ATAS Risk Management to its current tier, and blocks new orders (closing a position still works) when a rule below is broken — and, if you choose, flattens the account when its daily loss limit or profit target is hit — on every connected account, copy-trade followers included, whether or not a chart has it selected.
       </div>
 
       <div className={`re-addon ${fresh && st.enforcing ? 'ok' : 'warn'}`}>
@@ -104,6 +104,16 @@ export default function RiskEnforce() {
           <div>
             <Num value={cfg.dll} onChange={(v) => set({ dll: v })} placeholder={String(tierDll)} prefix="$" />
             <div className="re-help">Empty follows the tier ({money0(tierDll)} now) and changes with it. Counts open P&amp;L too.</div>
+            <label className="row gap8" style={{ fontSize: 13, marginTop: 8 }}><input type="checkbox" className="cbx" checked={cfg.flattenLoss !== false} onChange={(e) => set({ flattenLoss: e.target.checked })} /> Flatten this account when it’s hit</label>
+            <div className="re-help">{cfg.flattenLoss !== false ? 'Open positions are closed and resting orders cancelled the moment the limit (or the trailing drawdown below) is hit; no new positions until tomorrow.' : 'Open positions stay open (manage them yourself) — only new positions are blocked until tomorrow.'}</div>
+          </div>
+
+          <label className="label">Daily profit target</label>
+          <div>
+            <Num value={cfg.target} onChange={(v) => set({ target: v })} placeholder="None" prefix="$" />
+            <label className="row gap8" style={{ fontSize: 13, marginTop: 8 }}><input type="checkbox" className="cbx" checked={cfg.targetOpen !== false} onChange={(e) => set({ targetOpen: e.target.checked })} /> Count open P&amp;L toward it</label>
+            <label className="row gap8" style={{ fontSize: 13 }}><input type="checkbox" className="cbx" disabled={!(Number(cfg.target) > 0)} checked={!!cfg.flattenTarget} onChange={(e) => set({ flattenTarget: e.target.checked })} /> Flatten this account and stop for the day when it’s hit</label>
+            <div className="re-help">This account’s target, shown on the RoninFlow HUD’s buffer bar in ATAS (and used for its profit-target alert) whether or not rules are enforced. {cfg.flattenTarget ? 'Once hit, open positions are closed, resting orders cancelled and new positions blocked until tomorrow.' : 'Hitting it doesn’t close anything.'}</div>
           </div>
 
           <label className="label">Trailing drawdown (realised)</label>
@@ -168,6 +178,7 @@ export default function RiskEnforce() {
                 <div><span className="muted">Open P&amp;L</span><b className={acc.unrealised >= 0 ? 'pos' : 'neg'}>{fmtMoney(acc.unrealised, { sign: true })}</b></div>
                 <div><span className="muted">Day’s high</span><b>{fmtMoney(acc.peak, { sign: true })}</b></div>
                 <div><span className="muted">Trailing stop at</span><b>{fmtMoney(acc.floor, { sign: true })}</b></div>
+                {acc.target > 0 && <div><span className="muted">Profit target</span><b>{fmtMoney(acc.target, { sign: true })}</b></div>}
                 <div><span className="muted">Trades</span><b>{acc.trades}{inRules?.maxTrades ? ` / ${inRules.maxTrades}` : ''}</b></div>
                 <div><span className="muted">Losers in a row</span><b>{acc.streak}{inRules?.maxConsec ? ` / ${inRules.maxConsec}` : ''}</b></div>
               </div>
