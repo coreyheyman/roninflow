@@ -3,7 +3,7 @@
 $ErrorActionPreference = "Stop"
 function Ok($m) { Write-Host "  OK $m" -ForegroundColor Green }
 Write-Host ""
-Write-Host "RoninFlow Sync - MetaTrader 4/5 installer" -ForegroundColor Cyan
+Write-Host "RoninFlow Sync + RoninFlow Suite - MetaTrader 4/5 installer" -ForegroundColor Cyan
 Write-Host ""
 $base = Join-Path $env:APPDATA "MetaQuotes\Terminal"
 if (-not (Test-Path $base)) { Write-Host "  X  No MetaTrader data folder found ($base). Start MetaTrader once, then run this again." -ForegroundColor Red; exit 1 }
@@ -13,6 +13,10 @@ Get-ChildItem $base -Directory | ForEach-Object {
   $mq4 = Join-Path $_.FullName "MQL4\Experts"
   if (Test-Path $mq5) { Copy-Item (Join-Path $PSScriptRoot "TradeJournalSync.mq5") $mq5 -Force; Ok "MetaTrader 5: $mq5"; $n++ }
   if (Test-Path $mq4) { Copy-Item (Join-Path $PSScriptRoot "TradeJournalSync.mq4") $mq4 -Force; Ok "MetaTrader 4: $mq4"; $n++ }
+  $i5 = Join-Path $_.FullName "MQL5\Indicators"
+  $i4 = Join-Path $_.FullName "MQL4\Indicators"
+  if (Test-Path $i5) { Copy-Item (Join-Path $PSScriptRoot "RoninFlowSuite.mq5") $i5 -Force; Ok "RoninFlow Suite (MetaTrader 5): $i5" }
+  if (Test-Path $i4) { Copy-Item (Join-Path $PSScriptRoot "RoninFlowSuite.mq4") $i4 -Force; Ok "RoninFlow Suite (MetaTrader 4): $i4" }
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $base "Common\Files\TradeJournal") | Out-Null
 if ($n -eq 0) {
@@ -24,4 +28,6 @@ Write-Host "  1. Navigator -> Expert Advisors -> right-click -> Refresh. (If it 
 Write-Host "  2. Drag 'TradeJournalSync' onto any chart and press OK. No 'Allow WebRequest' or algo trading is needed."
 Write-Host "  3. The Experts tab shows '[RoninFlow] started'. Closed trades reach the journal within ~10 seconds."
 Write-Host "  Keep that chart open; one chart per account (terminal) is enough."
+Write-Host "  4. RoninFlow Suite: open MetaEditor, find Indicators\RoninFlowSuite and press F7, then drag it onto a chart."
+Write-Host "     It talks to RoninFlow through files, so RoninFlow must run on this PC."
 Write-Host ""

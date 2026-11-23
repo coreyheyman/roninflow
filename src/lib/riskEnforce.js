@@ -55,7 +55,7 @@ export function allRules(state) {
   return state.accounts.map((a) => rulesFor(state, a.id)).filter(Boolean);
 }
 
-/** Every account's tier and loss limits, for the RoninFlow HUD on ATAS charts (enforced or not). */
+/** Every account's tier and loss limits, for the RoninFlow Suite indicators (enforced or not). */
 export function allTiers(state) {
   const out = {};
   for (const a of state.accounts) {

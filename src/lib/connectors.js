@@ -19,13 +19,14 @@ const VM_NOTE = 'Trading in a Windows virtual machine on this Mac (Parallels, VM
 
 export const CONNECTORS = [
   // live add-ons
-  { id: 'atas', name: 'ATAS', group: 'live', status: 'ready', blurb: 'Journal Sync indicator: live fills, account balances and open P&L.' },
+  { id: 'atas', name: 'ATAS', group: 'live', status: 'ready', blurb: 'Journal Sync indicator: live fills, account balances and open P&L, plus the RoninFlow Suite indicator on your charts.' },
   { id: 'ninjatrader', name: 'NinjaTrader 8', group: 'live', status: 'ready', blurb: 'NinjaScript add-on: live executions and balances from any NinjaTrader connection.',
     setup: [
       ['Install the add-on', `${ADDON_WIN('NinjaTrader 8', 'npm run addon:nt')} It copies the add-on into Documents\\NinjaTrader 8\\bin\\Custom\\AddOns and creates a settings file.`],
       ['Compile it in NinjaTrader', 'Control Center → New → NinjaScript Editor, then press F5. It starts by itself from then on, every time NinjaTrader opens.'],
       ['Check it’s running', 'New → NinjaScript Output should show “[RoninFlow] started”. This card turns green within 30 seconds.'],
       ['Trade', 'Every fill on every connected account (Sim101 included) is sent. Trades appear once the position is flat.'],
+      ['Add RoninFlow Suite to a chart (optional)', 'The installer also adds the RoninFlow Suite indicator (it compiles with the same F5). On a chart: right-click → Indicators → RoninFlow Suite — the account panel with your risk tier and buffer to the profit target, your executions, gamma levels, news with pop-ups, a DOM heatmap, candle colours and alerts, each switched on or off in its settings.'],
     ],
     notes: [
       'Journal on another computer (home server)? Edit Documents\\NinjaTrader 8\\journal-sync.txt: set url= to its address + /api/connect/ingest and token= to the token under Webhook / API.',
@@ -52,6 +53,7 @@ export const CONNECTORS = [
       ['Build it into Quantower', `${ADDON_WIN('Quantower', 'npm run addon:qt')} It finds Quantower, builds the strategy and puts it in Quantower\\Settings\\Scripts\\Strategies. If Quantower isn’t in C:\\Quantower it tells you how to point at it.`],
       ['Run it', 'Restart Quantower, open Strategies Manager, pick “RoninFlow Sync” and press Run. Its log shows “[RoninFlow] started”.'],
       ['Trade', 'Every fill on every connected account is sent; trades appear in the journal once the position is flat. This card turns green within 30 seconds.'],
+      ['Add RoninFlow Suite to a chart (optional)', 'The installer also builds the RoninFlow Suite indicator (beta) into Settings\\Scripts\\Indicators. On a chart: Indicators → RoninFlow Suite — account panel, your executions, gamma levels, news with pop-ups, a DOM heatmap, candles and alerts.'],
     ],
     notes: [
       'Beta: built from Quantower’s published API but not yet tried on every connection type. If something looks off, open an issue on GitHub with the strategy log.',
@@ -73,6 +75,7 @@ export const CONNECTORS = [
       ['Build it', 'In Sierra Chart: Analysis → Build Custom Studies DLL → select TradeJournalSync.cpp → Remote Build. Sierra Chart compiles it on their servers — nothing else to install.'],
       ['Add it to your trading chart', 'Analysis → Studies → Add Custom Study → RoninFlow Sync → Add → OK. The Message Log shows “RoninFlow Sync started”.'],
       ['Trade', 'Fills reach the journal within ~10 seconds and are paired into trades once you’re flat. This card turns green within ~15 seconds.'],
+      ['Add RoninFlow Suite to a chart (optional)', 'The installer also copies RoninFlowSuite.cpp: Build Custom Studies DLL → RoninFlowSuite.cpp → Remote Build, then add “RoninFlow Suite” to a chart — account panel, your trades, gamma levels, news with pop-ups and alerts (Sierra Chart’s own depth graph and bar colours cover the heatmap and candles).'],
     ],
     notes: [
       'Sierra Chart only gives a study the fills for its own chart’s symbol and trade account — add the study to each symbol’s chart you trade (one per symbol/account is enough).',
@@ -99,6 +102,7 @@ export const CONNECTORS = [
       ['Load it on a chart', 'In MetaTrader: Navigator → Expert Advisors → right-click → Refresh, then drag “TradeJournalSync” onto any chart and press OK. (Not listed? Open it in MetaEditor and press F7 to compile.)'],
       ['Check it’s running', 'The Experts tab shows “[RoninFlow] started”. This card turns green within ~15 seconds.'],
       ['Trade', 'Closed trades reach the journal within ~10 seconds, with P&L including commission and swap.'],
+      ['Add RoninFlow Suite to a chart (optional)', 'The installer also copies the RoninFlow Suite indicator to MQL5\\Indicators and MQL4\\Indicators: compile it in MetaEditor (F7) and drag it onto a chart — account panel, your trades, gamma levels (index CFDs like US500 / NAS100 get them in index prices), news with pop-ups, a DOM heatmap (MT5), candle colours and alerts. It talks to RoninFlow through files, so RoninFlow must run on the same PC.'],
     ],
     notes: [
       'No “Allow WebRequest” setting and no algo-trading permission is needed — it only reads history and never trades.',
@@ -128,6 +132,7 @@ export const CONNECTORS = [
       ['Create it in cTrader', 'cTrader 5 or newer: Algo → cBots → New, name it TradeJournalSync, select all the template code and paste over it, then Build (Ctrl+B).'],
       ['Start it', 'Add an instance on any symbol and press Start. The log shows “[RoninFlow] started”; this card turns green within 30 seconds.'],
       ['Trade', 'Closed trades reach the journal within seconds. A partial close is its own trade with its own P&L.'],
+      ['Add RoninFlow Suite to a chart (optional)', 'After the cBot, the installer puts the RoninFlow Suite indicator on your clipboard: Algo → Indicators → New → paste → Build, then add it to a chart — account panel, your trades, gamma levels, news with pop-ups, a DOM heatmap, candle colours and alerts.'],
     ],
     notes: [
       'Run one instance per account you want synced. It never places, changes or closes orders.',

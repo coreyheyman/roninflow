@@ -41,10 +41,20 @@ try {
 } finally { Pop-Location }
 Ok "Built into $out"
 
+$out2 = Join-Path $root "Settings\Scripts\Indicators\RoninFlowSuite"
+New-Item -ItemType Directory -Force -Path $out2 | Out-Null
+Push-Location $PSScriptRoot
+try {
+  & dotnet build "suite\RoninFlowSuite.csproj" -c Release -o "$out2" "-p:QtBin=$bin" "-p:QtFramework=$fw" -nologo -v q
+  if ($LASTEXITCODE -ne 0) { Write-Host "  !  The RoninFlow Suite indicator didn't build (RoninFlow Sync is fine). Copy the errors above into an issue." -ForegroundColor Yellow }
+  else { Ok "Built the RoninFlow Suite indicator into $out2" }
+} finally { Pop-Location }
+
 Write-Host ""
 Write-Host "Next, in Quantower:" -ForegroundColor Cyan
 Write-Host "  1. Restart Quantower (it loads strategies at start)."
 Write-Host "  2. Open Strategies Manager, pick 'RoninFlow Sync' and press Run."
 Write-Host "  3. Its log shows '[RoninFlow] started'. Fills appear in the journal within ~15 seconds."
+Write-Host "  4. On a chart: Indicators -> RoninFlow Suite (account panel, executions, gamma, news, heatmap, alerts)."
 Write-Host "This connector is in beta - if something looks off, open an issue at https://github.com/coreyheyman/roninflow/issues with the strategy log" -ForegroundColor DarkGray
 Write-Host ""

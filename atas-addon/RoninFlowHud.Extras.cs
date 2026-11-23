@@ -1,4 +1,4 @@
-// RoninFlow HUD — the chart parts that live on the price itself, each with its own tab in the settings:
+// RoninFlow Suite — the chart parts that live on the price itself, each with its own tab in the settings:
 //   * Executions: your trades on the chart — entry and exit markers, the line joining them (win or loss colour), the
 //     trade's result at the exit and the open position's average price.
 //   * Heatmap: resting limit orders from the DOM drawn like an order-book heatmap, behind or over the candles, with

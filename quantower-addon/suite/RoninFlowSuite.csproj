@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- RoninFlow Suite indicator. Built by install.ps1, which passes the Quantower paths and target framework it found. -->
+  <PropertyGroup>
+    <TargetFramework>$(QtFramework)</TargetFramework>
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net8.0-windows</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AssemblyName>RoninFlowSuite</AssemblyName>
+    <RootNamespace>TradeJournal</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <UseWindowsForms Condition="$(TargetFramework.StartsWith('net')) And !$(TargetFramework.StartsWith('net4'))">true</UseWindowsForms>
+    <NoWarn>CA1416</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="RoninFlowSuite.cs" />
+    <Reference Include="TradingPlatform.BusinessLayer">
+      <HintPath>$(QtBin)\TradingPlatform.BusinessLayer.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+</Project>

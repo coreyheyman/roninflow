@@ -1,4 +1,4 @@
-// RoninFlow HUD — block trading for the rest of the day from the chart: click the status marker at the top right of
+// RoninFlow Suite — block trading for the rest of the day from the chart: click the status marker at the top right of
 // the account panel, choose this account or every account (and whether to flatten now), and confirm. RoninFlow keeps
 // the block until midnight in your time zone and Journal Sync's risk enforcement applies it.
 
@@ -115,7 +115,7 @@ namespace TradeJournal
             var acct = _snap?.Account;
             var enforcer = _snap?.Enforcer == true || RiskEnforcer.Running;
 
-            var intro = Wrap(g, "New orders are blocked until midnight; closing a position still works. The block can't be lifted from the HUD.", _font, textW, 4);
+            var intro = Wrap(g, "New orders are blocked until midnight; closing a position still works. The block can't be lifted from the chart.", _font, textW, 4);
             var warn = enforcer ? new List<string>() : Wrap(g, "Risk enforcement isn't running: switch on \"Enforce RoninFlow risk rules\" in Journal Sync on any chart, or the block won't be applied.", _small, textW - 14, 4);
             var already = acct != null && acct.ManualLock;
             var allLine = Fit(g, string.Join(", ", all.Select(Mask)), _small, textW - 30);

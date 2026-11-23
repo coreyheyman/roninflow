@@ -113,7 +113,7 @@ export default function RiskEnforce() {
             <Num value={cfg.target} onChange={(v) => set({ target: v })} placeholder="None" prefix="$" />
             <label className="row gap8" style={{ fontSize: 13, marginTop: 8 }}><input type="checkbox" className="cbx" checked={cfg.targetOpen !== false} onChange={(e) => set({ targetOpen: e.target.checked })} /> Count open P&amp;L toward it</label>
             <label className="row gap8" style={{ fontSize: 13 }}><input type="checkbox" className="cbx" disabled={!(Number(cfg.target) > 0)} checked={!!cfg.flattenTarget} onChange={(e) => set({ flattenTarget: e.target.checked })} /> Flatten this account and stop for the day when it’s hit</label>
-            <div className="re-help">This account’s target, shown on the RoninFlow HUD’s buffer bar in ATAS (and used for its profit-target alert) whether or not rules are enforced. {cfg.flattenTarget ? 'Once hit, open positions are closed, resting orders cancelled and new positions blocked until tomorrow.' : 'Hitting it doesn’t close anything.'}</div>
+            <div className="re-help">This account’s target, shown on the RoninFlow Suite’s buffer bar on your charts (and used for its profit-target alert) whether or not rules are enforced. {cfg.flattenTarget ? 'Once hit, open positions are closed, resting orders cancelled and new positions blocked until tomorrow.' : 'Hitting it doesn’t close anything.'}</div>
           </div>
 
           <label className="label">Trailing drawdown (realised)</label>
@@ -271,7 +271,7 @@ function EmergencyUnblock({ live, reload }) {
 
       {open && (
         <div className="col gap12" style={{ marginTop: 4 }}>
-          <div className="ec-warn"><TriangleAlert size={14} /> This lifts today’s block straight away, including one set by a rule (daily loss limit, trailing drawdown, profit target, trade count…) or from the RoninFlow HUD. It’s logged, and ATAS’s own Risk Management limits aren’t touched.</div>
+          <div className="ec-warn"><TriangleAlert size={14} /> This lifts today’s block straight away, including one set by a rule (daily loss limit, trailing drawdown, profit target, trade count…) or from the RoninFlow Suite indicator. It’s logged, and ATAS’s own Risk Management limits aren’t touched.</div>
 
           <div className="row gap8 wrap" style={{ alignItems: 'center' }}>
             <span className="label" style={{ margin: 0 }}>Account</span>

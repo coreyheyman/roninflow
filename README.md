@@ -179,6 +179,29 @@ every 10 minutes, so nothing is lost if the journal wasn't running. Trades are m
 you already imported from a file (no duplicates; your notes/tags are kept). Time stamps are auto-detected.
 Turn sync off per account on the Accounts page or in the sync window (top-bar badge).
 
+## RoninFlow Suite indicator (on your charts)
+
+One indicator that puts RoninFlow on the chart, each part switched on or off (and placed) in its settings: the
+**account panel** (risk tier, gamma regime, today's P&L, the buffer from your stop to the profit target, trade stats,
+GEX line, open positions on every account), **your executions** (entry / exit markers, the line joining them, the
+result), **gamma levels** (flip, walls and big strikes as lines or zones), **news** (feed, pop-ups and today's
+economic events), a **DOM heatmap**, **custom candles** and **alerts** (entries, fills, wins, losses, daily loss limit,
+profit target). It reads `GET /api/suite?symbol=…&account=…` (JSON, or `&format=tsv` for MQL / C++); MetaTrader and
+Sierra Chart swap files with the server instead (`suite-req-<id>.txt` → `suite-<id>.txt` in `Common\Files\TradeJournal`
+or `%LOCALAPPDATA%\TradeJournal\drop`).
+
+| Platform | Installed by | Account panel · executions · gamma · news · alerts | DOM heatmap | Candles | Clicks (collapse, open a headline) | Block trading from the chart |
+|---|---|---|---|---|---|---|
+| ATAS | `npm run addon` | ✓ | ✓ | ✓ drawn over the native candles | ✓ | ✓ (with Journal Sync's risk enforcement) |
+| NinjaTrader 8 | `npm run addon:nt` | ✓ | ✓ | ✓ bar colours | ✓ | — |
+| Quantower (beta) | `npm run addon:qt` | ✓ | ✓ | ✓ drawn over the bars | — | — |
+| cTrader | `npm run addon:ctrader` | ✓ | ✓ (strongest 160 levels) | ✓ chart colours | ✓ | — |
+| MetaTrader 5 / 4 | `npm run addon:mt` | ✓ (index CFDs get gamma in index prices) | MT5 where the broker sends depth | ✓ chart colours | ✓ | — |
+| Sierra Chart | `npm run addon:sierra` | ✓ | use Sierra's Market Depth Historical Graph | use the chart's bar colours | — | — |
+
+Everything but ATAS is written from each platform's documentation and still needs a first real compile — if one
+shows errors, open an issue with them.
+
 ## Tick data for replays
 
 Replays (and backtest replays) move tick by tick when a source has the ticks; otherwise they go bar by bar.

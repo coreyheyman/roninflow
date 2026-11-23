@@ -6,7 +6,7 @@ function Fail($m) { Write-Host ""; Write-Host "  X  $m" -ForegroundColor Red; Wr
 function Ok($m) { Write-Host "  OK $m" -ForegroundColor Green }
 
 Write-Host ""
-Write-Host "RoninFlow Sync - NinjaTrader 8 add-on installer" -ForegroundColor Cyan
+Write-Host "RoninFlow Sync + RoninFlow Suite - NinjaTrader 8 installer" -ForegroundColor Cyan
 Write-Host ""
 
 $docs = [Environment]::GetFolderPath("MyDocuments")   # follows OneDrive-redirected Documents too
@@ -18,6 +18,10 @@ $dest = Join-Path $nt "bin\Custom\AddOns"
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
 Copy-Item (Join-Path $PSScriptRoot "JournalSync.cs") (Join-Path $dest "TradeJournalSync.cs") -Force
 Ok "Copied the add-on to $dest\TradeJournalSync.cs"
+$ind = Join-Path $nt "bin\Custom\Indicators"
+New-Item -ItemType Directory -Force -Path $ind | Out-Null
+Copy-Item (Join-Path $PSScriptRoot "RoninFlowSuite.cs") (Join-Path $ind "RoninFlowSuite.cs") -Force
+Ok "Copied the RoninFlow Suite indicator to $ind\RoninFlowSuite.cs"
 
 $cfg = Join-Path $nt "journal-sync.txt"
 if (-not (Test-Path $cfg)) {
@@ -41,5 +45,6 @@ Write-Host "Next, in NinjaTrader 8:" -ForegroundColor Cyan
 Write-Host "  1. Control Center -> New -> NinjaScript Editor, then press F5 (compile)."
 Write-Host "  2. Open New -> NinjaScript Output to see '[RoninFlow] started'."
 Write-Host "  3. Place a trade (Sim101 is fine) - it shows up in the journal within ~15 seconds."
+Write-Host "  4. On a chart: right-click -> Indicators -> RoninFlow Suite (account panel, executions, gamma, news, heatmap, alerts)."
 Write-Host "If compiling shows errors, copy them into an issue at https://github.com/coreyheyman/roninflow/issues" -ForegroundColor DarkGray
 Write-Host ""

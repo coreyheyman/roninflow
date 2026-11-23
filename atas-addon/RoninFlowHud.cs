@@ -1,4 +1,4 @@
-// RoninFlow HUD — one indicator with four parts, each switched on or off and placed in its settings:
+// RoninFlow Suite — one indicator with four parts, each switched on or off and placed in its settings:
 //   * Account panel: the chart's account — its RoninFlow risk tier, the gamma regime, today's P&L, the buffer to the
 //     daily loss limit (with the trailing stop and the day's high), trade stats and the index's GEX.
 //   * Gamma levels: call wall, put wall, zero gamma (the flip) and the biggest other strikes, as lines or zones, in
@@ -35,8 +35,8 @@ using OFT.Rendering.Tools;
 
 namespace TradeJournal
 {
-    [DisplayName("RoninFlow HUD")]
-    [Description("RoninFlow on your chart: account panel with risk tier and gamma regime, gamma levels, the news feed and news pop-ups. Each part can be switched on or off and placed in the settings.")]
+    [DisplayName("RoninFlow Suite")]
+    [Description("RoninFlow on your chart: account panel with risk tier and gamma regime, gamma levels, news feed and pop-ups, alerts, your executions, a DOM heatmap and custom candles. Each part can be switched on or off and placed in the settings.")]
     public partial class RoninFlowHud : Indicator
     {
         public enum Placement { TopLeft, TopCenter, TopRight, MiddleLeft, Center, MiddleRight, BottomLeft, BottomCenter, BottomRight }
