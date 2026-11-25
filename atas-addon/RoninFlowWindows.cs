@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -83,7 +84,7 @@ namespace TradeJournal
         private static void Show(string key, string url, string title, Point near, bool onTop, Func<Rectangle, Rectangle> place, bool tool, bool keepPlace = true)
         {
             if (!EnsureThread()) { OpenInBrowser(url); return; }
-            _ctx!.Post(_ =>
+            _ctx!.Post(async _ =>
             {
                 try
                 {
@@ -95,8 +96,6 @@ namespace TradeJournal
                     {
                         var view = (WebView2)open.Tag!;
                         if (view.CoreWebView2 != null) view.CoreWebView2.Navigate(url);
-                        else view.Source = new Uri(url);
-                        open.Text = title;
                         open.TopMost = onTop;
                         if (!keepPlace) open.Bounds = want; // a review jumps to the execution clicked
                         if (open.WindowState == FormWindowState.Minimized) open.WindowState = FormWindowState.Normal;
@@ -105,7 +104,7 @@ namespace TradeJournal
                         return;
                     }
 
-                    var f = new Form
+                    var f = new HostForm
                     {
                         Text = title,
                         StartPosition = FormStartPosition.Manual,
@@ -113,8 +112,7 @@ namespace TradeJournal
                         TopMost = onTop,
                         BackColor = Back,
                         ShowInTaskbar = !tool,
-                        FormBorderStyle = tool ? FormBorderStyle.SizableToolWindow : FormBorderStyle.Sizable,
-                        MinimumSize = new Size(320, 360),
+                        MinimumSize = new Size(320, 300),
                     };
                     try { f.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
                     var wv = new WebView2
@@ -128,36 +126,130 @@ namespace TradeJournal
                     };
                     f.Controls.Add(wv);
                     f.Tag = wv;
-                    wv.CoreWebView2InitializationCompleted += (_, e) =>
-                    {
-                        if (!e.IsSuccess)
-                        {
-                            f.Controls.Clear();
-                            f.Controls.Add(new Label
-                            {
-                                Dock = DockStyle.Fill, ForeColor = Color.Gainsboro, BackColor = Back, TextAlign = ContentAlignment.MiddleCenter,
-                                Text = "This window needs Microsoft Edge WebView2, which isn't installed.\nOpening RoninFlow in your browser instead.",
-                            });
-                            OpenInBrowser(url);
-                            return;
-                        }
-                        var core = wv.CoreWebView2;
-                        core.WindowCloseRequested += (_, _) => f.Close();                 // the page's own close / “done” buttons
-                        core.NewWindowRequested += (_, a) => { a.Handled = true; OpenInBrowser(a.Uri); }; // links out go to your browser
-                        core.DocumentTitleChanged += (_, _) => { if (!tool && !string.IsNullOrWhiteSpace(core.DocumentTitle)) f.Text = core.DocumentTitle; };
-                    };
                     f.FormClosing += (_, _) => { if (f.WindowState == FormWindowState.Normal) LastBounds[key] = f.Bounds; };
                     f.FormClosed += (_, _) => { Forms.Remove(key); try { wv.Dispose(); } catch { } };
                     Forms[key] = f;
-                    wv.Source = new Uri(url);
                     f.Show();
                     f.Activate();
+
+                    try { await wv.EnsureCoreWebView2Async(); }
+                    catch
+                    {
+                        f.Controls.Clear();
+                        f.Controls.Add(new Label
+                        {
+                            Dock = DockStyle.Fill, ForeColor = Color.Gainsboro, BackColor = Back, TextAlign = ContentAlignment.MiddleCenter,
+                            Text = "This window needs Microsoft Edge WebView2, which isn't installed.\nOpening RoninFlow in your browser instead.",
+                        });
+                        OpenInBrowser(url);
+                        return;
+                    }
+                    var core = wv.CoreWebView2;
+                    try { core.Settings.IsNonClientRegionSupportEnabled = true; } catch { } // CSS app-region: drag moves the window
+                    try { core.Settings.IsStatusBarEnabled = false; } catch { }             // no browser link bubble at the bottom
+                    // tell the page it's in a RoninFlow window, so it draws the window's buttons and drag area itself
+                    await core.AddScriptToExecuteOnDocumentCreatedAsync($"window.__rfWindow = {{ kind: '{(tool ? "trade" : "journal")}', top: {(onTop ? "true" : "false")} }};");
+                    void SendState() { try { core.PostWebMessageAsString($"{{\"max\":{(f.WindowState == FormWindowState.Maximized ? "true" : "false")},\"top\":{(f.TopMost ? "true" : "false")}}}"); } catch { } }
+                    f.Resize += (_, _) => SendState();
+                    core.WebMessageReceived += (_, e) =>
+                    {
+                        string? msg = null;
+                        try { msg = e.TryGetWebMessageAsString(); } catch { }
+                        switch (msg)
+                        {
+                            case "drag": ReleaseCapture(); SendMessage(f.Handle, 0xA1 /* WM_NCLBUTTONDOWN */, (IntPtr)2 /* HTCAPTION */, IntPtr.Zero); break;
+                            case "max": f.WindowState = f.WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized; break;
+                            case "min": f.WindowState = FormWindowState.Minimized; break;
+                            case "close": f.Close(); return;
+                            case "top": f.TopMost = !f.TopMost; break;
+                            case "browser": OpenInBrowser(core.Source); break;
+                        }
+                        SendState();
+                    };
+                    core.WindowCloseRequested += (_, _) => f.Close();                         // the page's own close / “done” buttons
+                    core.NewWindowRequested += (_, a) => { a.Handled = true; OpenInBrowser(a.Uri); }; // links out go to your browser
+                    core.DocumentTitleChanged += (_, _) => { if (!tool && !string.IsNullOrWhiteSpace(core.DocumentTitle)) f.Text = core.DocumentTitle; };
+                    core.Navigate(url);
                 }
                 catch
                 {
                     OpenInBrowser(url);
                 }
             }, null);
+        }
+
+        [DllImport("user32.dll")] private static extern bool ReleaseCapture();
+        [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>
+        /// A window with no Windows title bar that still behaves like one: native resize edges, Aero snap, shadow and
+        /// (on Windows 11) rounded corners and a dark border. The page inside draws the title bar.
+        /// </summary>
+        private sealed class HostForm : Form
+        {
+            private const int WM_NCCALCSIZE = 0x83, WM_NCHITTEST = 0x84, HTCLIENT = 1;
+            [StructLayout(LayoutKind.Sequential)] private struct RECT { public int Left, Top, Right, Bottom; }
+            [StructLayout(LayoutKind.Sequential)] private struct NCCALCSIZE_PARAMS { public RECT R0, R1, R2; public IntPtr Pos; }
+            [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+            private int Band => Math.Max(4, (int)Math.Round(5 * DeviceDpi / 96.0)); // the invisible strip round the page you resize by
+
+            public HostForm()
+            {
+                FormBorderStyle = FormBorderStyle.Sizable; // keeps the native frame behaviour; WM_NCCALCSIZE hides what it draws
+                Padding = new Padding(0);
+            }
+
+            protected override void OnHandleCreated(EventArgs e)
+            {
+                base.OnHandleCreated(e);
+                try
+                {
+                    int on = 1, round = 2 /* DWMWCP_ROUND */, border = 0x00302A2A /* BGR #2A2A30 */;
+                    DwmSetWindowAttribute(Handle, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, ref on, 4);
+                    DwmSetWindowAttribute(Handle, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, ref round, 4);
+                    DwmSetWindowAttribute(Handle, 34 /* DWMWA_BORDER_COLOR */, ref border, 4);
+                }
+                catch { } // older Windows: square corners, no dark border
+                ApplyPadding();
+            }
+
+            protected override void OnResize(EventArgs e) { base.OnResize(e); ApplyPadding(); }
+
+            private void ApplyPadding()
+            {
+                var p = WindowState == FormWindowState.Maximized ? 0 : Band;
+                if (Padding.All != p) Padding = new Padding(p);
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                if (m.Msg == WM_NCCALCSIZE && m.WParam != IntPtr.Zero)
+                {
+                    if (WindowState == FormWindowState.Maximized) // fill the work area exactly instead of spilling past the screen edges
+                    {
+                        var p = Marshal.PtrToStructure<NCCALCSIZE_PARAMS>(m.LParam);
+                        var wa = Screen.FromHandle(Handle).WorkingArea;
+                        p.R0 = new RECT { Left = wa.Left, Top = wa.Top, Right = wa.Right, Bottom = wa.Bottom };
+                        Marshal.StructureToPtr(p, m.LParam, false);
+                    }
+                    m.Result = IntPtr.Zero; // the whole window is client area: no title bar, no visible frame
+                    return;
+                }
+                if (m.Msg == WM_NCHITTEST && WindowState != FormWindowState.Maximized)
+                {
+                    base.WndProc(ref m);
+                    if ((int)m.Result != HTCLIENT) return;
+                    var lp = m.LParam.ToInt64();
+                    var pt = PointToClient(new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF)));
+                    int b = Band + 1, w = ClientSize.Width, h = ClientSize.Height;
+                    bool l = pt.X < b, r = pt.X >= w - b, t = pt.Y < b, btm = pt.Y >= h - b;
+                    var hit = t && l ? 13 : t && r ? 14 : btm && l ? 16 : btm && r ? 17 : l ? 10 : r ? 11 : t ? 12 : btm ? 15 : HTCLIENT;
+                    m.Result = (IntPtr)hit;
+                    return;
+                }
+                base.WndProc(ref m);
+            }
         }
 
         private static Rectangle Fit(Rectangle r, Rectangle wa)

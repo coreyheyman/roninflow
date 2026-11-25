@@ -3293,3 +3293,13 @@ tr.click { cursor: pointer; }
 .drawer.embed-drawer { position: absolute; inset: 0; width: auto; border-left: 0; box-shadow: none; animation: none; }
 .embed-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; font-size: 13.5px; }
 .embed-empty p { margin: 0; max-width: 340px; line-height: 1.5; }
+
+/* inside RoninFlow's own window over ATAS (no Windows title bar): the top bar drags the window */
+.host-win [data-drag] { app-region: drag; -webkit-app-region: drag; user-select: none; }
+.host-win [data-drag] :is(button, a, input, select, textarea, label, [role="button"], .no-drag, .pop, .crumbs a) { app-region: no-drag; -webkit-app-region: no-drag; }
+.win-ctl { display: flex; align-items: center; gap: 2px; margin-left: 6px; padding-left: 10px; border-left: 1px solid var(--border); }
+.win-btn { display: grid; place-items: center; width: 34px; height: 30px; border-radius: var(--r-sm); color: var(--muted); }
+.win-btn:hover { background: var(--hover); color: var(--fg); }
+.win-btn.on { color: var(--primary); }
+.win-btn.close:hover { background: #e5484d; color: #fff; }
+.host-trade .modal-head .win-ctl { border-left: 0; padding-left: 0; margin-left: 0; }

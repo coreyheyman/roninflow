@@ -10,6 +10,7 @@ import { Drawer, Popover, Switch, useToast, Confirm } from './ui';
 import { MiniCoach } from '../views/Coach';
 import { SyncPill } from './AtasSync';
 import MacroPill from './MacroPill';
+import { WindowControls } from './HostWindow';
 import { ShareButton } from './ShareDialog';
 import { RiskMini } from './Playbook';
 import NetworkAccess from './NetworkAccess';
@@ -177,7 +178,7 @@ export default function Layout({ route, crumbs, children }) {
       {mobileMenu && <div className="overlay" style={{ zIndex: 39 }} onMouseDown={() => setMobileMenu(false)} />}
       <aside className={`sidebar ${s.sidebarCollapsed && !mobileMenu ? 'collapsed' : ''} ${mobileMenu ? 'mobile-open' : ''}`}>
         <div className="side-scroll">
-        <div className="brand"><Wordmark short={s.sidebarCollapsed} /></div>
+        <div className="brand" data-drag><Wordmark short={s.sidebarCollapsed} /></div>
         <button className="notif-btn" onClick={() => setNotifOpen(true)} title="Notifications">
           <Bell size={19} />
           {unread > 0 && <i className="badge-dot" />}
@@ -268,7 +269,7 @@ export default function Layout({ route, crumbs, children }) {
       </aside>
 
       <main className="main">
-        <header className="topbar">
+        <header className="topbar" data-drag>
           <button className="icon-btn" onClick={() => setSetting('sidebarCollapsed', (v) => !v)} title="Toggle Sidebar">
             <PanelLeft size={18} />
           </button>
@@ -288,6 +289,7 @@ export default function Layout({ route, crumbs, children }) {
           <button className={`icon-btn ${s.privacy ? 'active' : ''}`} onClick={() => setSetting('privacy', (v) => !v)} title={s.privacy ? 'Show values' : 'Hide values'}>
             {s.privacy ? <EyeOff size={17} /> : <Eye size={17} />}
           </button>
+          <WindowControls />
         </header>
         {IS_DEMO && (
           <div className="storage-banner demo-b">

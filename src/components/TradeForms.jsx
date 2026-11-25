@@ -2,6 +2,7 @@ import { linkedTrades, shareTargets } from '../lib/linkedTrades';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Trash, Pencil, ImagePlus, Clock, Check, X, Plus, MessageCircle, ChevronLeft, ChevronRight, Link2 } from 'lucide-react';
+import { HOST, WindowControls } from './HostWindow';
 import { useStore } from '../store/store';
 import { Modal, ModalHead, Drawer, Money, Stars, Seg, useToast, Confirm, fileToDataUrl } from './ui';
 import { computePnl, fmtDate, fmtTime12, fmtHold, holdSeconds, POINT_VALUE, pad, fmtMoney } from '../lib/stats';
@@ -285,7 +286,7 @@ export function TradeDrawer({ trade, onClose, siblings = null, onNavigate, embed
     <>
       {(() => { const Shell = embed ? EmbedShell : Drawer; return (
       <Shell open onClose={onClose}>
-        <div key={`h-${t.id}`} className={`modal-head trade-slide ${slide}`} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 18 }}>
+        <div key={`h-${t.id}`} className={`modal-head trade-slide ${slide}`} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 18 }} {...(embed ? { 'data-drag': true } : {})}>
           <div>
             <div className="row gap12">
               <span className="modal-title">{t.symbol}</span>
@@ -298,7 +299,7 @@ export function TradeDrawer({ trade, onClose, siblings = null, onNavigate, embed
           <div className="row gap8">
             <button className="icon-btn" data-edit title="Edit" onClick={() => setEdit(true)}><Pencil size={16} /></button>
             <button className="icon-btn" data-edit title="Delete" onClick={() => setDel(true)}><Trash size={16} /></button>
-            <button className="icon-btn" onClick={onClose}><X size={18} /></button>
+            {embed && HOST ? <WindowControls compact /> : <button className="icon-btn" onClick={onClose}><X size={18} /></button>}
           </div>
         </div>
         <div key={`b-${t.id}`} style={{ overflow: 'auto', flex: 1, padding: '20px 24px' }} className={`col gap24 drawer-scroll trade-slide ${slide}`}>
