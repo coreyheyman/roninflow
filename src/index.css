@@ -2948,3 +2948,17 @@ button.ec-row { border-radius: var(--r); }
 .re-stats > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--r); font-size: 12px; }
 .re-stats b { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) { .re-grid { grid-template-columns: 1fr; gap: 6px; } .re-grid > .label { margin-top: 12px; } }
+
+/* daily diary and the screenshot viewer on phones */
+.lb-count { white-space: nowrap; }
+@media (max-width: 760px) {
+  .day-bar { flex-wrap: wrap; row-gap: 8px; }
+  .day-bar .hide-sm { display: none; }
+  .day-head { flex-wrap: wrap; row-gap: 10px; }
+  .shots-head { row-gap: 8px; }
+  .lb-top { top: 10px; left: 10px; right: 10px; flex-wrap: wrap; row-gap: 6px; gap: 8px; }
+  .lb-top .lb-label { display: none; }
+  .lb-top .lb-caption { order: 9; flex-basis: 100%; font-size: 12px; }
+  .lb-top .icon-btn { flex-shrink: 0; }
+  .lb-stage { top: 78px; }
+}

@@ -187,9 +187,9 @@ namespace cAlgo.Indicators
         public bool AlertEntry { get; set; }
         [Parameter("Entry sound", Group = "Alerts", DefaultValue = "Alert1.wav")]
         public string EntrySound { get; set; }
-        [Parameter("Every fill", Group = "Alerts", DefaultValue = false)]
+        [Parameter("Added to a trade (scale-in)", Group = "Alerts", DefaultValue = false)]
         public bool AlertFill { get; set; }
-        [Parameter("Fill sound", Group = "Alerts", DefaultValue = "Alert1.wav")]
+        [Parameter("Scale-in sound", Group = "Alerts", DefaultValue = "Alert1.wav")]
         public string FillSound { get; set; }
         [Parameter("Winning trade", Group = "Alerts", DefaultValue = true)]
         public bool AlertWin { get; set; }
@@ -257,14 +257,12 @@ namespace cAlgo.Indicators
 
         protected override void Initialize()
         {
-            Positions.Opened += a => { if (a.Position.SymbolName == SymbolName && AlertEntry) Ring(EntrySound, "entered " + (a.Position.TradeType == TradeType.Buy ? "LONG " : "SHORT ") + a.Position.Quantity + " " + a.Position.SymbolName + " @ " + a.Position.EntryPrice); };
-            Positions.Closed += a =>
-            {
-                var p = a.Position;
-                if (AlertFill) Ring(FillSound, "closed " + p.Quantity + " " + p.SymbolName);
-                if (p.NetProfit > 0 && AlertWin) Ring(WinSound, "win " + Money(p.NetProfit, true));
-                else if (p.NetProfit < 0 && AlertLoss) Ring(LossSound, "loss " + Money(p.NetProfit, true));
-            };
+            // entries and scale-ins come from the net position on this symbol; wins and losses from each closing deal
+            // (a partial close is a deal too, so every scale-out rings). The timer catches what has no event (netting adds).
+            Positions.Opened += a => { CheckPosition(); CheckClosed(); };
+            Positions.Closed += a => { CheckPosition(); CheckClosed(); };
+            CheckPosition();
+            CheckClosed();
             if (ShowHeatmap)
             {
                 depth = MarketData.GetMarketDepth(SymbolName);
@@ -290,6 +288,8 @@ namespace cAlgo.Indicators
             if (ticks % Math.Max(2, RefreshSeconds) == 0) Fetch();
             if (ShowHeatmap) SampleDepth();
             popups.RemoveAll(p => p.Value < DateTime.UtcNow);
+            CheckPosition();
+            CheckClosed();
             CheckLimits();
             Render();
         }
@@ -365,6 +365,42 @@ namespace cAlgo.Indicators
             }
             catch { }
             Print("RoninFlow: " + message);
+        }
+
+        private double lastNet; private bool netPrimed;
+        private readonly HashSet<long> dealsSeen = new HashSet<long>(); private int historyCount = -1;
+
+        private string Lots(double units) { return Symbol.VolumeInUnitsToQuantity(units).ToString("0.##", CultureInfo.InvariantCulture); }
+
+        /// <summary>Flat → open (or a reversal) is an entry; more on the same side is a scale-in. Exits ring as wins / losses.</summary>
+        private void CheckPosition()
+        {
+            double now = Positions.Where(p => p.SymbolName == SymbolName).Sum(p => p.TradeType == TradeType.Buy ? p.VolumeInUnits : -p.VolumeInUnits);
+            double before = lastNet;
+            lastNet = now;
+            if (!netPrimed) { netPrimed = true; return; } // what was open when the indicator started isn't new
+            bool flip = before != 0 && now != 0 && Math.Sign(before) != Math.Sign(now);
+            string side = now > 0 ? "LONG " : "SHORT ";
+            if (now != 0 && (before == 0 || flip)) { if (AlertEntry) Ring(EntrySound, "entered " + side + Lots(Math.Abs(now)) + " " + SymbolName); }
+            else if (before != 0 && Math.Abs(now) > Math.Abs(before)) { if (AlertFill) Ring(FillSound, "added " + Lots(Math.Abs(now) - Math.Abs(before)) + " to " + side + SymbolName + " · now " + Lots(Math.Abs(now))); }
+        }
+
+        /// <summary>Each closing deal since the last check — a scale-out or the final exit — as one win or loss.</summary>
+        private void CheckClosed()
+        {
+            int count = History.Count;
+            if (count == historyCount) return;
+            bool primed = historyCount >= 0;
+            historyCount = count;
+            double pnl = 0; int n = 0;
+            foreach (var h in History)
+            {
+                if (!dealsSeen.Add(h.ClosingDealId) || !primed) continue;
+                pnl += h.NetProfit; n++;
+            }
+            if (n == 0) return;
+            if (pnl > 0 && AlertWin) Ring(WinSound, "win " + Money(pnl, true) + " · day " + Money(Realised(), true));
+            else if (pnl < 0 && AlertLoss) Ring(LossSound, "loss " + Money(pnl, true) + " · day " + Money(Realised(), true));
         }
 
         private void CheckLimits()

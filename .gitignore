@@ -17,3 +17,6 @@
 scripts/home-server.json
 scripts/start-hidden.vbs
 /replica.json
+
+# personal alert sounds (see sounds/README.md)
+sounds/*.wav

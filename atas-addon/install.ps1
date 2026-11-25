@@ -91,6 +91,21 @@ if (Get-Process -Name "ATAS*" -ErrorAction SilentlyContinue) {
 }
 Copy-Item $dll.FullName $dest -Force
 Ok "Installed to $dest\JournalSync.dll"
+# alert sounds from the sounds folder: into ATAS's own Sounds folder, or (not writable) one the indicator also plays from
+$wavs = Get-ChildItem (Join-Path $PSScriptRoot "..\sounds") -Filter "*.wav" -ErrorAction SilentlyContinue
+if ($wavs) {
+  $atasSounds = Join-Path $atas "Sounds"
+  $mine = Join-Path $env:LOCALAPPDATA "RoninFlow\Sounds"
+  New-Item -ItemType Directory -Force -Path $mine | Out-Null
+  $n = 0; $fallback = 0
+  foreach ($w in $wavs) {
+    $name = $w.Name -replace '^female_order_filled\.wav$', 'female_order filled.wav'
+    Copy-Item $w.FullName (Join-Path $mine $name) -Force
+    try { if (-not (Test-Path (Join-Path $atasSounds $name))) { Copy-Item $w.FullName (Join-Path $atasSounds $name) -ErrorAction Stop }; $n++ } catch { $fallback++ }
+  }
+  if ($fallback -eq 0) { Ok "Alert sounds: $n in $atasSounds" }
+  else { Ok "Alert sounds: in $mine (ATAS's Sounds folder needs admin rights; the indicator plays them from here, but ATAS's sound list won't show them)" }
+}
 # remove the add-on's old name so ATAS doesn't list it twice
 $old = Join-Path $dest "IQJournalSync.dll"
 if (Test-Path $old) { Remove-Item $old -Force; Ok "Removed the old IQJournalSync.dll" }

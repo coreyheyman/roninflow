@@ -108,9 +108,26 @@ namespace TradeJournal
         [Tab(TabName = "Executions", TabOrder = 3)]
         public bool ExecShowAvg { get; set; } = true;
 
-        [Display(Name = "Average price line", GroupName = "Open position", Order = 341)]
+        // (keeps its old name so saved templates load: it was the one colour for both sides)
+        [Display(Name = "Long position line", GroupName = "Open position", Order = 341)]
         [Tab(TabName = "Executions", TabOrder = 3)]
-        public Color ExecAvgColor { get; set; } = Color.FromArgb(255, 232, 176, 67);
+        public Color ExecAvgColor { get; set; } = Color.FromArgb(255, 43, 196, 138);
+
+        [Display(Name = "Short position line", GroupName = "Open position", Order = 342)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public Color ExecAvgShortColor { get; set; } = Color.FromArgb(255, 229, 72, 77);
+
+        [Display(Name = "Show working orders (limits and stops)", GroupName = "Working orders", Order = 350)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public bool ExecShowOrders { get; set; } = true;
+
+        [Display(Name = "Buy order line", GroupName = "Working orders", Order = 351)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public Color ExecBuyOrderColor { get; set; } = Color.FromArgb(255, 77, 163, 255);
+
+        [Display(Name = "Sell order line", GroupName = "Working orders", Order = 352)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public Color ExecSellOrderColor { get; set; } = Color.FromArgb(255, 240, 140, 60);
 
         #endregion
 
@@ -119,6 +136,10 @@ namespace TradeJournal
         [Display(Name = "Show the DOM heatmap", GroupName = "Heatmap", Order = 600)]
         [Tab(TabName = "Heatmap", TabOrder = 6)]
         public bool ShowHeatmap { get; set; } = false;
+
+        [Display(Name = "Start with it switched off (turn it on with the chart button)", GroupName = "Heatmap", Order = 602)]
+        [Tab(TabName = "Heatmap", TabOrder = 6)]
+        public bool HmStartOff { get; set; } = false;
 
         [Display(Name = "Draw behind the candles", GroupName = "Heatmap", Order = 601)]
         [Tab(TabName = "Heatmap", TabOrder = 6)]
@@ -371,7 +392,9 @@ namespace TradeJournal
 
         private volatile List<Exec> _execs = new();
         private decimal? _avgPrice;
+        private decimal _avgQty;
         private bool _avgLong;
+        private volatile List<Order> _orders = new();
         private DateTime _execRefreshed = DateTime.MinValue;
 
         private static readonly Dictionary<string, string> Twins = new(StringComparer.Ordinal)
@@ -459,17 +482,37 @@ namespace TradeJournal
                 var pos = core?.Positions.FirstOrDefault(p => p != null && p.Volume != 0
                     && string.Equals(p.AccountID ?? p.Portfolio?.AccountID, account, StringComparison.OrdinalIgnoreCase)
                     && SameInstrument(p.Security?.Code));
-                if (pos != null) { avg = pos.AveragePrice; lng = pos.Volume > 0; }
+                if (pos != null) { avg = pos.AveragePrice; lng = pos.Volume > 0; _avgQty = Math.Abs(pos.Volume); }
             }
             catch { }
             if (avg == null)
             {
                 var open = rows.LastOrDefault(r => !r.Complete);
-                if (open != null) { avg = open.OpenPrice; lng = open.Long; }
+                if (open != null) { avg = open.OpenPrice; lng = open.Long; _avgQty = open.Qty; }
             }
             _avgPrice = avg;
             _avgLong = lng;
+            RefreshOrders();
         }
+
+        /// <summary>The chart account's working orders on this instrument.</summary>
+        private void RefreshOrders()
+        {
+            try
+            {
+                var account = TradingManager?.Portfolio?.AccountID ?? "";
+                var core = RiskEnforcer.TradingCore(this);
+                if (core == null || account.Length == 0) { _orders = new List<Order>(); return; }
+                _orders = core.Orders.Where(o => o != null && o.State == OrderStates.Active && o.Type != OrderTypes.Market
+                    && string.Equals(o.AccountID ?? o.Portfolio?.AccountID, account, StringComparison.OrdinalIgnoreCase)
+                    && SameInstrument(o.Security?.Code)).ToList();
+            }
+            catch { }
+        }
+
+        protected override void OnNewOrder(Order order) { RefreshOrders(); RedrawChart(); }
+
+        protected override void OnOrderChanged(Order order) { RefreshOrders(); RedrawChart(); }
 
         /// <summary>The bar a moment falls in (the last bar that opened at or before it), or -1 if before the chart.</summary>
         private int BarAt(DateTime utc)
@@ -544,18 +587,34 @@ namespace TradeJournal
                     }
                 }
 
-                if (ExecShowAvg && _avgPrice is decimal avg)
+                var tags = new List<Rectangle>();
+                void PriceLine(decimal price, Color c, string text, System.Drawing.Drawing2D.DashStyle dash)
                 {
-                    var y = ChartInfo.GetYByPrice(avg, false);
-                    var pen = new RenderPen(ExecAvgColor, 1, System.Drawing.Drawing2D.DashStyle.Dash);
-                    g.DrawLine(pen, r.Left, y, r.Right, y);
-                    var text = $"{(_avgLong ? "LONG" : "SHORT")} avg {ChartInfo.GetPriceString(avg)}";
+                    var y = ChartInfo.GetYByPrice(price, false);
+                    if (y < r.Top - 20 || y > r.Bottom + 20) return;
+                    g.DrawLine(new RenderPen(c, 1, dash), r.Left, y, r.Right, y);
                     var size = g.MeasureString(text, _small);
                     var box = new Rectangle(r.Right - size.Width - 90, y - size.Height / 2 - 2, size.Width + 10, size.Height + 4);
+                    for (var k = 0; k < 6 && tags.Any(t => t.IntersectsWith(box)); k++) box.Offset(-(box.Width + 6), 0); // side by side, not on top of each other
+                    tags.Add(box);
                     g.FillRectangle(A(Background, 235), box, 3);
-                    g.DrawRectangle(new RenderPen(A(ExecAvgColor, 200), 1), box, 3);
-                    g.DrawString(text, _small, ExecAvgColor, box.X + 5, box.Y + 2);
+                    g.DrawRectangle(new RenderPen(A(c, 200), 1), box, 3);
+                    g.DrawString(text, _small, c, box.X + 5, box.Y + 2);
                 }
+
+                if (ExecShowAvg && _avgPrice is decimal avg)
+                    PriceLine(avg, _avgLong ? ExecAvgColor : ExecAvgShortColor, $"{(_avgLong ? "LONG" : "SHORT")} {_avgQty:0.##} avg {ChartInfo.GetPriceString(avg)}", System.Drawing.Drawing2D.DashStyle.Dash);
+
+                if (ExecShowOrders)
+                    foreach (var o in _orders)
+                    {
+                        var buy = o.Direction == OrderDirections.Buy;
+                        var kind = o.Type == OrderTypes.Limit ? "LMT" : o.Type == OrderTypes.Stop ? "STP" : o.Type == OrderTypes.StopLimit ? "STP LMT" : "";
+                        var at = o.Type == OrderTypes.Stop || o.Type == OrderTypes.StopLimit ? o.TriggerPrice : o.Price;
+                        if (at <= 0) continue;
+                        var qty = o.Unfilled > 0 ? o.Unfilled : o.QuantityToFill;
+                        PriceLine(at, buy ? ExecBuyOrderColor : ExecSellOrderColor, $"{(buy ? "BUY" : "SELL")} {kind} {qty:0.##} @ {ChartInfo.GetPriceString(at)}", System.Drawing.Drawing2D.DashStyle.Dot);
+                    }
             }
             finally
             {
@@ -687,8 +746,11 @@ namespace TradeJournal
         }
 
         /// <summary>Called every second: starts the heatmap when it's switched on, lets it go when it's switched off.</summary>
+        private bool _hmStartApplied;
+
         private void HeatmapTick()
         {
+            if (!_hmStartApplied) { _hmStartApplied = true; if (HmStartOff) _hmEnabled = false; }
             if (ShowHeatmap && !_hmInited) HeatmapInit();
             else if (!ShowHeatmap && _hmInited) HeatmapInit();
         }

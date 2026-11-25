@@ -124,8 +124,8 @@ input int    InCcOpacity = 100; // Body opacity (%)
 input string _g7 = "===== Alerts =====";
 input bool   InAlertEntry = true; // Trade entered
 input string InEntrySound = "Alert1.wav"; // Entry sound
-input bool   InAlertFill = false; // Every fill
-input string InFillSound = "Alert1.wav"; // Fill sound
+input bool   InAlertFill = false; // Added to a trade (scale-in)
+input string InFillSound = "Alert1.wav"; // Scale-in sound
 input bool   InAlertWin = true; // Winning trade
 input string InWinSound = "Alert2.wav"; // Win sound
 input bool   InAlertLoss = true; // Losing trade
@@ -169,7 +169,8 @@ bool     g_newsCollapsed = false, g_statsCollapsed = false;
 
 //--- today's trades
 double g_realised = 0, g_peak = 0, g_grossWin = 0, g_grossLoss = 0, g_best = 0, g_worst = 0;
-int    g_trades = 0, g_wins = 0, g_losses = 0, g_lastDeals = -1, g_lastPositions = -1;
+int    g_trades = 0, g_wins = 0, g_losses = 0, g_lastDeals = -1;
+string g_netSym[]; double g_netVol[]; bool g_netPrimed = false; // net lots per symbol at the last check (buys +, sells -)
 bool   g_dllWarned = false, g_dllHit = false, g_targetHit = false; long g_alertDay = 0;
 
 //--- heatmap
@@ -408,42 +409,112 @@ void Ring(string sound, string message)
    Print("RoninFlow: ", message);
   }
 
+void AddNet(string &syms[], double &vols[], string s, double v)
+  {
+   int n = ArraySize(syms);
+   for(int i = 0; i < n; i++) if(syms[i] == s) { vols[i] += v; return; }
+   ArrayResize(syms, n + 1); ArrayResize(vols, n + 1);
+   syms[n] = s; vols[n] = v;
+  }
+
+double NetOf(string &syms[], double &vols[], string s)
+  {
+   for(int i = ArraySize(syms) - 1; i >= 0; i--) if(syms[i] == s) return vols[i];
+   return 0;
+  }
+
+// net lots per symbol right now, buys + and sells - (hedged positions on one symbol net out)
+void NetPositions(string &syms[], double &vols[])
+  {
+   ArrayResize(syms, 0); ArrayResize(vols, 0);
+#ifdef __MQL5__
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      if(PositionGetTicket(i) == 0) continue;
+      double v = PositionGetDouble(POSITION_VOLUME);
+      AddNet(syms, vols, PositionGetString(POSITION_SYMBOL), PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL ? -v : v);
+     }
+#else
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES) || OrderType() > OP_SELL) continue;
+      AddNet(syms, vols, OrderSymbol(), OrderType() == OP_SELL ? -OrderLots() : OrderLots());
+     }
+#endif
+   for(int k = ArraySize(vols) - 1; k >= 0; k--) vols[k] = NormalizeDouble(vols[k], 8);
+  }
+
 void CheckTrades()
   {
-   int positions = OpenCount();
+   string syms[]; double vols[];
+   NetPositions(syms, vols);
    int deals = g_trades;
-   if(g_lastPositions >= 0)
+   if(g_netPrimed)
      {
-      if(positions > g_lastPositions && InAlertEntry) Ring(InEntrySound, "trade entered");
-      else if(positions != g_lastPositions && InAlertFill) Ring(InFillSound, "fill");
+      // flat -> open (or a reversal) is an entry; more on the same side is a scale-in; exits ring as wins / losses
+      string entered = "", added = "";
+      for(int i = 0; i < ArraySize(syms); i++)
+        {
+         double now = vols[i], before = NetOf(g_netSym, g_netVol, syms[i]);
+         if(MathAbs(now) < 1e-8) continue;
+         bool flip = MathAbs(before) >= 1e-8 && (before > 0) != (now > 0);
+         string side = now > 0 ? "LONG " : "SHORT ";
+         if(MathAbs(before) < 1e-8 || flip) { if(entered == "") entered = side + DoubleToString(MathAbs(now), 2) + " " + syms[i]; }
+         else if(MathAbs(now) > MathAbs(before) + 1e-8 && added == "")
+            added = DoubleToString(MathAbs(now) - MathAbs(before), 2) + " to " + side + syms[i] + " · now " + DoubleToString(MathAbs(now), 2);
+        }
+      if(entered != "" && InAlertEntry) Ring(InEntrySound, "entered " + entered);
+      if(added != "" && InAlertFill) Ring(InFillSound, "added " + added);
+      // each closing deal, partial closes (scale-outs) included
       if(deals > g_lastDeals && g_lastDeals >= 0)
         {
-         double last = LastTradePnl();
+         double last = RecentTradesPnl(deals - g_lastDeals);
          if(last > 0 && InAlertWin) Ring(InWinSound, "win " + Money(last, true) + " · day " + Money(g_realised, true));
          else if(last < 0 && InAlertLoss) Ring(InLossSound, "loss " + Money(last, true) + " · day " + Money(g_realised, true));
         }
      }
-   g_lastPositions = positions; g_lastDeals = deals;
+   int n = ArraySize(syms);
+   ArrayResize(g_netSym, n); ArrayResize(g_netVol, n);
+   for(int j = 0; j < n; j++) { g_netSym[j] = syms[j]; g_netVol[j] = vols[j]; }
+   g_netPrimed = true; g_lastDeals = deals;
   }
 
-double LastTradePnl()
+// the combined result of the latest `count` closing deals
+double RecentTradesPnl(int count)
   {
+   double sum = 0;
 #ifdef __MQL5__
    int total = HistoryDealsTotal();
-   for(int i = total - 1; i >= 0; i--)
+   for(int i = total - 1; i >= 0 && count > 0; i--)
      {
       ulong tk = HistoryDealGetTicket(i);
+      long type = HistoryDealGetInteger(tk, DEAL_TYPE);
+      if(type != DEAL_TYPE_BUY && type != DEAL_TYPE_SELL) continue;
       long entry = HistoryDealGetInteger(tk, DEAL_ENTRY);
       if(entry == DEAL_ENTRY_OUT || entry == DEAL_ENTRY_INOUT || entry == DEAL_ENTRY_OUT_BY)
-         return HistoryDealGetDouble(tk, DEAL_PROFIT) + HistoryDealGetDouble(tk, DEAL_SWAP) + HistoryDealGetDouble(tk, DEAL_COMMISSION);
+        {
+         sum += HistoryDealGetDouble(tk, DEAL_PROFIT) + HistoryDealGetDouble(tk, DEAL_SWAP) + HistoryDealGetDouble(tk, DEAL_COMMISSION);
+         count--;
+        }
      }
 #else
-   datetime best = 0; double p = 0;
-   for(int i = 0; i < OrdersHistoryTotal(); i++)
-      if(OrderSelect(i, SELECT_BY_POS, MODE_HISTORY) && OrderType() <= OP_SELL && OrderCloseTime() > best) { best = OrderCloseTime(); p = OrderProfit() + OrderSwap() + OrderCommission(); }
-   return p;
+   // newest first by close time (ticket breaks ties)
+   datetime lastT = D'3000.01.01'; int lastTk = INT_MAX;
+   for(int k = 0; k < count; k++)
+     {
+      datetime bt = 0; int btk = -1; double bp = 0;
+      for(int i = 0; i < OrdersHistoryTotal(); i++)
+        {
+         if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY) || OrderType() > OP_SELL) continue;
+         datetime t = OrderCloseTime(); int tk = OrderTicket();
+         if(t > lastT || (t == lastT && tk >= lastTk)) continue;
+         if(t > bt || (t == bt && tk > btk)) { bt = t; btk = tk; bp = OrderProfit() + OrderSwap() + OrderCommission(); }
+        }
+      if(btk < 0) break;
+      sum += bp; lastT = bt; lastTk = btk;
+     }
 #endif
-   return 0;
+   return sum;
   }
 
 double TargetValue() { return InProfitTarget > 0 ? InProfitTarget : g_target; }

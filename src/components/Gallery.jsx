@@ -146,10 +146,10 @@ export function Lightbox({ images, index, onClose, onIndex, onAsk, onEdit }) {
   return createPortal(
     <div className="lightbox" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="row gap12 lb-top">
-        <span>{index + 1} / {images.length}</span>
-        <span className="grow truncate" style={{ opacity: 0.8 }}>{img.caption || img.name}</span>
-        {onEdit && url && <button className="btn xs lb-ask" title="Draw on this screenshot — your drawings stay editable" onClick={async () => { const o = img.orig ? (/^(data:|blob:|https?:|\/)/.test(img.orig) ? img.orig : await imageUrl(img.orig)) : url; setEditing(o || url); }}><PenLine size={13} /> {img.annot?.shapes?.length ? 'Edit drawing' : 'Draw'}</button>}
-        {onAsk && url && <button className="btn xs lb-ask" onClick={() => { onClose(); onAsk(url, img.caption); }}><MessageCircle size={13} /> Ask coach about this chart</button>}
+        <span className="lb-count">{index + 1} / {images.length}</span>
+        <span className="grow truncate lb-caption" style={{ opacity: 0.8 }}>{img.caption || img.name}</span>
+        {onEdit && url && <button className="btn xs lb-ask" title="Draw on this screenshot — your drawings stay editable" onClick={async () => { const o = img.orig ? (/^(data:|blob:|https?:|\/)/.test(img.orig) ? img.orig : await imageUrl(img.orig)) : url; setEditing(o || url); }}><PenLine size={13} /> <span className="lb-label">{img.annot?.shapes?.length ? 'Edit drawing' : 'Draw'}</span></button>}
+        {onAsk && url && <button className="btn xs lb-ask" onClick={() => { onClose(); onAsk(url, img.caption); }}><MessageCircle size={13} /> <span className="lb-label">Ask coach about this chart</span></button>}
         {url && <a className="icon-btn" style={{ color: '#fff' }} href={url} download={img.name || 'screenshot.png'} title="Download"><Download size={17} /></a>}
         <button className="icon-btn" style={{ color: '#fff' }} onClick={onClose} title="Close"><X size={20} /></button>
       </div>

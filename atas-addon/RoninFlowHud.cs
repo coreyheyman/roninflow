@@ -175,11 +175,15 @@ namespace TradeJournal
         [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowStats { get; set; } = true;
 
+        [Display(Name = "GEX line: distance from the flip (updates live)", GroupName = "What it shows", Order = 33)]
+        [Tab(TabName = "Account", TabOrder = 2)]
+        public bool ShowFlipDistance { get; set; } = false;
+
         [Display(Name = "GEX line", GroupName = "What it shows", Order = 32)]
         [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowGexLine { get; set; } = true;
 
-        [Display(Name = "\"At the flip\" within (points)", GroupName = "What it shows", Order = 33)]
+        [Display(Name = "\"At the flip\" within (points)", GroupName = "What it shows", Order = 34)]
         [Tab(TabName = "Account", TabOrder = 2)]
         [Range(0, 1000)]
         public decimal FlipNear { get; set; } = 10m;
@@ -389,6 +393,10 @@ namespace TradeJournal
         [Tab(TabName = "News", TabOrder = 5)]
         public EventLevel MarkerFilter { get; set; } = EventLevel.AllEvents;
 
+        [Display(Name = "Upcoming event chip background", GroupName = "Event markers", Order = 103)]
+        [Tab(TabName = "News", TabOrder = 5)]
+        public Color UpcomingChipFill { get; set; } = Color.FromArgb(230, 14, 14, 18);
+
         [Display(Name = "Dashed line up the chart", GroupName = "Event markers", Order = 102)]
         [Tab(TabName = "News", TabOrder = 5)]
         public bool MarkerLines { get; set; } = true;
@@ -418,14 +426,15 @@ namespace TradeJournal
         [SoundComboBoxEditor]
         public string EntrySound { get; set; } = "female_order filled";
 
-        [Display(Name = "Every order filled (entries, adds, exits)", GroupName = "Trades", Order = 145)]
+        // the setting keeps its old name so saved templates load; exits ring as winning / losing trades instead
+        [Display(Name = "Added to a position (scale-in)", GroupName = "Trades", Order = 145)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
         public bool AlertFill { get; set; } = false;
 
-        [Display(Name = "Order filled: sound", GroupName = "Trades", Order = 146)]
+        [Display(Name = "Scale-in: sound", GroupName = "Trades", Order = 146)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
-        public string FillSound { get; set; } = "bip";
+        public string FillSound { get; set; } = "female_order filled";
 
         [Display(Name = "Winning trade", GroupName = "Trades", Order = 150)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
@@ -434,7 +443,7 @@ namespace TradeJournal
         [Display(Name = "Winning trade: sound", GroupName = "Trades", Order = 151)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
-        public string WinSound { get; set; } = "alert1";
+        public string WinSound { get; set; } = "Noice";
 
         [Display(Name = "Winning trade: only above ($, 0 = any)", GroupName = "Trades", Order = 152)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
@@ -448,7 +457,7 @@ namespace TradeJournal
         [Display(Name = "Losing trade: sound", GroupName = "Trades", Order = 161)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
-        public string LossSound { get; set; } = "alert2";
+        public string LossSound { get; set; } = "Nope";
 
         [Display(Name = "Losing trade: only below (−$, 0 = any)", GroupName = "Trades", Order = 162)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
@@ -462,7 +471,7 @@ namespace TradeJournal
         [Display(Name = "Daily loss limit hit: sound", GroupName = "Daily loss limit and profit target", Order = 171)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
-        public string DllSound { get; set; } = "alert4";
+        public string DllSound { get; set; } = "Here_We_Go_Again";
 
         [Display(Name = "Daily loss limit ($, 0 = the RoninFlow tier's)", GroupName = "Daily loss limit and profit target", Order = 172)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
@@ -477,7 +486,7 @@ namespace TradeJournal
         [Display(Name = "Warning: sound", GroupName = "Daily loss limit and profit target", Order = 174)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
-        public string DllWarnSound { get; set; } = "alert3";
+        public string DllWarnSound { get; set; } = "Aint_Got_Time_To_Bleed";
 
         [Display(Name = "Profit target hit", GroupName = "Daily loss limit and profit target", Order = 180)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
@@ -486,7 +495,7 @@ namespace TradeJournal
         [Display(Name = "Profit target hit: sound", GroupName = "Daily loss limit and profit target", Order = 181)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
         [SoundComboBoxEditor]
-        public string TargetSound { get; set; } = "alert5";
+        public string TargetSound { get; set; } = "Not_Leavin";
 
         [Display(Name = "Daily profit target ($, 0 = the account's target in RoninFlow)", GroupName = "Daily loss limit and profit target", Order = 182)]
         [Tab(TabName = "Alerts", TabOrder = 8)]
@@ -794,7 +803,7 @@ namespace TradeJournal
 
         private static string Mask(string id) => id.Length > 9 ? id.Substring(0, 4) + "•••" + id.Substring(id.Length - 3) : id;
 
-        // ---------- entries and fills (the chart's account) ----------
+        // ---------- entries, scale-ins and exits (the chart's account) ----------
 
         private readonly Dictionary<string, decimal> _posVol = new();
         private DateTime _fillsFrom = DateTime.MaxValue; // set when the chart starts: what was already open doesn't count as an entry
@@ -811,16 +820,29 @@ namespace TradeJournal
             try { if (_stats != null) _stats.HistoryMyTrades.Added += OnStatsTrade; } catch { }
         }
 
+        private int _statsDue;
+
         private void OnStatsTrade(HistoryMyTrade trade)
         {
-            Task.Run(() =>
+            // an exit that closes several entries adds a trade for each: wait a beat so they ring as one
+            if (Interlocked.Exchange(ref _statsDue, 1) == 1) return;
+            Task.Delay(250).ContinueWith(_ =>
             {
+                Interlocked.Exchange(ref _statsDue, 0);
                 try { ComputeDay(); }
                 catch { }
                 try { RefreshExecutions(true); }
                 catch { }
             });
         }
+
+        // entry and scale-in alerts compare the position with what it was at the last check
+        private readonly Dictionary<string, decimal> _posAvg = new();
+        private readonly Dictionary<string, decimal> _alertVol = new();
+        private readonly Dictionary<string, HashSet<string>> _seenOrders = new(); // orders that already rang an entry or scale-in
+        private readonly Dictionary<string, List<string>> _fillOrders = new();    // orders filled since the last check
+        private readonly HashSet<string> _posCheckDue = new();
+        private readonly object _posLock = new();
 
         protected override void OnPositionChanged(Position position)
         {
@@ -829,18 +851,15 @@ namespace TradeJournal
             {
                 if (position == null) return;
                 var acct = position.AccountID ?? position.Portfolio?.AccountID ?? "";
-                var key = acct + "|" + (position.Security?.Code ?? "");
-                var vol = position.Volume;
-                var had = _posVol.TryGetValue(key, out var before);
-                _posVol[key] = vol;
-                if (DateTime.UtcNow < _fillsFrom || !AlertsOn || !AlertEntry) return;
-                var mine = TradingManager?.Portfolio?.AccountID;
-                if (!string.Equals(acct, mine, StringComparison.OrdinalIgnoreCase)) return;
-                if ((had ? before : 0m) != 0m || vol == 0m) return; // only flat → open
-                var side = vol > 0 ? "LONG" : "SHORT";
-                var code = position.Security?.Code ?? InstrumentInfo?.Instrument ?? "";
-                var px = position.AveragePrice > 0 ? $" @ {position.AveragePrice:0.####}" : "";
-                Alert(EntrySound, $"Entered {side} {Math.Abs(vol):0.##} {code}{px} · {Mask(acct)}", "entry", $"Entered {side} {Math.Abs(vol):0.##} {code}{px}", $"{Mask(acct)} · trade entered");
+                var code = position.Security?.Code ?? "";
+                var key = acct + "|" + code;
+                lock (_posLock)
+                {
+                    _posVol[key] = position.Volume;
+                    _posAvg[key] = position.AveragePrice;
+                }
+                if (!string.Equals(acct, TradingManager?.Portfolio?.AccountID, StringComparison.OrdinalIgnoreCase)) return;
+                QueuePositionCheck(key, acct, code);
             }
             catch { }
         }
@@ -850,12 +869,78 @@ namespace TradeJournal
             base.OnNewMyTrade(myTrade);
             try
             {
-                if (myTrade == null || DateTime.UtcNow < _fillsFrom || !AlertsOn || !AlertFill) return;
+                if (myTrade == null) return;
                 var acct = myTrade.AccountID ?? "";
                 if (!string.Equals(acct, TradingManager?.Portfolio?.AccountID, StringComparison.OrdinalIgnoreCase)) return;
-                var side = myTrade.OrderDirection == OrderDirections.Buy ? "BUY" : "SELL";
-                var code = myTrade.Security?.Code ?? InstrumentInfo?.Instrument ?? "";
-                Alert(FillSound, $"Filled {side} {myTrade.Volume:0.##} {code} @ {myTrade.Price:0.####} · {Mask(acct)}", "fill", $"Filled {side} {myTrade.Volume:0.##} {code} @ {myTrade.Price:0.####}", $"{Mask(acct)} · order filled");
+                var code = myTrade.Security?.Code ?? "";
+                var key = acct + "|" + code;
+                lock (_posLock)
+                {
+                    if (!_fillOrders.TryGetValue(key, out var orders)) _fillOrders[key] = orders = new List<string>();
+                    orders.Add(myTrade.OrderId ?? "");
+                }
+                QueuePositionCheck(key, acct, code);
+            }
+            catch { }
+        }
+
+        /// <summary>Checks the position a moment after it changes, once its fills have arrived too, so an order that
+        /// fills in pieces counts once.</summary>
+        private void QueuePositionCheck(string key, string acct, string code)
+        {
+            lock (_posLock)
+                if (!_posCheckDue.Add(key)) return;
+            Task.Delay(300).ContinueWith(_ => CheckPosition(key, acct, code));
+        }
+
+        /// <summary>Flat → open (or a reversal) is an entry; more on the same side from another order is a scale-in.
+        /// Exits don't ring here — they ring as a winning or losing trade.</summary>
+        private void CheckPosition(string key, string acct, string code)
+        {
+            try
+            {
+                decimal before, now, avg;
+                bool entry = false, added = false;
+                lock (_posLock)
+                {
+                    _posCheckDue.Remove(key);
+                    now = _posVol.TryGetValue(key, out var v) ? v : 0m;
+                    avg = _posAvg.TryGetValue(key, out var a) ? a : 0m;
+                    before = _alertVol.TryGetValue(key, out var b) ? b : 0m;
+                    _alertVol[key] = now;
+                    var orders = _fillOrders.TryGetValue(key, out var l) ? l : new List<string>();
+                    _fillOrders.Remove(key);
+                    if (DateTime.UtcNow < _fillsFrom) return; // what was open when the chart started isn't new
+                    var flip = before != 0m && now != 0m && Math.Sign(before) != Math.Sign(now);
+                    if (now == 0m) _seenOrders.Remove(key);
+                    else if (before == 0m || flip)
+                    {
+                        _seenOrders[key] = new HashSet<string>(orders.Where(o => o.Length > 0));
+                        entry = true;
+                    }
+                    else if (Math.Abs(now) > Math.Abs(before))
+                    {
+                        // bigger on the same side: a scale-in, unless it's just an already-seen order still filling
+                        if (!_seenOrders.TryGetValue(key, out var seen)) _seenOrders[key] = seen = new HashSet<string>();
+                        var nonEmpty = orders.Where(o => o.Length > 0).ToList();
+                        added = nonEmpty.Count == 0 || nonEmpty.Any(o => !seen.Contains(o));
+                        foreach (var o in nonEmpty) seen.Add(o);
+                    }
+                }
+                if (!AlertsOn) return;
+                var side = now > 0 ? "LONG" : "SHORT";
+                var sym = code.Length > 0 ? code : InstrumentInfo?.Instrument ?? "";
+                if (entry && AlertEntry)
+                {
+                    var px = avg > 0 ? $" @ {avg:0.####}" : "";
+                    Alert(EntrySound, $"Entered {side} {Math.Abs(now):0.##} {sym}{px} · {Mask(acct)}", "entry", $"Entered {side} {Math.Abs(now):0.##} {sym}{px}", $"{Mask(acct)} · trade entered");
+                }
+                else if (added && AlertFill)
+                {
+                    var more = Math.Abs(now) - Math.Abs(before);
+                    var px = avg > 0 ? $" · avg {avg:0.####}" : "";
+                    Alert(FillSound, $"Added {more:0.##} to {side} {sym} · now {Math.Abs(now):0.##}{px} · {Mask(acct)}", "fill", $"Added {more:0.##} to {side} {sym}", $"{Mask(acct)} · scale-in · now {Math.Abs(now):0.##}{px}");
+                }
             }
             catch { }
         }
@@ -873,10 +958,26 @@ namespace TradeJournal
                     var inAtas = dir.TrimEnd('\\', '/').EndsWith("Sounds", StringComparison.OrdinalIgnoreCase);
                     return inAtas ? System.IO.Path.GetFileNameWithoutExtension(v) : v; // one from elsewhere: by its path
                 }
-                return v.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ? v.Substring(0, v.Length - 4) : v;
+                var name = v.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ? v.Substring(0, v.Length - 4) : v;
+                // not one of ATAS's own sounds: the copy npm run addon installed, else a built-in stand-in
+                var atasDir = System.IO.Path.Combine(AppContext.BaseDirectory, "Sounds");
+                if (System.IO.Directory.Exists(atasDir) && !System.IO.File.Exists(System.IO.Path.Combine(atasDir, name + ".wav")))
+                {
+                    var mine = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RoninFlow", "Sounds", name + ".wav");
+                    if (System.IO.File.Exists(mine)) return mine;
+                    if (StandIn.TryGetValue(name, out var builtIn)) return builtIn;
+                }
+                return name;
             }
             catch { return v; }
         }
+
+        /// <summary>The default sounds, for an ATAS that doesn't have them: the closest built-in one.</summary>
+        private static readonly Dictionary<string, string> StandIn = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Noice"] = "alert1", ["Nope"] = "alert2", ["Not_Leavin"] = "alert5", ["Here_We_Go_Again"] = "alert4",
+            ["Aint_Got_Time_To_Bleed"] = "alert3", ["female_order_filled"] = "female_order filled",
+        };
 
         private void Alert(string sound, string message, string kind, string title, string meta)
         {
@@ -913,13 +1014,20 @@ namespace TradeJournal
             var label = account.Length > 9 ? account.Substring(0, 4) + "•••" + account.Substring(account.Length - 3) : account;
             var sym = InstrumentInfo?.Instrument ?? "";
 
-            // each trade that closes from now on
+            // each exit from now on, scale-outs included: ATAS adds a trade for every entry an exit fill closes,
+            // so the ones closed by the same fill ring once, with their combined result
+            var fresh = new List<HistoryMyTrade>();
             foreach (var t in today)
+                if (_tradesSeen.Add(t.Id.ToString()) && _tradesPrimed) fresh.Add(t);
+            var exits = AlertsOn
+                ? fresh.GroupBy(t => !string.IsNullOrEmpty(t.ExitTrade?.OrderId) ? t.ExitTrade.OrderId
+                    : !string.IsNullOrEmpty(t.ExitTradeId) ? t.ExitTradeId
+                    : t.CloseTime.Ticks + "|" + (t.Security?.Code ?? t.SecurityCode))
+                : Enumerable.Empty<IGrouping<string, HistoryMyTrade>>();
+            foreach (var g in exits)
             {
-                var key = t.Id.ToString();
-                if (!_tradesSeen.Add(key) || !_tradesPrimed) continue;
-                if (!AlertsOn) continue;
-                var net = t.PnL - Math.Abs(t.Commission ?? 0m);
+                var t = g.First();
+                var net = g.Sum(x => x.PnL - Math.Abs(x.Commission ?? 0m));
                 var what = t.Security?.Code ?? (string.IsNullOrEmpty(t.SecurityCode) ? sym : t.SecurityCode);
                 if (net > 0 && AlertWin && net >= WinMin)
                     Alert(WinSound, $"Win {Money(net, true)} · {what} · {label}", "win", $"Winning trade {Money(net, true)}", $"{label} · {what} · day {Money(d.Realised, true)}");
@@ -1423,6 +1531,7 @@ namespace TradeJournal
                 var box = new Rectangle(x - size.Width / 2 - 5, r.Bottom - size.Height - 10, size.Width + 10, size.Height + 4);
                 if (MarkerLines)
                     g.DrawLine(new RenderPen(A(c, upcoming ? 70 : 90), 1, upcoming ? System.Drawing.Drawing2D.DashStyle.Dot : System.Drawing.Drawing2D.DashStyle.Dash), x, r.Top, x, box.Top);
+                if (upcoming) g.FillRectangle(UpcomingChipFill, box, 3);
                 g.FillRectangle(A(c, upcoming ? 14 : 40), box, 3);
                 g.DrawRectangle(new RenderPen(A(c, upcoming ? 110 : 140), 1), box, 3);
                 g.DrawString(label, _small, upcoming ? A(c, 220) : c, box.X + 5, box.Y + 2);
@@ -1750,7 +1859,7 @@ namespace TradeJournal
                     {
                         gxX += Txt(g, "flip ", _small, MutedColor, gxX, y + (lh - sh) / 2);
                         gxX += Txt(g, Px(gx.Flip.Value), _bold, TextColor, gxX, y) + 8;
-                        if (price > 0)
+                        if (price > 0 && ShowFlipDistance)
                         {
                             var d = price - gx.Flip.Value;
                             Txt(g, Fit(g, $"{Math.Abs(d):0.#} pts {(d >= 0 ? "below" : "above")}", _small, rect.Right - pad - gxX), _small, MutedColor, gxX, y + (lh - sh) / 2);

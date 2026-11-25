@@ -198,9 +198,9 @@ namespace TradeJournal
         public bool AlertEntry = true;
         [InputParameter("Alerts · Entry sound", 80)]
         public string EntrySound = "Alert1.wav";
-        [InputParameter("Alerts · Every fill", 81)]
+        [InputParameter("Alerts · Added to a trade (scale-in)", 81)]
         public bool AlertFill = false;
-        [InputParameter("Alerts · Fill sound", 82)]
+        [InputParameter("Alerts · Scale-in sound", 82)]
         public string FillSound = "Alert1.wav";
         [InputParameter("Alerts · Winning trade", 83)]
         public bool AlertWin = true;
@@ -253,7 +253,8 @@ namespace TradeJournal
         private sealed class EventItem { public long T; public string Impact = "", Ccy = "", Title = ""; }
         private sealed class NewsItem { public string Id = "", Src = "", Title = "", Link = "", Summary = ""; public long T; public int Importance, Dir; }
         private sealed class Snap { public long DayStart; public string MarketLabel = "", Error = ""; public AcctInfo Acct; public GexInfo Gex; public List<EventItem> Events = new List<EventItem>(); public List<NewsItem> News = new List<NewsItem>(); public DateTime Got; }
-        private sealed class Trip { public DateTime Open, Close; public double OpenPrice, ClosePrice, Qty, Pnl; public bool Long, Complete; }
+        private sealed class Trip { public DateTime Open, Close; public double OpenPrice, ClosePrice, Qty, Pnl; public bool Long, Complete; public string Sym, ExitId; }
+        private readonly Dictionary<string, HashSet<string>> seenOrders = new Dictionary<string, HashSet<string>>(); // orders that already rang an entry or scale-in
         private sealed class PosRow { public string Account = "", Code = ""; public double Qty, Pnl; }
         private sealed class HmNode { public int Start, End; public double Price, Volume; public bool Active; }
 
@@ -428,7 +429,7 @@ namespace TradeJournal
                     {
                         var head = open[0]; double take = Math.Min(Math.Abs(head.Value), Math.Abs(q)); bool lng = head.Value > 0;
                         double fee = (head.Key.Fee != null ? Math.Abs(head.Key.Fee.Value) : 0) + (t.Fee != null ? Math.Abs(t.Fee.Value) : 0);
-                        res.Add(new Trip { Open = Utc(head.Key.DateTime), Close = Utc(t.DateTime), OpenPrice = head.Key.Price, ClosePrice = t.Price, Qty = take, Long = lng, Complete = true,
+                        res.Add(new Trip { Open = Utc(head.Key.DateTime), Close = Utc(t.DateTime), OpenPrice = head.Key.Price, ClosePrice = t.Price, Qty = take, Long = lng, Complete = true, Sym = g.Key, ExitId = t.Id,
                             Pnl = (t.Price - head.Key.Price) * (lng ? 1 : -1) * take * tickCost - fee * take / Math.Max(1, Math.Abs(t.Quantity)) });
                         double left = head.Value - Math.Sign(head.Value) * take;
                         if (left == 0) open.RemoveAt(0); else open[0] = new KeyValuePair<Trade, double>(head.Key, left);
@@ -436,7 +437,7 @@ namespace TradeJournal
                     }
                     if (q != 0) open.Add(new KeyValuePair<Trade, double>(t, q));
                 }
-                foreach (var o in open) res.Add(new Trip { Open = Utc(o.Key.DateTime), OpenPrice = o.Key.Price, Qty = Math.Abs(o.Value), Long = o.Value > 0 });
+                foreach (var o in open) res.Add(new Trip { Open = Utc(o.Key.DateTime), OpenPrice = o.Key.Price, Qty = Math.Abs(o.Value), Long = o.Value > 0, Sym = g.Key });
             }
             return res;
         }
@@ -468,21 +469,48 @@ namespace TradeJournal
                 .OrderBy(p => p.Account).ThenBy(p => p.Code).ToList();
         }
 
+        private double OpenQty(string sym) { return trips.Where(x => !x.Complete && x.Sym == sym).Sum(x => x.Long ? x.Qty : -x.Qty); }
+
         private void OnTrade(Trade t)
         {
             try
             {
                 if (t == null || account == null || t.Account != account) return;
                 string sym = t.Symbol != null ? t.Symbol.Name : "";
-                if (AlertFill) Ring(FillSound, string.Format(CultureInfo.InvariantCulture, "fill {0} {1} {2} @ {3}", t.Side == Side.Buy ? "BUY" : "SELL", Math.Abs(t.Quantity), sym, t.Price));
-                double before = trips.Where(x => !x.Complete).Sum(x => x.Long ? x.Qty : -x.Qty);
+                string order = t.OrderId ?? "";
+                double before = OpenQty(sym);
                 ComputeTrades();
-                double now = trips.Where(x => !x.Complete).Sum(x => x.Long ? x.Qty : -x.Qty);
-                if (before == 0 && now != 0 && AlertEntry) Ring(EntrySound, string.Format(CultureInfo.InvariantCulture, "entered {0} {1} {2} @ {3}", now > 0 ? "LONG" : "SHORT", Math.Abs(now), sym, t.Price));
-                if (before != 0 && now == 0)
+                double now = OpenQty(sym);
+                bool flip = before != 0 && now != 0 && Math.Sign(before) != Math.Sign(now);
+                string side = now > 0 ? "LONG" : "SHORT";
+                if (now != 0 && (before == 0 || flip))
                 {
-                    var last = trips.Where(x => x.Complete).OrderByDescending(x => x.Close).FirstOrDefault();
-                    double pnl = last == null ? 0 : trips.Where(x => x.Complete && x.Close == last.Close).Sum(x => x.Pnl);
+                    // entry: flat → open, or a reversal
+                    var seen = new HashSet<string>();
+                    if (order.Length > 0) seen.Add(order);
+                    seenOrders[sym] = seen;
+                    if (AlertEntry) Ring(EntrySound, string.Format(CultureInfo.InvariantCulture, "entered {0} {1} {2} @ {3}", side, Math.Abs(now), sym, t.Price));
+                }
+                else if (before != 0 && Math.Abs(now) > Math.Abs(before))
+                {
+                    // scale-in: more on the same side, from an order that hasn't already alerted
+                    HashSet<string> seen;
+                    if (!seenOrders.TryGetValue(sym, out seen)) seenOrders[sym] = seen = new HashSet<string>();
+                    bool freshOrder = order.Length == 0 || seen.Add(order);
+                    if (AlertFill && freshOrder)
+                        Ring(FillSound, string.Format(CultureInfo.InvariantCulture, "added {0} to {1} {2} @ {3} · now {4}", Math.Abs(now) - Math.Abs(before), side, sym, t.Price, Math.Abs(now)));
+                }
+                if (now == 0) seenOrders.Remove(sym);
+                if (before != 0 && (now == 0 || flip || Math.Abs(now) < Math.Abs(before)))
+                {
+                    // an exit — a scale-out, the final exit or the closing side of a reversal: this fill's result
+                    var closed = trips.Where(x => x.Complete && x.ExitId != null && x.ExitId == t.Id).ToList();
+                    if (closed.Count == 0)
+                    {
+                        var last = trips.Where(x => x.Complete).OrderByDescending(x => x.Close).FirstOrDefault();
+                        if (last != null) closed = trips.Where(x => x.Complete && x.Close == last.Close).ToList();
+                    }
+                    double pnl = closed.Sum(x => x.Pnl);
                     if (pnl > 0 && AlertWin) Ring(WinSound, "win " + Money(pnl, true) + " · day " + Money(dayRealised, true));
                     else if (pnl < 0 && AlertLoss) Ring(LossSound, "loss " + Money(pnl, true) + " · day " + Money(dayRealised, true));
                 }

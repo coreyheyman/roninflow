@@ -24,7 +24,7 @@ enum InputIndex { I_AccountName = 0, I_RefreshSeconds = 1, I_FontSize = 2, I_Sho
 
 struct NewsRow { std::string id, src, title; long long t = 0; int imp = 0, dir = 0; };
 struct EventRow { long long t = 0; std::string impact, title; };
-struct Trip { SCDateTime open, close; double openPrice = 0, closePrice = 0, qty = 0, pnl = 0; bool lng = true, complete = false; };
+struct Trip { SCDateTime open, close; double openPrice = 0, closePrice = 0, qty = 0, pnl = 0; bool lng = true, complete = false; int exitFill = -1; };
 
 struct SuiteState
 {
@@ -44,6 +44,7 @@ struct SuiteState
 	double realised = 0, peak = 0, grossWin = 0, grossLoss = 0, best = 0, worst = 0, openPnl = 0;
 	int trades = 0, wins = 0, losses = 0, lastFills = -1;
 	double lastQty = 0;
+	std::vector<int> seenOrders; // orders that already rang an entry or scale-in
 	bool dllWarned = false, dllHit = false, targetHit = false; long long alertDay = 0;
 	DWORD lastRequest = 0, lastRead = 0;
 	std::string req, resp;
@@ -163,7 +164,7 @@ static void ComputeTrades(SCStudyInterfaceRef sc, SuiteState& st)
 			auto& head = open[0];
 			double take = fmin(fabs(head.second), fabs(q));
 			bool lng = head.second > 0;
-			Trip t; t.open = head.first.FillDateTime; t.close = f.FillDateTime; t.openPrice = head.first.FillPrice; t.closePrice = f.FillPrice; t.qty = take; t.lng = lng; t.complete = true;
+			Trip t; t.open = head.first.FillDateTime; t.close = f.FillDateTime; t.openPrice = head.first.FillPrice; t.closePrice = f.FillPrice; t.qty = take; t.lng = lng; t.complete = true; t.exitFill = i;
 			t.pnl = (f.FillPrice - head.first.FillPrice) * (lng ? 1 : -1) * take * pointValue;
 			trips.push_back(t);
 			head.second -= (head.second > 0 ? take : -take);
@@ -193,23 +194,62 @@ static void Ring(SCStudyInterfaceRef sc, int alertNumber, const std::string& mes
 	sc.SetAlert(alertNumber, sc.ArraySize - 1, SCString(("RoninFlow: " + message).c_str()));
 }
 
+static bool HasOrder(const std::vector<int>& v, int id)
+{
+	for (int x : v) if (x == id) return true;
+	return false;
+}
+
 static void CheckAlerts(SCStudyInterfaceRef sc, SuiteState& st)
 {
 	double qty = 0;
 	for (auto& t : st.trips) if (!t.complete) qty += t.lng ? t.qty : -t.qty;
 	int fills = sc.GetOrderFillArraySize();
-	if (st.lastFills >= 0)
+	if (st.lastFills >= 0 && fills > st.lastFills)
 	{
-		if (fills > st.lastFills && sc.Input[I_AlertFill].GetYesNo()) Ring(sc, sc.Input[I_FillSound].GetInt(), "fill");
-		if (st.lastQty == 0 && qty != 0 && sc.Input[I_AlertEntry].GetYesNo()) Ring(sc, sc.Input[I_EntrySound].GetInt(), qty > 0 ? "entered LONG" : "entered SHORT");
-		if (st.lastQty != 0 && qty == 0)
+		std::string account = sc.SelectedTradeAccount.GetChars();
+		std::vector<int> freshOrders;
+		for (int i = st.lastFills; i < fills; ++i)
 		{
-			double pnl = 0; SCDateTime last;
-			for (auto& t : st.trips) if (t.complete && t.close > last) last = t.close;
-			for (auto& t : st.trips) if (t.complete && t.close == last) pnl += t.pnl;
+			s_SCOrderFillData f;
+			if (!sc.GetOrderFillEntry(i, f) || f.Quantity == 0) continue;
+			if (!account.empty() && f.TradeAccount.GetLength() > 0 && account != f.TradeAccount.GetChars()) continue;
+			if (f.InternalOrderID != 0 && !HasOrder(freshOrders, f.InternalOrderID)) freshOrders.push_back(f.InternalOrderID);
+		}
+		bool flip = st.lastQty != 0 && qty != 0 && ((st.lastQty > 0) != (qty > 0));
+		if (qty != 0 && (st.lastQty == 0 || flip))
+		{
+			// entry: flat -> open, or a reversal
+			st.seenOrders = freshOrders;
+			if (sc.Input[I_AlertEntry].GetYesNo()) Ring(sc, sc.Input[I_EntrySound].GetInt(), qty > 0 ? "entered LONG" : "entered SHORT");
+		}
+		else if (st.lastQty != 0 && fabs(qty) > fabs(st.lastQty))
+		{
+			// scale-in: more on the same side, from an order that hasn't already alerted
+			bool anotherOrder = freshOrders.empty();
+			for (int id : freshOrders) if (!HasOrder(st.seenOrders, id)) { anotherOrder = true; st.seenOrders.push_back(id); }
+			if (anotherOrder && sc.Input[I_AlertFill].GetYesNo())
+				Ring(sc, sc.Input[I_FillSound].GetInt(), std::string("added ") + Num(fabs(qty) - fabs(st.lastQty)) + (qty > 0 ? " to LONG" : " to SHORT") + " / now " + Num(fabs(qty)));
+		}
+		if (qty == 0) st.seenOrders.clear();
+		// any exit — a scale-out, the final exit or the closing side of a reversal: the new fills' combined result
+		double pnl = 0; int closed = 0;
+		for (auto& t : st.trips) if (t.complete && t.exitFill >= st.lastFills) { pnl += t.pnl; closed++; }
+		if (closed > 0)
+		{
 			if (pnl > 0 && sc.Input[I_AlertWin].GetYesNo()) Ring(sc, sc.Input[I_WinSound].GetInt(), "win " + Money(pnl, true) + " / day " + Money(st.realised, true));
 			else if (pnl < 0 && sc.Input[I_AlertLoss].GetYesNo()) Ring(sc, sc.Input[I_LossSound].GetInt(), "loss " + Money(pnl, true) + " / day " + Money(st.realised, true));
 		}
+	}
+	else if (fills < st.lastFills || qty == 0)
+	{
+		st.seenOrders.clear();
+	}
+	else if (st.lastFills < 0 && qty != 0 && fills > 0)
+	{
+		// prime seenOrders if already in a position when the study loads
+		s_SCOrderFillData f;
+		if (sc.GetOrderFillEntry(fills - 1, f) && f.InternalOrderID != 0) st.seenOrders.push_back(f.InternalOrderID);
 	}
 	st.lastFills = fills; st.lastQty = qty;
 	if (st.dayStart != st.alertDay) { st.alertDay = st.dayStart; st.dllWarned = st.dllHit = st.targetHit = false; }
@@ -606,8 +646,8 @@ SCSFExport scsf_RoninFlowSuite(SCStudyInterfaceRef sc)
 		sc.Input[I_EventMinImpact].Name = "News: Events shown"; sc.Input[I_EventMinImpact].SetCustomInputStrings("AllEvents;MediumAndHigh;HighOnly"); sc.Input[I_EventMinImpact].SetCustomInputIndex(1);
 		sc.Input[I_AlertEntry].Name = "Alerts: Trade entered"; sc.Input[I_AlertEntry].SetYesNo(1);
 		sc.Input[I_EntrySound].Name = "Alerts: Entry alert number (Global Settings > Alerts, 1-150)"; sc.Input[I_EntrySound].SetInt(1); sc.Input[I_EntrySound].SetIntLimits(1, 150);
-		sc.Input[I_AlertFill].Name = "Alerts: Every fill"; sc.Input[I_AlertFill].SetYesNo(0);
-		sc.Input[I_FillSound].Name = "Alerts: Fill alert number (Global Settings > Alerts, 1-150)"; sc.Input[I_FillSound].SetInt(1); sc.Input[I_FillSound].SetIntLimits(1, 150);
+		sc.Input[I_AlertFill].Name = "Alerts: Added to a trade (scale-in)"; sc.Input[I_AlertFill].SetYesNo(0);
+		sc.Input[I_FillSound].Name = "Alerts: Scale-in alert number (Global Settings > Alerts, 1-150)"; sc.Input[I_FillSound].SetInt(1); sc.Input[I_FillSound].SetIntLimits(1, 150);
 		sc.Input[I_AlertWin].Name = "Alerts: Winning trade"; sc.Input[I_AlertWin].SetYesNo(1);
 		sc.Input[I_WinSound].Name = "Alerts: Win alert number (Global Settings > Alerts, 1-150)"; sc.Input[I_WinSound].SetInt(2); sc.Input[I_WinSound].SetIntLimits(1, 150);
 		sc.Input[I_AlertLoss].Name = "Alerts: Losing trade"; sc.Input[I_AlertLoss].SetYesNo(1);

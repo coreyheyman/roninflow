@@ -303,17 +303,17 @@ function DayPage({ date, embedded = false, onDate, onClose }) {
 
   return (
     <div className={embedded ? 'day-modal-body' : 'page'}>
-      <div className={`row gap12 ${embedded ? 'day-modal-bar' : ''}`} style={{ marginBottom: 18 }}>
+      <div className={`row gap12 ${embedded ? 'day-modal-bar' : 'day-bar'}`} style={{ marginBottom: 18 }}>
         {embedded
           ? <button className="btn sm" onClick={() => { onClose?.(); navigate(`diary/${date}`); }} title="Open this day in the Daily Diary"><Maximize2 size={14} /> <span className="hide-sm">Open in Daily Diary</span></button>
           : <button className="btn sm" onClick={() => navigate('diary')}><ArrowLeft size={15} /> All sessions</button>}
         {!embedded && <AccountPicker compact />}
         <div className="grow" />
-        <button className="btn sm" disabled={!nav.prev} onClick={() => go(nav.prev)} title={nav.prev ? fmtDate(nav.prev) : undefined}><ChevronLeft size={15} /> <span className={embedded ? 'hide-sm' : ''}>Previous</span></button>
-        <button className="btn sm" disabled={!nav.next} onClick={() => go(nav.next)} title={nav.next ? fmtDate(nav.next) : undefined}><span className={embedded ? 'hide-sm' : ''}>Next</span> <ChevronRight size={15} /></button>
+        <button className="btn sm" disabled={!nav.prev} onClick={() => go(nav.prev)} title={nav.prev ? fmtDate(nav.prev) : undefined}><ChevronLeft size={15} /> <span className="hide-sm">Previous</span></button>
+        <button className="btn sm" disabled={!nav.next} onClick={() => go(nav.next)} title={nav.next ? fmtDate(nav.next) : undefined}><span className="hide-sm">Next</span> <ChevronRight size={15} /></button>
         {embedded && <button className="icon-btn" style={{ borderRadius: 'var(--r)', border: '1px solid var(--border-2)' }} onClick={onClose} title="Close (Esc)"><X size={16} /></button>}
       </div>
-      <div className="row gap16" style={{ marginBottom: 20 }}>
+      <div className="row gap16 day-head" style={{ marginBottom: 20 }}>
         <div>
           <div className="page-title" style={{ margin: 0 }}>{fmtDate(date)}</div>
           <div className="muted" style={{ marginTop: 4 }}>{dow}{d && <> · Session {fmtTime24(d.start)} – {fmtTime24(d.end)} · <Clock size={12} style={{ verticalAlign: -1 }} /> {fmtDuration(d.duration)}</>}</div>
@@ -393,9 +393,9 @@ function DayPage({ date, embedded = false, onDate, onClose }) {
       <div className={d ? 'diary-media' : ''}>
       {d && <ExecChart date={date} trades={d.trades} onOpenTrade={setOpen} />}
       <div className="panel" style={{ marginTop: d ? 0 : 22 }}>
-        <div className="panel-head">
+        <div className="panel-head wrap shots-head">
           <div className="card-title">Chart screenshots</div>
-          <div className="row gap8">
+          <div className="row gap8 wrap">
             <span className="muted" style={{ fontSize: 12 }}>{(entry.images || []).length} image{(entry.images || []).length === 1 ? '' : 's'}</span>
             <Popover align="right" trigger={({ toggle }) => (
               <button className="btn xs" onClick={toggle} title="How screenshots are auto-captioned">Captions: {CAPTION_TF.find((x) => x.value === capTf)?.label.replace('Always ', '').replace(/ \(M\d\)/, '')} <ChevronDown size={13} /></button>

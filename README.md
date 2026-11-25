@@ -181,6 +181,8 @@ Turn sync off per account on the Accounts page or in the sync window (top-bar ba
 
 ## RoninFlow Suite indicator (on your charts)
 
+![RoninFlow Suite on an NQ chart: account panel, gamma levels, executions, order lines, DOM heatmap and news](docs/screenshots/suite.png)
+
 One indicator that puts RoninFlow on the chart, each part switched on or off (and placed) in its settings: the
 **account panel** (risk tier, gamma regime, today's P&L, the buffer from your stop to the profit target, trade stats,
 GEX line, open positions on every account), **your executions** (entry / exit markers, the line joining them, the

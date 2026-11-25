@@ -9,7 +9,7 @@
 //   * News: the feed (click the title to collapse, a headline to open it), pop-ups for new headlines, and today's
 //     economic events on the time axis.
 //   * DOM heatmap and custom candle colours.
-//   * Alerts with sounds: entries, fills, wins, losses, the daily loss limit and the profit target.
+//   * Alerts with sounds: entries, scale-ins, wins and losses (each scale-out too), the daily loss limit and the profit target.
 //
 // Install: npm run addon:nt copies this file to Documents\NinjaTrader 8\bin\Custom\Indicators\RoninFlowSuite.cs;
 //          compile once (NinjaScript Editor → F5), then add "RoninFlow Suite" to a chart (Indicators window).
@@ -77,12 +77,13 @@ namespace NinjaTrader.NinjaScript.Indicators
 		// ---------- the chart's account and today's trades ----------
 		private Account account;
 		private int accountTicks;
-		private sealed class Trip { public DateTime Open, Close; public double OpenPrice, ClosePrice, Qty, Pnl; public bool Long, Complete; }
+		private sealed class Trip { public DateTime Open, Close; public double OpenPrice, ClosePrice, Qty, Pnl; public bool Long, Complete; public string ExitId; }
 		private List<Trip> trips = new List<Trip>();
 		private double dayRealised, dayPeak; private int dayTrades, dayWins, dayLosses; private double grossWin, grossLoss, best, worst;
 		private sealed class PosRow { public string Account = "", Code = ""; public int Qty; public double Pnl; }
 		private List<PosRow> positions = new List<PosRow>();
 		private readonly Dictionary<string, int> lastQty = new Dictionary<string, int>();
+		private readonly Dictionary<string, HashSet<string>> seenOrders = new Dictionary<string, HashSet<string>>(); // orders that already rang an entry or scale-in
 		private bool dllWarned, dllHit, targetHit; private DateTime alertDay = DateTime.MinValue;
 
 		// ---------- heatmap ----------
@@ -415,10 +416,10 @@ namespace NinjaTrader.NinjaScript.Indicators
 		[Display(Name = "Entry sound", GroupName = "08. Alerts", Order = 1)]
 		public string EntrySound { get; set; }
 
-		[Display(Name = "Every fill", GroupName = "08. Alerts", Order = 2)]
+		[Display(Name = "Added to a trade (scale-in)", GroupName = "08. Alerts", Order = 2)]
 		public bool AlertFill { get; set; }
 
-		[Display(Name = "Fill sound", GroupName = "08. Alerts", Order = 3)]
+		[Display(Name = "Scale-in sound", GroupName = "08. Alerts", Order = 3)]
 		public string FillSound { get; set; }
 
 		[Display(Name = "Winning trade", GroupName = "08. Alerts", Order = 4)]
@@ -823,6 +824,8 @@ namespace NinjaTrader.NinjaScript.Indicators
 					account = a;
 					if (account != null) account.ExecutionUpdate += OnExecution;
 					lastQty.Clear();
+					seenOrders.Clear();
+					if (account != null) lock (account.Positions) foreach (var p in account.Positions) if (p != null && p.Instrument != null && p.MarketPosition != MarketPosition.Flat && p.Quantity != 0) lastQty[p.Instrument.FullName] = p.MarketPosition == MarketPosition.Long ? p.Quantity : -p.Quantity;
 				}
 				ComputeDay();
 				RefreshPositions();
@@ -854,7 +857,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 						var head = open[0];
 						double take = Math.Min(Math.Abs(head.Value), Math.Abs(q));
 						bool lng = head.Value > 0;
-						all.Add(new Trip { Open = head.Key.Time, Close = e.Time, OpenPrice = head.Key.Price, ClosePrice = e.Price, Qty = take, Long = lng, Complete = true,
+						all.Add(new Trip { Open = head.Key.Time, Close = e.Time, OpenPrice = head.Key.Price, ClosePrice = e.Price, Qty = take, Long = lng, Complete = true, ExitId = e.ExecutionId,
 							Pnl = (e.Price - head.Key.Price) * (lng ? 1 : -1) * take * pv - (head.Key.Commission + e.Commission) * take / Math.Max(1, e.Quantity) });
 						double left = head.Value - Math.Sign(head.Value) * take;
 						if (left == 0) open.RemoveAt(0); else open[0] = new KeyValuePair<Execution, double>(head.Key, left);
@@ -918,19 +921,43 @@ namespace NinjaTrader.NinjaScript.Indicators
 				if (e == null || e.Execution == null) return;
 				var x = e.Execution;
 				string key = x.Instrument != null ? x.Instrument.FullName : "";
-				if (AlertFill) Ring("fill", FillSound, string.Format(CultureInfo.InvariantCulture, "fill {0} {1} {2} @ {3}", x.MarketPosition == MarketPosition.Long ? "BUY" : "SELL", x.Quantity, key, x.Price), AccentColor);
-				// entry (flat → open) and the result when it goes flat again
+				string order = x.OrderId ?? "";
 				int before; lastQty.TryGetValue(key, out before);
 				ComputeDay();
 				int now = 0;
 				var a = account;
 				if (a != null) lock (a.Positions) { var p = a.Positions.FirstOrDefault(pp => pp.Instrument.FullName == key); if (p != null) now = p.MarketPosition == MarketPosition.Long ? p.Quantity : p.MarketPosition == MarketPosition.Short ? -p.Quantity : 0; }
 				lastQty[key] = now;
-				if (before == 0 && now != 0 && AlertEntry) Ring("entry", EntrySound, string.Format(CultureInfo.InvariantCulture, "entered {0} {1} {2} @ {3}", now > 0 ? "LONG" : "SHORT", Math.Abs(now), key, x.Price), AccentColor);
-				if (before != 0 && now == 0)
+				bool flip = before != 0 && now != 0 && Math.Sign(before) != Math.Sign(now);
+				string side = now > 0 ? "LONG" : "SHORT";
+				if (now != 0 && (before == 0 || flip))
 				{
-					var t = trips.Where(tt => tt.Complete).OrderByDescending(tt => tt.Close).FirstOrDefault();
-					double pnl = trips.Where(tt => tt.Complete && t != null && tt.Close == t.Close).Sum(tt => tt.Pnl);
+					// entry: flat → open, or a reversal
+					var seen = new HashSet<string>();
+					if (order.Length > 0) seen.Add(order);
+					seenOrders[key] = seen;
+					if (AlertEntry) Ring("entry", EntrySound, string.Format(CultureInfo.InvariantCulture, "entered {0} {1} {2} @ {3}", side, Math.Abs(now), key, x.Price), AccentColor);
+				}
+				else if (before != 0 && Math.Abs(now) > Math.Abs(before))
+				{
+					// scale-in: more on the same side, from an order that hasn't already alerted
+					HashSet<string> seen;
+					if (!seenOrders.TryGetValue(key, out seen)) seenOrders[key] = seen = new HashSet<string>();
+					bool freshOrder = order.Length == 0 || seen.Add(order);
+					if (AlertFill && freshOrder)
+						Ring("fill", FillSound, string.Format(CultureInfo.InvariantCulture, "added {0} to {1} {2} @ {3} · now {4}", Math.Abs(now) - Math.Abs(before), side, key, x.Price, Math.Abs(now)), AccentColor);
+				}
+				if (now == 0) seenOrders.Remove(key);
+				if (before != 0 && (now == 0 || flip || Math.Abs(now) < Math.Abs(before)))
+				{
+					// an exit — a scale-out, the final exit or the closing side of a reversal: this fill's result
+					var closed = trips.Where(tt => tt.Complete && tt.ExitId != null && tt.ExitId == x.ExecutionId).ToList();
+					if (closed.Count == 0)
+					{
+						var t = trips.Where(tt => tt.Complete).OrderByDescending(tt => tt.Close).FirstOrDefault();
+						if (t != null) closed = trips.Where(tt => tt.Complete && tt.Close == t.Close).ToList();
+					}
+					double pnl = closed.Sum(tt => tt.Pnl);
 					if (pnl > 0 && AlertWin) Ring("win", WinSound, "win " + Money(pnl, true) + " · day " + Money(dayRealised, true), PositiveColor);
 					else if (pnl < 0 && AlertLoss) Ring("loss", LossSound, "loss " + Money(pnl, true) + " · day " + Money(dayRealised, true), NegativeColor);
 				}
