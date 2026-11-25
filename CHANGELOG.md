@@ -2,6 +2,10 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## 2.2.1
+
+- **Macro data no longer gives up when FRED says “slow down”:** a page that asks for many series at once (G10, International) pauses for a minute and carries on, instead of showing those series as failed for half an hour. The live demo's snapshot paces itself the same way, so its international and G10 data are real too.
+
 ## 2.2.0
 
 - **Review trades from the chart (ATAS Suite → Executions):** click an execution marker and the trade's review from your journal opens in a window beside it — strategy, tags, edge blockers, rating, notes, screenshots, mark as reviewed. It's the journal itself (the ATAS trade is matched by its ATAS id, then by account, market and time), so whatever you change is saved to RoninFlow straight away and shows up in every open journal within a couple of seconds. Clicking another execution moves the same window to it; Esc closes it.

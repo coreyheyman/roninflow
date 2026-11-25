@@ -71,8 +71,9 @@ export function createFredHandler(dataDir, { log = () => {}, fetchImpl = (...a) 
 
   // a small queue so opening a page with 20 series doesn't fire 20 requests at once
   const queue = [], inflight = new Set();
-  let running = 0;
+  let running = 0, pausedUntil = 0, pumpTimer = null;
   const pump = () => {
+    if (now() < pausedUntil) { if (!pumpTimer) pumpTimer = setTimeout(() => { pumpTimer = null; pump(); }, pausedUntil - now() + 50); return; } // FRED asked us to slow down
     while (running < PARALLEL && queue.length) {
       const job = queue.shift();
       running++;
@@ -82,7 +83,7 @@ export function createFredHandler(dataDir, { log = () => {}, fetchImpl = (...a) 
   const fetchText = async (url, accept) => {
     const r = await fetchImpl(url, { headers: { 'User-Agent': UA, Accept: accept }, signal: AbortSignal.timeout(30000) });
     const text = await r.text();
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.status = r.status; throw e; }
     return text;
   };
   const sources = {
@@ -101,16 +102,25 @@ export function createFredHandler(dataDir, { log = () => {}, fetchImpl = (...a) 
     const k = `${src}:${id}`;
     if (inflight.has(k)) return;
     inflight.add(k);
-    queue.push(async () => {
+    const job = async () => {
       const old = read(src, id);
       try {
         const obs = await sources[src](id);
         write(src, id, { obs, at: now(), tried: now(), error: null });
       } catch (e) {
+        if ((e.status === 403 || e.status === 429) && (old?.limitedTries || 0) < 4) {
+          // too many requests in a row: pause the queue for a minute, then try this one again
+          pausedUntil = Math.max(pausedUntil, now() + 60e3);
+          write(src, id, { ...(old || { obs: [], at: null }), limitedTries: (old?.limitedTries || 0) + 1, tried: now() });
+          queue.push(job); // still in flight
+          return;
+        }
         log(`[fred] ${src} ${id}: ${e.message}`);
         write(src, id, { obs: old?.obs || [], at: old?.at || null, tried: now(), error: `Couldn’t load ${id} (${e.message})` });
-      } finally { inflight.delete(k); }
-    });
+      }
+      inflight.delete(k);
+    };
+    queue.push(job);
     pump();
   };
   const isStale = (c) => {
@@ -120,6 +130,7 @@ export function createFredHandler(dataDir, { log = () => {}, fetchImpl = (...a) 
   };
 
   const serve = (src, ids, from) => {
+    if (queue.length && !running) pump(); // resume a queue paused for FRED's rate limit
     const series = {};
     for (const id of ids) {
       const c = read(src, id);

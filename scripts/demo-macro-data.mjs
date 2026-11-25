@@ -18,12 +18,15 @@ const write = (rel, obj) => { const f = path.join(out, rel); fs.mkdirSync(path.d
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function get(url, accept) {
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
       const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: accept }, signal: AbortSignal.timeout(30000) });
       if (r.ok) return await r.text();
-      if (r.status < 500 && r.status !== 429) throw new Error(`HTTP ${r.status}`);
-    } catch (e) { if (attempt === 2) throw e; }
+      if (r.status < 500 && r.status !== 429 && r.status !== 403) throw new Error(`HTTP ${r.status}`);
+      if (attempt === 4) throw new Error(`HTTP ${r.status}`);
+      await sleep(r.status === 403 || r.status === 429 ? 30000 * (attempt + 1) : 2000 * (attempt + 1)); // FRED's rate limit: wait it out
+      continue;
+    } catch (e) { if (attempt === 4 || /^HTTP 4/.test(e.message)) throw e; }
     await sleep(2000 * (attempt + 1));
   }
   throw new Error('gave up');
@@ -43,12 +46,13 @@ async function series() {
           ? parsePd(JSON.parse(await get(`https://markets.newyorkfed.org/api/pd/get/${encodeURIComponent(id)}.json`, 'application/json')), id)
           : parseFredCsv(await get(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(id)}`, 'text/csv'));
         if (!obs.length) throw new Error('no observations');
+        await sleep(400); // stay under FRED's request rate
         write(`fred/${id}.json`, { obs: obs.filter((r) => r[0] >= keepFrom), at: Date.now() });
         ok.push(id);
       } catch (e) { failed.push(`${id} (${e.message})`); }
     }
   };
-  await Promise.all([worker(), worker(), worker()]);
+  await Promise.all([worker(), worker()]);
   write('fred/index.json', { at: Date.now(), ids: ok.sort() });
   console.log(`series: ${ok.length} saved${failed.length ? `, ${failed.length} failed: ${failed.join(', ')}` : ''}`);
 }

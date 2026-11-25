@@ -30,7 +30,7 @@ jobs:
       - name: Snapshot real macro data for the demo
         run: node scripts/demo-macro-data.mjs public/demo-data
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 25
       - name: Build the demo
         run: VITE_DEMO=1 npx vite build --base=/${{ github.event.repository.name }}/ --outDir demo-dist
       - run: touch demo-dist/.nojekyll

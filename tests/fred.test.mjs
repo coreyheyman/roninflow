@@ -142,3 +142,22 @@ test('a returning visitor’s demo is brought up to today', async () => {
   // already today → untouched
   assert.equal(freshenDemo(fresh), fresh);
 });
+
+test('FRED saying slow down (403) pauses and retries instead of failing', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rf-fred-'));
+  let calls = 0, t = 1_000_000;
+  const fetchImpl = async () => { calls++; return calls === 1 ? { ok: false, status: 403, text: async () => 'slow down' } : { ok: true, status: 200, text: async () => 'observation_date,X\n2026-11-20,1.5\n' }; };
+  const h = createFredHandler(dir, { fetchImpl, now: () => t });
+  const call = (url) => new Promise((resolve) => { const res = { setHeader() {}, end(b) { resolve(JSON.parse(b)); } }; h({ method: 'GET', url }, res); });
+  await call('/api/macro/fred?ids=X');
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(calls, 1);
+  const mid = await call('/api/macro/fred?ids=X');
+  assert.equal(mid.series.X.error, null);
+  assert.equal(mid.refreshing, true);
+  t += 61e3; // a minute later the queue resumes (the next request nudges it)
+  await call('/api/macro/fred?ids=X');
+  await new Promise((r) => setTimeout(r, 50));
+  const done = await call('/api/macro/fred?ids=X');
+  assert.deepEqual(done.series.X.obs, [['2026-11-20', 1.5]]);
+});
