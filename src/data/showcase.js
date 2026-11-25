@@ -180,3 +180,62 @@ export function buildShowcase() {
     settings: { ...base.settings, setupDone: true, account: 'all' },
   };
 }
+
+// ---------- keeping a returning visitor's demo current ----------
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const addDays = (key, n) => { const d = new Date(`${key}T12:00:00`); d.setDate(d.getDate() + n); return ymd(d); };
+const daysBetween = (a, b) => Math.round((new Date(`${b}T12:00:00`) - new Date(`${a}T12:00:00`)) / 86400000);
+/** a fingerprint of the journal itself (not settings or notifications), to tell whether the visitor changed anything */
+export function demoSig(st) {
+  const { settings, notifications, ...data } = st || {}; // eslint-disable-line no-unused-vars
+  const s = JSON.stringify(data);
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36);
+}
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/, REVIEW_KEY = /^(weekly|daily):\d{4}-\d{2}-\d{2}$/;
+/** move every date in the journal n days later (ids, images and settings untouched) */
+export function shiftDemoDates(v, n, key) {
+  if (key === 'id' || key === 'images' || key === 'settings') return v;
+  if (typeof v === 'string') return /^\d{4}-\d{2}-\d{2}/.test(v) ? addDays(v.slice(0, 10), n) + v.slice(10) : v;
+  if (Array.isArray(v)) return v.map((x) => shiftDemoDates(x, n));
+  if (v && typeof v === 'object') {
+    const o = {};
+    for (const [k, x] of Object.entries(v)) o[DAY_KEY.test(k) ? addDays(k, n) : REVIEW_KEY.test(k) ? k.replace(/\d{4}-\d{2}-\d{2}/, (d) => addDays(d, n)) : k] = shiftDemoDates(x, n, k);
+    return o;
+  }
+  return v;
+}
+/** a fresh showcase, stamped with the day it was made (see stampDemo for its fingerprint) */
+export function freshShowcase(settings) {
+  const st = buildShowcase();
+  return { ...st, settings: { ...st.settings, ...(settings || {}), demoDay: ymd(new Date()), demoFresh: true } }; // the store stamps demoSig once it's normalised
+}
+/**
+ * The demo journal saved in this browser, brought up to today: untouched → rebuilt fresh (keeping the visitor's settings);
+ * changed → every date moved forward by whole weeks (so trades stay on weekdays), keeping their changes.
+ */
+export function freshenDemo(saved) {
+  const today = ymd(new Date());
+  const s = saved?.settings || {};
+  if (s.demoDay === today) return saved;
+  if (s.demoDay && s.demoSig && s.demoSig === demoSig(saved)) {
+    const { demoDay, demoSig: sig, demoFresh, ...prefs } = s; // eslint-disable-line no-unused-vars
+    return freshShowcase(prefs);
+  }
+  // changed (or saved by an older demo): anchor on the stamp, or on the latest trade (the showcase ends yesterday)
+  const last = (saved.trades || []).map((t) => String(t.entry || '').slice(0, 10)).filter((d) => DAY_KEY.test(d)).sort().pop();
+  const from = s.demoDay || (last ? addDays(last, 1) : today);
+  const weeks = Math.floor(daysBetween(from, today) / 7);
+  if (weeks < 1) return saved.settings?.demoDay ? saved : { ...saved, settings: { ...s, demoDay: from } };
+  const moved = shiftDemoDates(saved, weeks * 7);
+  return { ...moved, settings: { ...s, demoDay: addDays(from, weeks * 7), demoSig: undefined } };
+}
+/** after the store has normalised a freshly built demo: record its fingerprint, so tomorrow can tell whether it was changed */
+export function stampDemo(st) {
+  if (!st?.settings?.demoFresh) return st;
+  const { demoFresh, ...settings } = st.settings; // eslint-disable-line no-unused-vars
+  const out = { ...st, settings };
+  out.settings.demoSig = demoSig(out);
+  return out;
+}

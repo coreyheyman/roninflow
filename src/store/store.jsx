@@ -9,7 +9,7 @@ import { applyTheme, findTheme } from '../lib/themes';
 import { applyConnectBatch } from '../lib/connectSync';
 import { IS_DEMO } from '../lib/demoMode';
 import { IS_VIEWER, SNAPSHOT, VIEW_PREFS, shareStateUrl, notifyViewOnly } from '../lib/shareMode';
-import { buildShowcase } from '../data/showcase';
+import { freshShowcase, freshenDemo, stampDemo } from '../data/showcase';
 
 const KEY = IS_DEMO ? 'roninflow-demo-v1' : 'trade-journal-state-v1';
 const OLD_KEY = 'iq-journal-state-v1'; // earlier versions
@@ -80,9 +80,9 @@ function load() {
   if (IS_VIEWER) return SNAPSHOT?.state ? normalize(SNAPSHOT.state) : { ...initialState(), trades: [], accounts: [], settings: { ...initialState().settings, setupDone: true } };
   try {
     const raw = localStorage.getItem(KEY) ?? (IS_DEMO ? null : localStorage.getItem(OLD_KEY));
-    if (raw) return normalize(JSON.parse(raw));
+    if (raw) return IS_DEMO ? stampDemo(normalize(freshenDemo(JSON.parse(raw)))) : normalize(JSON.parse(raw)); // the demo moves its made-up journal up to today
   } catch { /* ignore corrupted storage */ }
-  return IS_DEMO ? buildShowcase() : initialState();
+  return IS_DEMO ? stampDemo(normalize(freshShowcase())) : initialState();
 }
 
 const jsonOf = async (r) => ((r.headers.get('content-type') || '').includes('json') ? r.json() : null);
@@ -368,7 +368,7 @@ export function StoreProvider({ children }) {
       markRead: (id) => patchList('notifications', id, { read: true }),
       clearNotifications: () => update((s) => ({ ...s, notifications: [] })),
       resetAll: () => (IS_VIEWER ? notifyViewOnly() : setState(initialState())),
-      resetDemo: () => (IS_VIEWER ? notifyViewOnly() : setState(buildShowcase())),
+      resetDemo: () => (IS_VIEWER ? notifyViewOnly() : setState(stampDemo(normalize(freshShowcase())))),
       loadDemo: () => update((s) => ({
         ...s,
         accounts: [...s.accounts.filter((a) => a.id !== DEMO_ACCOUNT.id), { ...DEMO_ACCOUNT, createdAt: new Date(Date.now() - 70 * 86400e3).toISOString().slice(0, 10) }],

@@ -34,7 +34,9 @@ export function forceRead(obs, key, asOf = null) {
   const wk = f === 'd' || f === 'w' ? valueAt(o, shift(s.date, -7)) : s.prev;
   const pos = s.pos;
   const state = pos >= 0.9 ? 'EXTREME' : pos >= 0.7 ? 'ELEVATED' : pos <= 0.1 ? 'EXTREME LOW' : pos <= 0.3 ? 'LOW' : dir === 'UP' ? 'RISING' : dir === 'DOWN' ? 'FALLING' : 'NORMAL';
-  return { v: s.v, date: s.date, week: wk == null ? null : s.v - wk, dir, pos, state, lo: s.lo, hi: s.hi };
+  // momentum: the month's move as a share of the 1-year range (−1…+1), for how hard a force is pushing
+  const mom = key === 'policy' ? Math.max(-1, Math.min(1, d / 0.5)) : span > 0 ? Math.max(-1, Math.min(1, d / span)) : 0;
+  return { v: s.v, date: s.date, week: wk == null ? null : s.v - wk, dir, pos, state, lo: s.lo, hi: s.hi, mom };
 }
 
 const ANY = null;
@@ -353,4 +355,11 @@ const HOT_FX = [
 export function hotEffect(title, asset) {
   const r = HOT_FX.find(([re]) => re.test(title || ''));
   return r?.[1][asset] || 0;
+}
+
+/** for the radar on a market tab: 0.5 = no effect, toward 1 = helps that market harder, toward 0 = hurts it harder */
+export function pushStrength(asset, force, read) {
+  if (!read) return 0.5;
+  const imp = ASSETS[asset].impact[force];
+  return Math.max(0.04, Math.min(1, 0.5 + 0.5 * Math.max(-1, Math.min(1, imp * read.mom * 2.5))));
 }

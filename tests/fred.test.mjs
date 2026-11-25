@@ -117,3 +117,28 @@ test('each market reads the forces its own way', () => {
   assert.equal(hotEffect('Crude Oil Inventories', 'oil'), -1);
   for (const id of CONFIRM_ALL_IDS) assert.ok(SERIES[id], id);
 });
+
+test('a returning visitor’s demo is brought up to today', async () => {
+  const { freshShowcase, freshenDemo, stampDemo, shiftDemoDates } = await import('../src/data/showcase.js');
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const back = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); };
+  const lastTrade = (st) => st.trades.map((t) => t.entry.slice(0, 10)).sort().pop();
+  const fresh = stampDemo(freshShowcase());
+  assert.equal(fresh.settings.demoDay, ymd(new Date()));
+  assert.ok(fresh.settings.demoSig && !fresh.settings.demoFresh);
+  // untouched, saved 3 weeks ago → rebuilt (settings kept)
+  const old = shiftDemoDates(fresh, -21);
+  old.settings = { ...fresh.settings, demoDay: back(21), theme: 'mine' };
+  old.settings.demoSig = (await import('../src/data/showcase.js')).demoSig(old);
+  const a = freshenDemo(old);
+  assert.equal(lastTrade(a), lastTrade(fresh));
+  assert.equal(a.settings.theme, 'mine');
+  // changed → kept, moved forward by whole weeks
+  const edited = { ...old, trades: [...old.trades, { ...old.trades[0], id: 'mine', notes: 'my trade' }] };
+  const b = freshenDemo(edited);
+  assert.ok(b.trades.some((t) => t.id === 'mine'));
+  assert.equal(Math.round((new Date(`${lastTrade(fresh)}T12:00`) - new Date(`${lastTrade(b)}T12:00`)) / 864e5), 0);
+  assert.ok(b.trades.every((t) => ![0, 6].includes(new Date(`${t.entry.slice(0, 10)}T12:00`).getDay())));
+  // already today → untouched
+  assert.equal(freshenDemo(fresh), fresh);
+});

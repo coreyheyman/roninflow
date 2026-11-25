@@ -7,7 +7,7 @@ import { Seg } from '../components/ui';
 import { isoDay, fmtValue, fmtChange, seriesDef } from '../lib/fredSeries';
 import { useSeries } from '../lib/useSeries';
 import { useMacro, countdown, FLAGS } from '../lib/macro';
-import { FORCE_IDS, CONFIRM_ALL_IDS, readRegime, confirmRead, confirmAssetRead, conditions, regimeHistory, hotCold, hotEffect, assetPlaybook, ASSETS as MARKETS, REGIMES, MIXED } from '../lib/regime';
+import { FORCE_IDS, CONFIRM_ALL_IDS, readRegime, confirmRead, confirmAssetRead, conditions, regimeHistory, hotCold, hotEffect, assetPlaybook, pushStrength, ASSETS as MARKETS, REGIMES, MIXED } from '../lib/regime';
 import { wallClock, fmtTime12, MONTHS } from '../lib/stats';
 
 const FROM = isoDay(Date.now() - 2.2 * 366 * 86400000);
@@ -22,13 +22,14 @@ const PUSH = { 1: ['helps', 'pos'], '-1': ['hurts', 'neg'], 0: ['no effect', 'fl
 const pushLabel = (p, dir) => (p > 0 ? 'helps' : p < 0 ? 'hurts' : dir === 'FLAT' ? 'steady' : 'little effect');
 const fmtDay = (d) => { const [y, m, dd] = d.split('-').map(Number); return `${MONTHS[m - 1]} ${dd}, ${y}`; };
 
-function Radar({ now, then, tone, dots }) {
+function Radar({ now, then, tone, dots, mid = false }) {
   const S = 300, c = S / 2, R = 108;
   const pt = (i, r) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5; return [c + Math.cos(a) * r, c + Math.sin(a) * r]; };
   const poly = (vals) => vals.map((v, i) => pt(i, R * (0.14 + 0.86 * Math.max(0, Math.min(1, v)))).join(',')).join(' ');
   return (
     <svg viewBox={`0 0 ${S} ${S}`} className={`dc-radar tone-${tone}`} role="img" aria-label="Five forces, today and last week">
       {[0.25, 0.5, 0.75, 1].map((k) => <polygon key={k} points={AXES.map((_, i) => pt(i, R * k).join(',')).join(' ')} className="ring" />)}
+      {mid && <polygon points={AXES.map((_, i) => pt(i, R * (0.14 + 0.86 * 0.5)).join(',')).join(' ')} className="mid" />}
       {AXES.map((a, i) => { const [x, y] = pt(i, R); return <line key={a} x1={c} y1={c} x2={x} y2={y} className="spoke" />; })}
       <polygon points={poly(then)} className="then" />
       <polygon points={poly(now)} className="now" />
@@ -219,7 +220,8 @@ export default function DailyCheck() {
   const play = mk ? assetPlaybook(asset, read.today.dirs) : null;
   const playLast = mk ? assetPlaybook(asset, read.lastWeek.dirs) : null;
   const tone = play ? BIAS_TONE[play.bias] : g.tone;
-  const pos = (k) => AXES.map((a) => read.forces.find((f) => f.key === a)[k].pos);
+  // General: each force's place in its 1-year range · a market: how hard each force pushes that market (middle ring = no effect)
+  const pos = (k) => AXES.map((a) => { const f = read.forces.find((x) => x.key === a); return play ? pushStrength(asset, a, f[k]) : f[k].pos; });
   const book = play ? play : { ifs: conditions(g, read.today.dirs), then: g.then, ends: g.ends };
   return (
     <div className={`page dc-page tone-${tone}`}>
@@ -250,10 +252,10 @@ export default function DailyCheck() {
         <div className="dc-hero-c">
           <span className="dc-eyebrow center">Read the page for</span>
           <Seg value={asset} onChange={setAsset} options={ASSETS} />
-          <Radar now={pos('now')} then={pos('then')} tone={tone} dots={play ? AXES.map((a) => PUSH[play.push[a]][1]) : null} />
+          <Radar now={pos('now')} then={pos('then')} tone={tone} dots={play ? AXES.map((a) => PUSH[play.push[a]][1]) : null} mid={!!play} />
           <div className="dc-radar-key">
             <span><i className="now" />Today</span><span><i className="then" />Last week</span>
-            {play && <><span><i className="pd pos" />Helps</span><span><i className="pd neg" />Hurts</span></>}
+            {play && <><span><i className="pd pos" />Helps</span><span><i className="pd neg" />Hurts</span><span><i className="midk" />No effect</span></>}
           </div>
         </div>
         <div className="dc-hero-r">
