@@ -1,6 +1,7 @@
-// Made-up FRED / New York Fed series for the public demo (no server there): seeded, mean-reverting walks that end at
-// each series' demo value, with a recent risk-off move so the Daily Check has something to say. Demo site only.
+// FRED / New York Fed series for the public demo (no server there): the real data from the demo site's snapshot when
+// it has the series, otherwise seeded, mean-reverting sample walks ending at each series' demo value. Demo site only.
 import { SERIES } from './fredSeries';
+import { snap } from './demoSnap';
 
 const DAY = 86400000;
 const SIGNED = new Set(['T10Y2Y', 'T10Y3M', 'CFNAI', 'STLFSI4', 'NFCI', 'ANFCI', 'IRSTCI01CHM156N', 'CPALTT01CHM659N']);
@@ -61,16 +62,20 @@ function make(id, now) {
   return ds.map((d, i) => [d, +(vals[i] / scale).toFixed(dp + (scale < 0.01 ? 0 : 0))]);
 }
 
-export function demoFred(u) {
+export async function demoFred(u, { real = true } = {}) {
   const ids = (u.searchParams.get('ids') || '').split(',').filter(Boolean);
   const from = u.searchParams.get('from');
   const now = Date.now();
   const series = {};
+  let realCount = 0, at = null;
+  const index = real ? await snap('fred/index.json') : null;
   for (const id of ids) {
-    const obs = make(id, now);
+    const r = index?.ids?.includes(id) ? await snap(`fred/${id}.json`) : null;
+    const obs = r?.obs?.length ? r.obs : make(id, now);
+    if (r?.obs?.length) { realCount++; at = Math.max(at || 0, r.at || 0); }
     let i = 0;
     if (from) { while (i < obs.length && obs[i][0] < from) i++; i = Math.max(0, i - 1); }
-    series[id] = { obs: obs.slice(i), at: now, error: null };
+    series[id] = { obs: obs.slice(i), at: r?.at || now, error: null };
   }
-  return { series, refreshing: false, source: 'Sample data (demo)' };
+  return { series, refreshing: false, source: realCount ? `FRED snapshot${at ? ` (${new Date(at).toISOString().slice(0, 10)})` : ''}` : 'Sample data (demo)' };
 }

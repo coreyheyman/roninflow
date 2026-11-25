@@ -3246,6 +3246,7 @@ tr.click { cursor: pointer; }
   .dc-hero { grid-template-columns: 1fr; padding: 18px 16px; gap: 18px; }
   .dc-hero-c { grid-row: auto; }
   .dc-hero-c .seg { max-width: 100%; overflow-x: auto; }
+  .dc-hero-c .seg button { padding-left: 9px; padding-right: 9px; }
   .dc-name { font-size: 32px; }
   .dc-sum { max-width: none; }
   .dc-play-row { grid-template-columns: 1fr; }
@@ -3265,3 +3266,20 @@ tr.click { cursor: pointer; }
   .dc-tbl td, .dc-tbl th { padding-left: 10px; padding-right: 10px; }
   .mnav-cat svg { display: none; }
 }
+/* Daily Check: reading for one market */
+.dc-bias-name { text-transform: capitalize; color: var(--tone); }
+.dc-sum b { color: var(--fg); }
+.dc-regime-tag { font-size: 12px; padding: 5px 10px; border: 1px solid var(--border-2); border-radius: 999px; }
+.dc-regime-tag.tone-neg { color: var(--neg); } .dc-regime-tag.tone-warn { color: var(--warn); } .dc-regime-tag.tone-pos { color: var(--pos); }
+.dc-push { display: inline-block; padding: 3px 10px; font-size: 11.5px; font-weight: 600; border-radius: 999px; background: var(--card-3); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.dc-push.pos { color: var(--pos); background: color-mix(in srgb, var(--pos) 14%, transparent); }
+.dc-push.neg { color: var(--neg); background: color-mix(in srgb, var(--neg) 14%, transparent); }
+.dc-detail small { font-size: 11px; margin-left: 4px; }
+.dc-radar .pdot { stroke: var(--card); stroke-width: 2; fill: var(--muted-2); }
+.dc-radar .pdot.pos { fill: var(--pos); } .dc-radar .pdot.neg { fill: var(--neg); }
+.dc-radar-key i.pd { width: 8px; height: 8px; border: 0; border-radius: 50%; }
+.dc-radar-key i.pd.pos { background: var(--pos); } .dc-radar-key i.pd.neg { background: var(--neg); }
+.dc-play-side li.bad { color: var(--fg-2); } .dc-play-side li.bad svg { color: var(--neg); }
+.dc-fx { margin-left: 8px; font-weight: 600; font-size: 11.5px; }
+.dc-fx.pos { color: var(--pos); } .dc-fx.neg { color: var(--neg); }
+.dc-ev-fx { display: block; font-style: normal; font-weight: 500; color: var(--fg-2); letter-spacing: 0; margin-top: 2px; }

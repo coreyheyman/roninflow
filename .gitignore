@@ -20,3 +20,6 @@ scripts/start-hidden.vbs
 
 # personal alert sounds (see sounds/README.md)
 sounds/*.wav
+
+# the demo site's macro data snapshot (built in CI)
+public/demo-data/

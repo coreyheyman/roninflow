@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseFredCsv, parsePd, staleAfter, createFredHandler } from '../fred.js';
 import { transform, derive, stats, freqOf, fmtValue, fmtChange, correlationMatrix, rollingCorrelation, SERIES, SERIES_PAGES, PICK_GROUPS } from '../src/lib/fredSeries.js';
-import { classify, readRegime, confirmRead, hotCold, FORCE_IDS, CONFIRM, regimeHistory } from '../src/lib/regime.js';
+import { classify, readRegime, confirmRead, hotCold, FORCE_IDS, CONFIRM, regimeHistory, assetRead, assetPlaybook, confirmAssetRead, hotEffect, CONFIRM_ALL_IDS } from '../src/lib/regime.js';
 import { demoFred } from '../src/lib/fredDemo.js';
 
 test('FRED CSV: both header styles, missing values skipped', () => {
@@ -88,9 +88,9 @@ test('every page and pick refers to a defined series', () => {
   for (const [id, d] of Object.entries(SERIES)) if (!d.derive) assert.ok(d.demo, `${id} has demo data`);
 });
 
-test('the demo data reads as a crisis with most markets confirming', () => {
+test('the demo data reads as a crisis with most markets confirming', async () => {
   const ids = [...new Set([...FORCE_IDS.flatMap((id) => SERIES[id].derive || [id]), ...CONFIRM.map((c) => c.id)])];
-  const raw = demoFred(new URL(`http://x/api/macro/fred?ids=${ids.join(',')}&from=2024-06-01`)).series;
+  const raw = (await demoFred(new URL(`http://x/api/macro/fred?ids=${ids.join(',')}&from=2024-06-01`), { real: false })).series;
   const series = {};
   for (const id of [...FORCE_IDS, ...CONFIRM.map((c) => c.id)]) {
     const def = SERIES[id];
@@ -102,4 +102,18 @@ test('the demo data reads as a crisis with most markets confirming', () => {
   assert.ok(c.agree >= 4, `${c.agree}/${c.total}`);
   assert.ok(stats(series.BAMLH0A0HYM2.obs).v > 3.7);
   assert.ok(regimeHistory(series, 12).length >= 10);
+});
+
+test('each market reads the forces its own way', () => {
+  const stag = { growth: 'DOWN', inflation: 'UP', liquidity: 'DOWN', policy: 'FLAT', stress: 'UP' };
+  assert.equal(assetRead('stocks', stag).bias, 'bearish');
+  assert.equal(assetRead('dollar', stag).bias, 'bullish');
+  assert.equal(assetRead('gold', { ...stag, liquidity: 'FLAT' }).bias, 'bullish');
+  const p = assetPlaybook('stocks', stag);
+  assert.ok(p.ifs.every((c) => c.ok === true));
+  assert.notDeepEqual(p.then, assetPlaybook('dollar', stag).then);
+  assert.equal(hotEffect('Core CPI m/m', 'gold'), -1);
+  assert.equal(hotEffect('Core CPI m/m', 'dollar'), 1);
+  assert.equal(hotEffect('Crude Oil Inventories', 'oil'), -1);
+  for (const id of CONFIRM_ALL_IDS) assert.ok(SERIES[id], id);
 });

@@ -217,3 +217,140 @@ export function regimeHistory(series, weeks = 12) {
   }
   return out;
 }
+
+// ---------- reading the page for one market ----------
+// how each force pushes a market when it rises (+1 helps, −1 hurts, 0 little effect)
+export const ASSETS = {
+  stocks: { label: 'Stocks', name: 'stocks', impact: { growth: 1, inflation: -1, liquidity: 1, policy: -1, stress: -1 } },
+  gold: { label: 'Gold', name: 'gold', impact: { growth: 0, inflation: 1, liquidity: 1, policy: -1, stress: 1 } },
+  dollar: { label: 'Dollar', name: 'the dollar', impact: { growth: 1, inflation: 1, liquidity: -1, policy: 1, stress: 1 } },
+  oil: { label: 'Oil', name: 'oil', impact: { growth: 1, inflation: 1, liquidity: 1, policy: -1, stress: -1 } },
+};
+const SIGN = { UP: 1, DOWN: -1, FLAT: 0 };
+const OPP = { UP: 'DOWN', DOWN: 'UP', FLAT: 'FLAT' };
+
+/** the forces' combined push on one market: { bias, score, push: {force: +1|−1|0}, support, against } */
+export function assetRead(asset, dirs) {
+  const imp = ASSETS[asset].impact;
+  const push = Object.fromEntries(Object.keys(imp).map((k) => [k, imp[k] * SIGN[dirs[k] || 'FLAT']]));
+  const vals = Object.values(push);
+  const score = vals.reduce((a, b) => a + b, 0);
+  const bias = score >= 2 ? 'bullish' : score <= -2 ? 'bearish' : 'neutral';
+  const pos = vals.filter((v) => v > 0).length, neg = vals.filter((v) => v < 0).length;
+  return { bias, score, push, support: bias === 'bearish' ? neg : pos, against: bias === 'bearish' ? pos : neg };
+}
+
+const ASSET_PLAY = {
+  stocks: {
+    bullish: [['up', 'Buy dips in the index'], ['up', 'Favour cyclicals and high beta'], ['down', 'Keep hedges light']],
+    bearish: [['down', 'Sell rallies, trade smaller'], ['up', 'Favour defensives — staples, utilities, health care'], ['up', 'Hedge with puts or index shorts']],
+    neutral: [['up', 'Trade the range — fade the extremes'], ['down', 'Keep size normal or smaller'], ['up', 'Wait for growth or stress to pick a side']],
+  },
+  gold: {
+    bullish: [['up', 'Buy gold on dips'], ['up', 'Miners for extra leverage'], ['down', 'Don’t short it into stress']],
+    bearish: [['down', 'Fade gold rallies'], ['up', 'Cash and short bills pay more'], ['down', 'Trim miners']],
+    neutral: [['up', 'Trade it off real yields day to day'], ['down', 'Keep size small'], ['up', 'Watch the dollar for the break']],
+  },
+  dollar: {
+    bullish: [['up', 'Long USD vs EUR, JPY and AUD'], ['down', 'Underweight EM currencies'], ['up', 'Dollar cash and bills']],
+    bearish: [['down', 'Short USD vs the majors'], ['up', 'Favour EM and commodity currencies'], ['up', 'Gold and commodities benefit']],
+    neutral: [['up', 'Trade the rate differential release by release'], ['down', 'Keep FX size small'], ['up', 'Watch the 2-year yield for direction']],
+  },
+  oil: {
+    bullish: [['up', 'Buy oil on pullbacks'], ['up', 'Favour energy stocks'], ['up', 'CAD and NOK tend to follow']],
+    bearish: [['down', 'Sell oil rallies'], ['down', 'Underweight energy'], ['up', 'Cheaper oil cools inflation — bonds can rally']],
+    neutral: [['up', 'Trade supply headlines, not the macro'], ['down', 'Keep size small'], ['up', 'Watch growth and the dollar for the break']],
+  },
+};
+
+/** the playbook for one market: what's driving it, what to do, what would change it */
+export function assetPlaybook(asset, dirs) {
+  const a = assetRead(asset, dirs);
+  const want = a.bias === 'bearish' ? -1 : 1;
+  const drivers = Object.entries(a.push).filter(([, p]) => p !== 0).sort((x, y) => (Math.sign(y[1]) === want) - (Math.sign(x[1]) === want));
+  const ifs = drivers.slice(0, 3).map(([k, p]) => ({ k, text: `${PHRASE[k][dirs[k]]} — ${p > 0 ? 'helps' : 'hurts'} ${ASSETS[asset].name}`, ok: a.bias === 'neutral' ? null : Math.sign(p) === want }));
+  const ends = a.bias === 'neutral'
+    ? ['Two forces line up on the same side']
+    : drivers.filter(([, p]) => Math.sign(p) === want).slice(0, 2).map(([k]) => PHRASE[k][OPP[dirs[k]]]);
+  return { ...a, ifs, then: ASSET_PLAY[asset][a.bias], ends: ends.length ? ends : ['The forces turn the other way'] };
+}
+
+// confirmation markets for one market: `up` = what a rising reading means for it
+export const CONFIRM_ASSET = {
+  stocks: [
+    { id: 'SP500', label: 'S&P 500 trend', up: 'bull', tip: 'The index itself over the last month.' },
+    { id: 'NASDAQCOM', label: 'Nasdaq trend', up: 'bull', tip: 'Growth and tech leadership.' },
+    { id: 'BAMLH0A0HYM2', label: 'Credit spreads', up: 'bear', tip: 'Widening spreads usually lead equity weakness.' },
+    { id: 'VIXCLS', label: 'Volatility', up: 'bear', tip: 'A rising VIX = more demand for protection.' },
+    { id: 'PCOPPUSDM', label: 'Copper', up: 'bull', tip: 'Industrial demand, a read on growth.' },
+    { id: 'DFII10', label: '10Y real yield', up: 'bear', tip: 'Higher real yields lower what future earnings are worth.' },
+    { id: 'DTWEXBGS', label: 'US dollar', up: 'bear', tip: 'A strong dollar tightens conditions and hurts overseas earnings.' },
+  ],
+  gold: [
+    { id: 'DFII10', label: '10Y real yield', up: 'bear', tip: 'Gold pays nothing, so rising real yields are its main headwind.' },
+    { id: 'DTWEXBGS', label: 'US dollar', up: 'bear', tip: 'Gold is priced in dollars; a weaker dollar lifts it.' },
+    { id: 'T10YIE', label: 'Breakeven inflation', up: 'bull', tip: 'The inflation the bond market expects.' },
+    { id: 'DGS2', label: '2Y Treasury yield', up: 'bear', tip: 'Where the market sees Fed policy going.' },
+    { id: 'VIXCLS', label: 'Volatility', up: 'bull', tip: 'Fear sends money to havens.' },
+    { id: 'BAMLH0A0HYM2', label: 'Credit spreads', up: 'bull', tip: 'Credit stress drives haven demand.' },
+    { id: 'NETLIQ', label: 'Net liquidity', up: 'bull', tip: 'More cash in the system chases hard assets.' },
+  ],
+  dollar: [
+    { id: 'DTWEXBGS', label: 'Dollar index trend', up: 'bull', tip: 'The broad trade-weighted dollar over the last month.' },
+    { id: 'DGS2', label: '2Y Treasury yield', up: 'bull', tip: 'Higher US short rates attract money to the dollar.' },
+    { id: 'DEXUSEU', label: 'EUR/USD', up: 'bear', tip: 'The biggest piece of the dollar index.' },
+    { id: 'DEXJPUS', label: 'USD/JPY', up: 'bull', tip: 'The rate-differential trade.' },
+    { id: 'DEXUSAL', label: 'AUD/USD', up: 'bear', tip: 'A risk-on, commodity currency.' },
+    { id: 'VIXCLS', label: 'Volatility', up: 'bull', tip: 'The dollar is bid in a scramble for safety.' },
+    { id: 'PCOPPUSDM', label: 'Copper', up: 'bear', tip: 'Strong global growth tends to weaken the dollar.' },
+  ],
+  oil: [
+    { id: 'DCOILWTICO', label: 'WTI trend', up: 'bull', tip: 'US crude over the last month.' },
+    { id: 'DCOILBRENTEU', label: 'Brent trend', up: 'bull', tip: 'The global benchmark.' },
+    { id: 'PCOPPUSDM', label: 'Copper', up: 'bull', tip: 'Industrial demand moves with energy demand.' },
+    { id: 'SP500', label: 'S&P 500', up: 'bull', tip: 'Risk appetite and growth expectations.' },
+    { id: 'DTWEXBGS', label: 'US dollar', up: 'bear', tip: 'Oil is priced in dollars.' },
+    { id: 'T10YIE', label: 'Breakeven inflation', up: 'bull', tip: 'Energy drives the inflation the market prices.' },
+    { id: 'BAMLH0A0HYM2', label: 'Credit spreads', up: 'bear', tip: 'Stress means weaker demand.' },
+  ],
+};
+export const CONFIRM_ALL_IDS = [...new Set([...CONFIRM.map((c) => c.id), ...Object.values(CONFIRM_ASSET).flat().map((c) => c.id)])];
+
+export function confirmAssetRead(series, asset, bias) {
+  const rows = CONFIRM_ASSET[asset].map((c) => {
+    const s = stats(series[c.id]?.obs);
+    if (!s) return { ...c, s: null, sign: null, ok: null };
+    const span = s.hi - s.lo, d = s.chg ?? 0;
+    const sign = span > 0 && Math.abs(d) < span * 0.05 ? 'neutral' : (d > 0) === (c.up === 'bull') ? 'on' : 'off'; // on = bullish for the market
+    return { ...c, s, sign };
+  });
+  const on = rows.filter((r) => r.sign === 'on').length, off = rows.filter((r) => r.sign === 'off').length;
+  const want = bias === 'bullish' ? 'on' : bias === 'bearish' ? 'off' : on >= off ? 'on' : 'off';
+  for (const r of rows) r.ok = r.sign == null || r.sign === 'neutral' ? null : r.sign === want;
+  return { rows, agree: rows.filter((r) => r.ok).length, total: rows.filter((r) => r.s).length, want };
+}
+
+// what a hotter print usually does to each market (a cooler one: the opposite)
+const HOT_FX = [
+  [/trade balance|goods trade/i, { dollar: -1 }],
+  [/unemployment rate/i, { stocks: -1, gold: 1, dollar: -1, oil: -1 }],
+  [/claims/i, { stocks: -1, gold: 1, dollar: -1, oil: -1 }],
+  [/core pce|pce price|cpi|ppi|price index|inflation|hicp/i, { stocks: -1, gold: -1, dollar: 1 }],
+  [/non-?farm|payroll|employment change|adp/i, { gold: -1, dollar: 1, oil: 1 }],
+  [/jolts|job openings/i, { gold: -1, dollar: 1 }],
+  [/average hourly|earnings|wage/i, { stocks: -1, gold: -1, dollar: 1 }],
+  [/gdp/i, { stocks: 1, gold: -1, dollar: 1, oil: 1 }],
+  [/pmi|ism/i, { stocks: 1, dollar: 1, oil: 1 }],
+  [/retail sales|spending/i, { stocks: 1, gold: -1, dollar: 1, oil: 1 }],
+  [/sentiment|confidence/i, { stocks: 1 }],
+  [/inventor/i, { oil: -1 }],
+  [/crude|oil|gasoline/i, { oil: -1 }],
+  [/housing|home|building|permits|pending|case-shiller/i, { stocks: 1 }],
+  [/durable|factory|industrial|manufacturing|production|activity index/i, { stocks: 1, dollar: 1, oil: 1 }],
+  [/rate decision|funds rate|fomc|refinancing|cash rate|bank rate|policy rate/i, { stocks: -1, gold: -1, dollar: 1, oil: -1 }],
+];
+/** +1 / −1 / 0: what a hotter-than-forecast print of this release usually does to the market */
+export function hotEffect(title, asset) {
+  const r = HOT_FX.find(([re]) => re.test(title || ''));
+  return r?.[1][asset] || 0;
+}

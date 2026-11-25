@@ -1,3 +1,4 @@
+import { snap } from './demoSnap';
 import { computeGex, computeVannaCharm, expiryMs } from './gexMath';
 // Made-up macro data for the public demo (no server there). Loaded only on the demo site.
 const MIN = 60000, DAY = 86400000;
@@ -155,15 +156,26 @@ function gex(symbol, exps) {
   };
 }
 
+/** the real calendar snapshot, cut to the range asked for (sample data for weeks it doesn't cover) */
+function snapCalendar(c, from, to) {
+  const a = Date.parse(`${c.from}T00:00:00Z`), b = Date.parse(`${c.to}T23:59:59Z`);
+  const f = Date.parse(`${from}T00:00:00Z`), t = Date.parse(`${to}T23:59:59Z`);
+  const real = c.events.filter((e) => { const ms = Date.parse(e.t); return ms >= f && ms <= t; });
+  if (f >= a && t <= b) return { ...c, events: real, source: `${c.source} (snapshot)` };
+  const sample = calendar(from, to);
+  const fake = sample.events.filter((e) => { const ms = Date.parse(e.t); return ms < a || ms > b; });
+  return { ...c, coverage: sample.coverage, events: [...real, ...fake].sort((x, y) => x.t.localeCompare(y.t)), source: `${c.source} (snapshot; sample data outside ${c.from} – ${c.to})` };
+}
+
 export function demoMacro(url, body) {
   const u = new URL(url, 'http://x');
   if (u.pathname.includes('/news/')) return import('./newsDemo').then((m) => m.demoNews(url, body));
   if (u.pathname.includes('/fred')) return import('./fredDemo').then((m) => m.demoFred(u));
   if (u.pathname.endsWith('/gex')) return gex(String(u.searchParams.get('symbol') || 'SPX').toUpperCase(), (u.searchParams.get('exp') || '').split(',').filter(Boolean));
-  if (u.pathname.endsWith('/calendar/history')) return history(u.searchParams.get('ccy'), u.searchParams.get('title'));
-  if (u.pathname.endsWith('/calendar')) return calendar(u.searchParams.get('from'), u.searchParams.get('to'));
-  if (u.pathname.endsWith('/cot/markets')) return cotMarkets();
-  if (u.pathname.endsWith('/cot')) return cot((u.searchParams.get('extra') || '').split(',').filter(Boolean));
+  if (u.pathname.endsWith('/calendar/history')) return snap('calendar.json').then((c) => (c?.events?.length ? { events: c.events.filter((e) => e.ccy === u.searchParams.get('ccy') && e.title === u.searchParams.get('title') && Date.parse(e.t) <= Date.now()) } : history(u.searchParams.get('ccy'), u.searchParams.get('title'))));
+  if (u.pathname.endsWith('/calendar')) return snap('calendar.json').then((c) => (c?.events?.length ? snapCalendar(c, u.searchParams.get('from'), u.searchParams.get('to')) : calendar(u.searchParams.get('from'), u.searchParams.get('to'))));
+  if (u.pathname.endsWith('/cot/markets')) return snap('cot-markets.json').then((c) => c || cotMarkets());
+  if (u.pathname.endsWith('/cot')) return snap('cot.json').then((c) => c || cot((u.searchParams.get('extra') || '').split(',').filter(Boolean)));
   if (u.pathname.endsWith('/refresh')) return { ok: true };
   return {};
 }

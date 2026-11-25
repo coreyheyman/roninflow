@@ -9,7 +9,7 @@ reviews and screenshots stay on your own machine.
 [![Live demo](https://img.shields.io/badge/live%20demo-try%20it-7452ff)](https://coreyheyman.github.io/roninflow/)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-7452ff)](https://github.com/coreyheyman/roninflow/pkgs/container/roninflow)
 
-**[▶ Try the live demo](https://coreyheyman.github.io/roninflow/)** (made-up data and prices — charts, tick replay, backtesting, Macro and snapshot sharing included — runs in your browser) ·
+**[▶ Try the live demo](https://coreyheyman.github.io/roninflow/)** (made-up trades and prices — charts, tick replay, backtesting and snapshot sharing included — with the Macro pages on a snapshot of real public data refreshed every few hours; runs in your browser) ·
 **[⬇ Download for Windows](https://github.com/coreyheyman/roninflow/releases/latest)** ·
 **[🍎🐧 macOS & Linux](docs/install.md#macos-and-linux)** ·
 **[🐳 Docker](docs/install.md#docker-home-server-nas-raspberry-pi-45)**
