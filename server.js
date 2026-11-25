@@ -27,6 +27,7 @@ import { createConnectHandler } from './connect.js';
 import { createVault } from './secrets.js';
 import { createSystemHandler } from './system.js';
 import { createMacroHandler } from './macro.js';
+import { createFredHandler } from './fred.js';
 import { createGexHandler, futuresFromCandles } from './gex.js';
 import { createShotsHandler } from './shots.js';
 import { createNewsHandler } from './news.js';
@@ -120,6 +121,7 @@ const vaultApi = async (req, res) => {
   } catch (e) { return sendJson(res, 400, { error: e.message }); }
 };
 const macroApi = createMacroHandler(DATA_DIR, { log }); // economic calendar + COT report (Macro pages)
+const fredApi = createFredHandler(DATA_DIR, { log }); // FRED and New York Fed series (Macro → rates, liquidity, economy, G10, comparator…)
 // view-only share links (/s/<token>) and snapshot files
 const readState = () => { const j = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'journal.json'), 'utf8')); return j.state || j; };
 const connectApi = createConnectHandler(DATA_DIR, { log, vault });
@@ -244,6 +246,7 @@ function handle(req, res) {
     if (req.url.startsWith('/api/shots')) return isReplica ? sendJson(res, 403, { error: 'forbidden' }) : shotsApi(req, res);
     if (req.url.startsWith('/api/macro/gex')) return gexApi(req, res);
     if (req.url.startsWith('/api/macro/news')) return newsApi(req, res);
+    if (req.url.startsWith('/api/macro/fred')) return fredApi(req, res);
     if (req.url.startsWith('/api/macro')) return macroApi(req, res);
     if (req.url.startsWith('/api/shares')) return isReplica ? sendJson(res, 403, { error: 'forbidden' }) : shareApi.api(req, res);
     if (req.url.startsWith('/api/vault')) return isReplica ? sendJson(res, 403, { error: 'forbidden' }) : vaultApi(req, res);

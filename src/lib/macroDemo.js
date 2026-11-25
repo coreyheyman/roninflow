@@ -158,6 +158,7 @@ function gex(symbol, exps) {
 export function demoMacro(url, body) {
   const u = new URL(url, 'http://x');
   if (u.pathname.includes('/news/')) return import('./newsDemo').then((m) => m.demoNews(url, body));
+  if (u.pathname.includes('/fred')) return import('./fredDemo').then((m) => m.demoFred(u));
   if (u.pathname.endsWith('/gex')) return gex(String(u.searchParams.get('symbol') || 'SPX').toUpperCase(), (u.searchParams.get('exp') || '').split(',').filter(Boolean));
   if (u.pathname.endsWith('/calendar/history')) return history(u.searchParams.get('ccy'), u.searchParams.get('title'));
   if (u.pathname.endsWith('/calendar')) return calendar(u.searchParams.get('from'), u.searchParams.get('to'));

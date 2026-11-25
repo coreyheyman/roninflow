@@ -25,6 +25,33 @@ import NewsFlow from './views/NewsFlow';
 import NewsHeatmap from './views/NewsHeatmap';
 import NewsAgents from './views/NewsAgents';
 import Backtest from './views/Backtest';
+import MacroNav, { macroPage, lastMacroPage, rememberMacroPage } from './components/MacroNav';
+import DailyCheck from './views/DailyCheck';
+import MacroSeries from './views/MacroSeries';
+import Correlation from './views/Correlation';
+import G10 from './views/G10';
+import Comparator from './views/Comparator';
+import Watchlist from './views/Watchlist';
+import { useEffect } from 'react';
+
+/** The Macro section: the category bar, then the page — opening Macro without a page goes back to the last one. */
+function MacroArea({ sub }) {
+  const page = macroPage(sub) ? sub : lastMacroPage();
+  useEffect(() => {
+    rememberMacroPage(page);
+    if (page !== sub) window.history.replaceState(null, '', `#/macro/${page}`);
+  }, [page, sub]);
+  const views = {
+    daily: <DailyCheck />, calendar: <EconCalendar />, news: <NewsFlow />, heatmap: <NewsHeatmap />, agents: <NewsAgents />,
+    cot: <Cot />, gex: <Gex />, correlation: <Correlation />, g10: <G10 />, compare: <Comparator />, watch: <Watchlist />,
+  };
+  return (
+    <div className="macro-area">
+      <MacroNav current={page} />
+      <div key={page}>{views[page] || <MacroSeries page={page} />}</div>
+    </div>
+  );
+}
 
 function Router() {
   const route = useRoute();
@@ -76,8 +103,8 @@ function Router() {
       view = <Payouts />;
       break;
     case 'macro':
-      crumbs = [{ label: 'Macro', href: '#/macro/calendar' }, { label: { cot: 'COT Report', gex: 'GEX', news: 'News Flow', heatmap: 'News Heat Map', agents: 'News Agents' }[sub] || 'Economic Calendar' }];
-      view = { cot: <Cot />, gex: <Gex />, news: <NewsFlow />, heatmap: <NewsHeatmap />, agents: <NewsAgents /> }[sub] || <EconCalendar />;
+      crumbs = [{ label: 'Macro', href: '#/macro' }, { label: macroPage(macroPage(sub) ? sub : lastMacroPage())?.label }];
+      view = <MacroArea sub={sub} />;
       break;
     case 'connections':
       crumbs = [{ label: 'Connections' }];

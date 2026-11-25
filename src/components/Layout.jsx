@@ -62,7 +62,7 @@ const NAV = [
   { id: 'review', label: 'Review', icon: ClipboardCheck, path: 'review/weekly' },
   { id: 'strategy', label: 'Strategy', icon: Target },
   { id: 'backtest', label: 'Backtesting', icon: FlaskConical },
-  { id: 'macro', label: 'Macro', icon: Globe, path: 'macro/calendar' },
+  { id: 'macro', label: 'Macro', icon: Globe, path: 'macro' },
   { id: 'risk', label: 'Risk Management', icon: ShieldCheck },
   { id: 'accounts', label: 'Accounts', icon: Users },
   { id: 'payouts', label: 'Payouts', icon: HandCoins },
