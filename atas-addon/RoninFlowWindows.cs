@@ -63,8 +63,11 @@ namespace TradeJournal
         /// <summary>The whole journal, large and centred on the screen the chart is on.</summary>
         public static void ShowJournal(string url, Point near, bool onTop)
         {
-            Show("journal", url, "RoninFlow", near, onTop, wa =>
-                new Rectangle(wa.Left + wa.Width / 12, wa.Top + wa.Height / 14, wa.Width * 10 / 12, wa.Height * 12 / 14), tool: false);
+            // pick up where you left off: the page you were on last time (this session or the one before)
+            var last = LastPage();
+            var start = last != null && last.StartsWith(Origin(url), StringComparison.OrdinalIgnoreCase) ? last : url;
+            Show("journal", start, "RoninFlow", near, onTop, wa =>
+                new Rectangle(wa.Left + wa.Width / 12, wa.Top + wa.Height / 14, wa.Width * 10 / 12, wa.Height * 12 / 14), tool: false, resume: true);
         }
 
         /// <summary>One trade's review, next to the execution that was clicked.</summary>
@@ -81,7 +84,41 @@ namespace TradeJournal
             }, tool: true, keepPlace: false);
         }
 
-        private static void Show(string key, string url, string title, Point near, bool onTop, Func<Rectangle, Rectangle> place, bool tool, bool keepPlace = true)
+        private static readonly string StateDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RoninFlow");
+        private static string LastPageFile => Path.Combine(StateDir, "journal-window-page.txt");
+        private static string? LastPage() { try { var s = File.ReadAllText(LastPageFile).Trim(); return s.Length > 0 ? s : null; } catch { return null; } }
+        private static void SaveLastPage(string url) { try { Directory.CreateDirectory(StateDir); File.WriteAllText(LastPageFile, url); } catch { } }
+        private static string Origin(string url) { try { var u = new Uri(url); return u.GetLeftPart(UriPartial.Authority); } catch { return url; } }
+
+        [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+        [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+
+        /// <summary>
+        /// Clicking away tucks the window out of the way — the journal minimises, a trade review hides — unless focus went
+        /// to another RoninFlow window or to a dialog the page opened (a file picker for screenshots, say).
+        /// </summary>
+        private static void TuckAwayWhenLeft(Form f, bool tool)
+        {
+            var uiThread = GetCurrentThreadId();
+            f.Deactivate += async (_, _) =>
+            {
+                await System.Threading.Tasks.Task.Delay(180); // let the new foreground window settle
+                if (f.IsDisposed || !f.Visible || f.WindowState == FormWindowState.Minimized || Form.ActiveForm == f) return;
+                try
+                {
+                    var fg = GetForegroundWindow();
+                    var tid = GetWindowThreadProcessId(fg, out var pid);
+                    if (tid == uiThread) return; // another RoninFlow window (journal ↔ trade review)
+                    var name = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName;
+                    if (name.StartsWith("msedgewebview2", StringComparison.OrdinalIgnoreCase)) return; // the page's own dialog
+                }
+                catch { }
+                if (tool) f.Hide(); else f.WindowState = FormWindowState.Minimized;
+            };
+        }
+
+        private static void Show(string key, string url, string title, Point near, bool onTop, Func<Rectangle, Rectangle> place, bool tool, bool keepPlace = true, bool resume = false)
         {
             if (!EnsureThread()) { OpenInBrowser(url); return; }
             _ctx!.Post(async _ =>
@@ -95,7 +132,7 @@ namespace TradeJournal
                     if (Forms.TryGetValue(key, out var open) && !open.IsDisposed)
                     {
                         var view = (WebView2)open.Tag!;
-                        if (view.CoreWebView2 != null) view.CoreWebView2.Navigate(url);
+                        if (!resume && view.CoreWebView2 != null) view.CoreWebView2.Navigate(url); // the journal stays on the page you left it on
                         open.TopMost = onTop;
                         if (!keepPlace) open.Bounds = want; // a review jumps to the execution clicked
                         if (open.WindowState == FormWindowState.Minimized) open.WindowState = FormWindowState.Normal;
@@ -129,6 +166,7 @@ namespace TradeJournal
                     f.FormClosing += (_, _) => { if (f.WindowState == FormWindowState.Normal) LastBounds[key] = f.Bounds; };
                     f.FormClosed += (_, _) => { Forms.Remove(key); try { wv.Dispose(); } catch { } };
                     Forms[key] = f;
+                    TuckAwayWhenLeft(f, tool);
                     f.Show();
                     f.Activate();
 
@@ -169,6 +207,12 @@ namespace TradeJournal
                     core.WindowCloseRequested += (_, _) => f.Close();                         // the page's own close / “done” buttons
                     core.NewWindowRequested += (_, a) => { a.Handled = true; OpenInBrowser(a.Uri); }; // links out go to your browser
                     core.DocumentTitleChanged += (_, _) => { if (!tool && !string.IsNullOrWhiteSpace(core.DocumentTitle)) f.Text = core.DocumentTitle; };
+                    if (resume)
+                    {
+                        void Remember() { try { var src = core.Source; if (!src.Contains("/#/embed/", StringComparison.Ordinal)) SaveLastPage(src); } catch { } } // for next time
+                        core.HistoryChanged += (_, _) => Remember();
+                        core.SourceChanged += (_, _) => Remember();
+                    }
                     core.Navigate(url);
                 }
                 catch
