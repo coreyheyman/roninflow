@@ -244,7 +244,7 @@ export function StoreProvider({ children }) {
         setStorage((x) => (x.error ? { ...x, error: null } : x));
       } catch { /* offline for a moment */ }
     };
-    const id = setInterval(check, 4000);
+    const id = setInterval(check, 1500); // quick enough that a review saved from the chart window shows up here almost at once
     const onVis = () => !document.hidden && check();
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('focus', onVis);

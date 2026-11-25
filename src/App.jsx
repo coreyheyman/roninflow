@@ -32,6 +32,7 @@ import Correlation from './views/Correlation';
 import G10 from './views/G10';
 import Comparator from './views/Comparator';
 import Watchlist from './views/Watchlist';
+import EmbedTrade from './views/EmbedTrade';
 import { useEffect } from 'react';
 
 /** The Macro section: the category bar, then the page — opening Macro without a page goes back to the last one. */
@@ -113,6 +114,8 @@ function Router() {
     default:
       break;
   }
+  // one trade's review on its own, for the RoninFlow Suite's window over an ATAS chart
+  if (section === 'embed' && sub === 'trade' && !IS_VIEWER) return <EmbedTrade />;
   // a shared, view-only journal has its own frame (no editing, settings or connections)
   if (IS_VIEWER) return <ViewerLayout route={route}>{view}</ViewerLayout>;
   // first-run setup (only for a new, empty journal — waits until the server's copy has loaded)

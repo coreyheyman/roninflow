@@ -4,7 +4,9 @@
        Build and install from the RoninFlow folder with: npm run addon
        (it runs atas-addon\install.ps1, which finds ATAS X and passes its folder as ATAS_BASE). -->
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Windows Forms + WebView2 (both part of ATAS X) for the journal and trade-review windows over the chart -->
+    <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>JournalSync</AssemblyName>
     <RootNamespace>TradeJournal</RootNamespace>
     <LangVersion>latest</LangVersion>
@@ -22,6 +24,7 @@
     <Compile Include="RoninFlowHud.cs" />
     <Compile Include="RoninFlowHud.Extras.cs" />
     <Compile Include="RoninFlowHud.Block.cs" />
+    <Compile Include="RoninFlowWindows.cs" />
   </ItemGroup>
 
   <!-- Platform assemblies come from the installed ATAS X and are not copied to the output. -->
@@ -38,9 +41,13 @@
       <HintPath>$(ATAS_BASE)\OFT.Rendering.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <!-- FontStyle and DashStyle (bold text, dashed lines in the RoninFlow HUD) -->
-    <Reference Include="System.Drawing.Common">
-      <HintPath>$(ATAS_BASE)\System.Drawing.Common.dll</HintPath>
+    <!-- System.Drawing (FontStyle, DashStyle) now comes with Windows Forms from the Windows Desktop runtime ATAS X runs on -->
+    <Reference Include="Microsoft.Web.WebView2.Core">
+      <HintPath>$(ATAS_BASE)\Microsoft.Web.WebView2.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.WinForms">
+      <HintPath>$(ATAS_BASE)\Microsoft.Web.WebView2.WinForms.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="OFT.Attributes">

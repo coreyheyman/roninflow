@@ -78,6 +78,7 @@ namespace TradeJournal
         private bool _collapseInit;
         private Rectangle _statsRect = Rectangle.Empty;
         private Rectangle _accountRect = Rectangle.Empty;
+        private Rectangle _brandRect = Rectangle.Empty; // “RoninFlow” at the top of the account panel: opens the journal
         private NewsItem? _detail;                                   // the headline open in its pop-up
         private Rectangle _detailRect = Rectangle.Empty;
         private readonly List<(Rectangle Box, NewsItem Item)> _newsRows = new();
@@ -174,6 +175,14 @@ namespace TradeJournal
         [Display(Name = "Trade stats", GroupName = "What it shows", Order = 30)]
         [Tab(TabName = "Account", TabOrder = 2)]
         public bool ShowStats { get; set; } = true;
+
+        [Display(Name = "Click “RoninFlow” to open the journal over the chart", GroupName = "Journal window", Order = 35)]
+        [Tab(TabName = "Account", TabOrder = 2)]
+        public bool OpenJournalOnClick { get; set; } = true;
+
+        [Display(Name = "Journal and trade review windows stay on top of ATAS", GroupName = "Journal window", Order = 36)]
+        [Tab(TabName = "Account", TabOrder = 2)]
+        public bool JournalOnTop { get; set; } = true;
 
         [Display(Name = "GEX line: distance from the flip (updates live)", GroupName = "What it shows", Order = 33)]
         [Tab(TabName = "Account", TabOrder = 2)]
@@ -1194,6 +1203,16 @@ namespace TradeJournal
                 if (!_detailRect.Contains(e.Location)) { _detail = null; RedrawChart(); return true; } // a click outside closes it
                 return true;
             }
+            if (ShowAccount && OpenJournalOnClick && _brandRect.Contains(e.Location))
+            {
+                JournalWindows.ShowJournal(Root() + "/", JournalWindows.CursorScreen(), JournalOnTop);
+                return true;
+            }
+            if (ShowExecutions && ExecReview && ExecAt(e.Location) is Exec hit)
+            {
+                OpenTradeReview(hit);
+                return true;
+            }
             if (ShowNews && _newsHeader.Contains(e.Location))
             {
                 _newsCollapsed = !_newsCollapsed;
@@ -1244,7 +1263,8 @@ namespace TradeJournal
         {
             if ((ShowNews && _newsHeader.Contains(e.Location)) || (ShowAccount && ShowStats && _statsRect.Contains(e.Location)) || _closeBoxes.Any(b => b.Box.Contains(e.Location))
                 || _newsRows.Any(b => b.Box.Contains(e.Location)) || _detailButtons.Any(b => b.Box.Contains(e.Location)) || _popupBodies.Any(b => b.Box.Contains(e.Location) && b.Key.StartsWith("n:")) || (ShowHeatmap && HmShowButton && _hmButton.Contains(e.Location))
-                || (ShowAccount && _stateRect.Contains(e.Location)) || (_blockAsk && _blockButtons.Any(b => b.Box.Contains(e.Location))))
+                || (ShowAccount && _stateRect.Contains(e.Location)) || (_blockAsk && _blockButtons.Any(b => b.Box.Contains(e.Location)))
+                || (ShowAccount && OpenJournalOnClick && _brandRect.Contains(e.Location)) || (ShowExecutions && ExecReview && ExecAt(e.Location) != null))
                 return StdCursor.Hand;
             return base.GetCursor(e);
         }
@@ -1655,7 +1675,11 @@ namespace TradeJournal
 
             // header
             var cx = x + Txt(g, "Ronin", _bold, TextColor, x, y);
-            cx += Txt(g, "Flow", _bold, AccentColor, cx, y) + 8;
+            cx += Txt(g, "Flow", _bold, AccentColor, cx, y);
+            _brandRect = OpenJournalOnClick ? new Rectangle(x - 3, y - 3, cx - x + 6, lh + 6) : Rectangle.Empty;
+            if (OpenJournalOnClick && _brandRect.Contains(MouseLocationInfo?.LastPosition ?? Point.Empty))
+                g.DrawLine(new RenderPen(A(AccentColor, 180), 1), x, y + lh + 1, cx, y + lh + 1); // underlined on hover: it's a link
+            cx += 8;
             var id = portfolio?.AccountID ?? "no account";
             Txt(g, id.Length > 9 ? id.Substring(0, 4) + "•••" + id.Substring(id.Length - 3) : id, _font, MutedColor, cx, y);
             var state = s == null || (DateTime.UtcNow - s.At).TotalSeconds > 20 ? "offline" : blocked ? "blocked" : acct?.Paused == true ? "rules paused" : acct?.Enforcing == true ? "enforcing" : "live";

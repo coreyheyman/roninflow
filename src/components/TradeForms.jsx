@@ -197,7 +197,17 @@ function useWide() {
   return wide;
 }
 
-export function TradeDrawer({ trade, onClose, siblings = null, onNavigate }) {
+/** The drawer without its overlay, filling the page: the trade review in RoninFlow's window over an ATAS chart. */
+function EmbedShell({ onClose, children }) {
+  useEffect(() => {
+    const k = (e) => e.key === 'Escape' && !e.target.closest?.('input, textarea, select, [contenteditable="true"]') && onClose?.();
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [onClose]);
+  return <div className="drawer embed-drawer">{children}</div>;
+}
+
+export function TradeDrawer({ trade, onClose, siblings = null, onNavigate, embed = false }) {
   const { state, updateTrade, deleteTrades } = useStore();
   const [edit, setEdit] = useState(false);
   const [del, setDel] = useState(false);
@@ -217,7 +227,7 @@ export function TradeDrawer({ trade, onClose, siblings = null, onNavigate }) {
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
   }, [siblings, onNavigate]);
-  const wide = useWide();
+  const wide = useWide() && !embed; // in the chart window the chart is right there — no floating chart
   useEffect(() => { document.querySelectorAll('.drawer .drawer-scroll').forEach((el) => el.scrollTo?.(0, 0)); }, [trade?.id]);
   if (!trade || !live) return null;
   const t = live;
@@ -273,7 +283,8 @@ export function TradeDrawer({ trade, onClose, siblings = null, onNavigate }) {
   );
   return (
     <>
-      <Drawer open onClose={onClose}>
+      {(() => { const Shell = embed ? EmbedShell : Drawer; return (
+      <Shell open onClose={onClose}>
         <div key={`h-${t.id}`} className={`modal-head trade-slide ${slide}`} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 18 }}>
           <div>
             <div className="row gap12">
@@ -309,7 +320,7 @@ export function TradeDrawer({ trade, onClose, siblings = null, onNavigate }) {
             <Stat k="Fees" v={<Money v={t.fees || 0} />} />
             <Stat k="Account" v={<span className="truncate" style={{ display: 'block' }}>{acct?.name || t.accountId}</span>} />
           </div>
-          {t.entry && t.exit && t.symbol && !wide && <ExecChart focus={t} />}
+          {t.entry && t.exit && t.symbol && !wide && !embed && <ExecChart focus={t} />}
           {t.fills?.length > 1 && (
             <div className="field">
               <label className="label">Fills <span className="muted" style={{ fontWeight: 400 }}>— scaled entries / exits combined into this trade</span></label>
@@ -389,7 +400,8 @@ export function TradeDrawer({ trade, onClose, siblings = null, onNavigate }) {
             <button className="btn primary" onClick={markReviewed}><Check size={15} /> Mark as reviewed</button>
           )}
         </div>
-      </Drawer>
+      </Shell>
+      ); })()}
       <TradeFormModal open={edit} onClose={() => setEdit(false)} trade={t} />
       <Confirm open={del} title="Delete trade?" body="This trade will be permanently removed from your journal." onCancel={() => setDel(false)} onConfirm={() => { deleteTrades([t.id]); setDel(false); onClose(); toast('Trade deleted'); }} />
     </>

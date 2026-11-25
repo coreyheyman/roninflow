@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Drawing;
+using System.Globalization;
 using System.Linq;
 
 using ATAS.DataFeedsCore;
@@ -49,6 +50,10 @@ namespace TradeJournal
         [Tab(TabName = "Executions", TabOrder = 3)]
         [Range(0, 365)]
         public int ExecDays { get; set; } = 0;
+
+        [Display(Name = "Click an execution to review the trade (syncs with your journal)", GroupName = "Executions", Order = 304)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public bool ExecReview { get; set; } = true;
 
         [Display(Name = "Marker style", GroupName = "Markers", Order = 310)]
         [Tab(TabName = "Executions", TabOrder = 3)]
@@ -388,6 +393,33 @@ namespace TradeJournal
             public DateTime Open, Close;
             public decimal OpenPrice, ClosePrice, Qty, Net;
             public bool Long, Complete;
+            public string Account = "", Symbol = "";
+            public List<string> Ids = new(); // ATAS trade ids (several when the same trade is drawn once for every copy-traded account)
+        }
+
+        private volatile List<(Rectangle Box, Exec Trade)> _execHits = new();
+
+        /// <summary>The execution marker under a point on the chart, if any (the most recent one when they overlap).</summary>
+        private Exec? ExecAt(Point p)
+        {
+            var hits = _execHits;
+            for (var i = hits.Count - 1; i >= 0; i--)
+                if (hits[i].Box.Contains(p)) return hits[i].Trade;
+            return null;
+        }
+
+        /// <summary>The trade's review from your journal, in a window beside the marker.</summary>
+        private void OpenTradeReview(Exec e)
+        {
+            var q = new List<string>
+            {
+                "ids=" + Uri.EscapeDataString(string.Join(",", e.Ids)),
+                "acct=" + Uri.EscapeDataString(e.Account),
+                "sym=" + Uri.EscapeDataString(SymParts(e.Symbol).Root),
+                "t=" + Uri.EscapeDataString(e.Open.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)),
+                "p=" + e.OpenPrice.ToString(CultureInfo.InvariantCulture),
+            };
+            JournalWindows.ShowTrade(Root() + "/#/embed/trade?" + string.Join("&", q), JournalWindows.CursorScreen(), JournalOnTop);
         }
 
         private volatile List<Exec> _execs = new();
@@ -455,6 +487,7 @@ namespace TradeJournal
                 {
                     dup.Qty += Math.Abs(t.OpenVolume);
                     dup.Net += t.PnL - Math.Abs(t.Commission ?? 0m);
+                    dup.Ids.Add(t.Id.ToString());
                     continue;
                 }
                 var row = new Exec
@@ -467,7 +500,10 @@ namespace TradeJournal
                     Long = t.OpenVolume > 0,
                     Complete = t.IsComplete,
                     Net = t.PnL - Math.Abs(t.Commission ?? 0m),
+                    Account = acct,
+                    Symbol = t.Security?.Code ?? t.SecurityCode ?? "",
                 };
+                row.Ids.Add(t.Id.ToString());
                 if (all) seen[key] = row;
                 rows.Add(row);
             }
@@ -557,6 +593,9 @@ namespace TradeJournal
             var first = Math.Max(0, FirstVisibleBarNumber);
             var last = Math.Min(CurrentBar - 1, LastVisibleBarNumber);
             var labels = new List<Rectangle>();
+            var hits = new List<(Rectangle, Exec)>();
+            var hr = Math.Max(8, ExecSize); // a forgiving click target around each marker
+            void Hit(Exec e, int x, int y) { if (r.Contains(x, y)) hits.Add((new Rectangle(x - hr, y - hr, hr * 2, hr * 2), e)); }
 
             g.SetClip(r);
             try
@@ -578,12 +617,15 @@ namespace TradeJournal
                             g.DrawLine(e.Net >= 0 ? _execPenWin! : _execPenLoss!, x1, y1, x2, y2);
                         DrawMarker(g, x1, y1, e.Long, e.Qty);
                         DrawMarker(g, x2, y2, !e.Long, e.Qty);
+                        Hit(e, x1, y1);
+                        Hit(e, x2, y2);
                         if (ExecShowResult)
                             DrawResult(g, e, x2, y2, labels);
                     }
                     else
                     {
                         DrawMarker(g, x1, y1, e.Long, e.Qty);
+                        Hit(e, x1, y1);
                     }
                 }
 
@@ -619,6 +661,7 @@ namespace TradeJournal
             finally
             {
                 g.ResetClip();
+                _execHits = hits;
             }
         }
 
