@@ -266,11 +266,11 @@ namespace TradeJournal
         [Tab(TabName = "Candles", TabOrder = 7)]
         public Color CcPocColor { get; set; } = Color.FromArgb(255, 244, 244, 245);
 
-        [Display(Name = "Hide the native candles underneath (backfill)", GroupName = "Native candles", Order = 750)]
+        [Display(Name = "Backfill behind the bodies (hides the native bodies)", GroupName = "Native candles", Order = 750)]
         [Tab(TabName = "Candles", TabOrder = 7)]
         public bool CcMask { get; set; } = true;
 
-        [Display(Name = "Chart background colour (used for the backfill and hollow bodies)", GroupName = "Native candles", Order = 751)]
+        [Display(Name = "Body backfill colour (match your chart background)", GroupName = "Native candles", Order = 751)]
         [Tab(TabName = "Candles", TabOrder = 7)]
         public Color CcMaskColor { get; set; } = Color.FromArgb(255, 10, 10, 10);
 
@@ -278,6 +278,14 @@ namespace TradeJournal
         [Tab(TabName = "Candles", TabOrder = 7)]
         [Range(0, 6)]
         public int CcMaskMargin { get; set; } = 1;
+
+        [Display(Name = "Backfill behind the wicks (hides the native wicks)", GroupName = "Native candles", Order = 753)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        public bool CcMaskWicks { get; set; } = true;
+
+        [Display(Name = "Wick backfill colour (match your chart background)", GroupName = "Native candles", Order = 754)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        public Color CcMaskWickColor { get; set; } = Color.FromArgb(255, 10, 10, 10);
 
         [Display(Name = "Show live price line", GroupName = "Live price line", Order = 760)]
         [Tab(TabName = "Candles", TabOrder = 7)]
@@ -579,22 +587,23 @@ namespace TradeJournal
             {
                 // pass 1 — backfill: paint over every native candle first, so nothing we draw next (glow, 3D sides
                 // reaching into the neighbour) gets cut off by the next candle's backfill
-                if (CcMask)
+                if (CcMask || CcMaskWicks)
                 {
                     // ATAS's own candle reaches a pixel or so past the bar width (its outline sits on the outer edge),
                     // so the backfill covers the native box plus a margin — otherwise its outline peeks out around
-                    // arrows, gems and pills
+                    // arrows, gems and pills. Bodies and wicks each have their own switch and colour.
                     var m = CcMaskMargin;
                     foreach (var b in bars)
                     {
                         if (b.Width < 0) continue;
-                        g.FillRectangle(CcMaskColor, new Rectangle(b.NativeLeft - m, b.Top - m, b.NativeWidth + m * 2, b.Bottom - b.Top + 1 + m * 2));
-                        if (b.Low > b.High) // the native wick too — faded or see-through wicks would show it otherwise
+                        if (CcMaskWicks && b.Low > b.High)
                         {
                             var ww = Math.Max(3, CcWickWidth + 2) + m * 2;
                             var nc = b.NativeLeft + b.NativeWidth / 2;
-                            g.FillRectangle(CcMaskColor, new Rectangle(nc - ww / 2, b.High - m, ww, b.Low - b.High + 1 + m * 2));
+                            g.FillRectangle(CcMaskWickColor, new Rectangle(nc - ww / 2, b.High - m, ww, b.Low - b.High + 1 + m * 2));
                         }
+                        if (CcMask)
+                            g.FillRectangle(CcMaskColor, new Rectangle(b.NativeLeft - m, b.Top - m, b.NativeWidth + m * 2, b.Bottom - b.Top + 1 + m * 2));
                     }
                 }
 
