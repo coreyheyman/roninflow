@@ -24,6 +24,7 @@
     <Compile Include="RoninFlowHud.cs" />
     <Compile Include="RoninFlowHud.Extras.cs" />
     <Compile Include="RoninFlowHud.Block.cs" />
+    <Compile Include="RoninFlowHud.Candles.cs" />
     <Compile Include="RoninFlowWindows.cs" />
   </ItemGroup>
 

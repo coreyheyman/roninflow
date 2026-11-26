@@ -3,7 +3,7 @@
 //     trade's result at the exit and the open position's average price.
 //   * Heatmap: resting limit orders from the DOM drawn like an order-book heatmap, behind or over the candles, with
 //     an on/off button on the chart.
-//   * Candles: restyled candles drawn pixel-for-pixel over the native ones, with an optional body mask.
+//   * Candles: see RoninFlowHud.Candles.cs.
 
 using System;
 using System.Collections.Generic;
@@ -30,7 +30,6 @@ namespace TradeJournal
         public enum ExecResult { Money, Ticks, Points }
         public enum HmPalette { Bookmap, Thermal, Ocean, Mono, Custom }
         public enum HmScaling { Logarithmic, Linear }
-        public enum CandleBody { Filled, Hollow, HollowBullsOnly }
 
         #region Settings — executions
 
@@ -273,102 +272,6 @@ namespace TradeJournal
         [Tab(TabName = "Heatmap", TabOrder = 6)]
         [Range(-3000, 3000)]
         public int HmButtonY { get; set; } = 60;
-
-        #endregion
-
-        #region Settings — candles
-
-        [Display(Name = "Restyle the candles", GroupName = "Candles", Order = 700)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public bool ShowCandles { get; set; } = false;
-
-        [Display(Name = "Bullish body", GroupName = "Bullish", Order = 710)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public Color CcBullBody { get; set; } = Color.FromArgb(255, 38, 166, 154);
-
-        [Display(Name = "Bullish border", GroupName = "Bullish", Order = 711)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public Color CcBullBorder { get; set; } = Color.FromArgb(255, 38, 166, 154);
-
-        [Display(Name = "Bullish wick", GroupName = "Bullish", Order = 712)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public Color CcBullWick { get; set; } = Color.FromArgb(255, 38, 166, 154);
-
-        [Display(Name = "Bearish body", GroupName = "Bearish", Order = 720)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public Color CcBearBody { get; set; } = Color.FromArgb(255, 156, 77, 204);
-
-        [Display(Name = "Bearish border", GroupName = "Bearish", Order = 721)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public Color CcBearBorder { get; set; } = Color.FromArgb(255, 156, 77, 204);
-
-        [Display(Name = "Bearish wick", GroupName = "Bearish", Order = 722)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public Color CcBearWick { get; set; } = Color.FromArgb(255, 156, 77, 204);
-
-        [Display(Name = "Doji (open = close)", GroupName = "Bearish", Order = 723)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public Color CcDoji { get; set; } = Color.FromArgb(255, 139, 139, 143);
-
-        private double _ccOpacity = 1.0;
-        [Display(Name = "Body opacity (0–1)", GroupName = "Shape", Order = 730)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        [Range(0.0, 1.0)]
-        public double CcOpacity { get => _ccOpacity; set => _ccOpacity = Math.Clamp(value, 0.0, 1.0); }
-
-        [Display(Name = "Body style", GroupName = "Shape", Order = 731)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public CandleBody CcStyle { get; set; } = CandleBody.Filled;
-
-        [Display(Name = "Draw borders", GroupName = "Shape", Order = 732)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public bool CcBorders { get; set; } = true;
-
-        [Display(Name = "Border thickness", GroupName = "Shape", Order = 733)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        [Range(1, 5)]
-        public int CcBorderWidth { get; set; } = 1;
-
-        [Display(Name = "Wick thickness", GroupName = "Shape", Order = 734)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        [Range(1, 5)]
-        public int CcWickWidth { get; set; } = 1;
-
-        [Display(Name = "Body inset each side (px, 0 = same as native)", GroupName = "Shape", Order = 735)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        [Range(0, 20)]
-        public int CcInset { get; set; } = 0;
-
-        [Display(Name = "X nudge (px)", GroupName = "Shape", Order = 736)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        [Range(-20, 20)]
-        public int CcOffsetX { get; set; } = 0;
-
-        [Display(Name = "Hide the native candle body underneath", GroupName = "Native candles", Order = 740)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public bool CcMask { get; set; } = true;
-
-        [Display(Name = "Chart background colour (for hiding them)", GroupName = "Native candles", Order = 741)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public Color CcMaskColor { get; set; } = Color.FromArgb(255, 10, 10, 10);
-
-        [Display(Name = "Show live price line", GroupName = "Live price line", Order = 750)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public bool CcPriceLine { get; set; } = false;
-
-        [Display(Name = "Line thickness", GroupName = "Live price line", Order = 751)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        [Range(1, 10)]
-        public int CcPriceLineWidth { get; set; } = 1;
-
-        [Display(Name = "Line opacity (%)", GroupName = "Live price line", Order = 752)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        [Range(10, 100)]
-        public int CcPriceLineOpacity { get; set; } = 70;
-
-        [Display(Name = "Start the line at the live candle (not the left edge)", GroupName = "Live price line", Order = 753)]
-        [Tab(TabName = "Candles", TabOrder = 7)]
-        public bool CcLineFromCandle { get; set; } = false;
 
         #endregion
 
@@ -1056,109 +959,6 @@ namespace TradeJournal
             }
             var ts = g.MeasureString(text, _hmFont);
             g.DrawString(text, _hmFont, on ? TextColor : MutedColor, sw.Right + gap, p.Y + (h - ts.Height) / 2);
-        }
-
-        // ======================================================================================================
-        // candles (drawn on exactly the pixels ATAS uses for its own candles)
-        // ======================================================================================================
-
-        private RenderPen? _ccBullBorder, _ccBearBorder, _ccDojiPen, _ccBullWick, _ccBearWick;
-        private string _ccPenKey = "";
-
-        private void CandlePens()
-        {
-            var key = $"{CcBullBorder.ToArgb()}|{CcBearBorder.ToArgb()}|{CcDoji.ToArgb()}|{CcBullWick.ToArgb()}|{CcBearWick.ToArgb()}|{CcBorderWidth}|{CcWickWidth}";
-            if (key == _ccPenKey) return;
-            _ccPenKey = key;
-            _ccBullBorder = new RenderPen(CcBullBorder, CcBorderWidth);
-            _ccBearBorder = new RenderPen(CcBearBorder, CcBorderWidth);
-            _ccDojiPen = new RenderPen(CcDoji, Math.Max(CcBorderWidth, CcWickWidth));
-            _ccBullWick = new RenderPen(CcBullWick, CcWickWidth);
-            _ccBearWick = new RenderPen(CcBearWick, CcWickWidth);
-        }
-
-        private static Color WithOpacity(Color c, double opacity) => Color.FromArgb((int)Math.Round(Math.Clamp(opacity, 0, 1) * c.A), c.R, c.G, c.B);
-
-        private void DrawCandles(RenderContext g)
-        {
-            if (CurrentBar <= 0) return;
-            CandlePens();
-            var region = Container.Region;
-            var barWidthExact = ChartInfo.PriceChartContainer.BarsWidth;
-            var first = Math.Max(0, FirstVisibleBarNumber);
-            var last = Math.Min(CurrentBar - 1, LastVisibleBarNumber);
-
-            g.SetClip(region);
-            try
-            {
-                for (var i = first; i <= last; i++)
-                {
-                    var candle = GetCandle(i);
-                    if (candle == null) continue;
-
-                    var bull = candle.Close > candle.Open;
-                    var doji = candle.Close == candle.Open;
-
-                    var left = ChartInfo.GetXByBar(i, true) + CcOffsetX;
-                    var width = Math.Max(1, (int)Math.Round(barWidthExact));
-                    if (width > 2 && width % 2 == 0) width--; // an odd width has a true middle pixel for the wick
-                    var center = left + width / 2;
-
-                    var high = ChartInfo.GetYByPrice(candle.High, false);
-                    var low = ChartInfo.GetYByPrice(candle.Low, false);
-                    var openY = ChartInfo.GetYByPrice(candle.Open, false);
-                    var closeY = ChartInfo.GetYByPrice(candle.Close, false);
-                    var top = Math.Min(openY, closeY);
-                    var bottom = Math.Max(openY, closeY);
-
-                    if (CcMask && !doji)
-                        g.FillRectangle(CcMaskColor, new Rectangle(left + CcInset, top, Math.Max(1, width - CcInset * 2), Math.Max(1, bottom - top)));
-
-                    var wick = doji ? _ccDojiPen! : bull ? _ccBullWick! : _ccBearWick!;
-                    var border = doji ? _ccDojiPen! : bull ? _ccBullBorder! : _ccBearBorder!;
-
-                    if (width <= 2)
-                    {
-                        g.DrawLine(wick, center, high, center, Math.Max(low, high + 1));
-                        continue;
-                    }
-
-                    var bodyLeft = left + CcInset;
-                    var bodyWidth = Math.Max(1, width - CcInset * 2);
-                    var bodyHeight = Math.Max(1, bottom - top);
-
-                    if (high < top) g.DrawLine(wick, center, high, center, top);
-                    if (low > bottom) g.DrawLine(wick, center, bottom, center, low);
-
-                    if (doji)
-                    {
-                        g.DrawLine(_ccDojiPen!, bodyLeft, top, bodyLeft + bodyWidth - 1, top);
-                        continue;
-                    }
-
-                    var hollow = CcStyle == CandleBody.Hollow || (CcStyle == CandleBody.HollowBullsOnly && bull);
-                    if (!hollow)
-                        g.FillRectangle(WithOpacity(bull ? CcBullBody : CcBearBody, CcOpacity), new Rectangle(bodyLeft, top, bodyWidth, bodyHeight));
-                    if (CcBorders || hollow)
-                        g.DrawRectangle(border, new Rectangle(bodyLeft, top, Math.Max(1, bodyWidth - 1), Math.Max(1, bodyHeight - 1)));
-                }
-
-                if (CcPriceLine)
-                {
-                    var live = GetCandle(CurrentBar - 1);
-                    if (live != null)
-                    {
-                        var c = live.Close > live.Open ? CcBullBorder : live.Close < live.Open ? CcBearBorder : CcDoji;
-                        var y = ChartInfo.GetYByPrice(live.Close, false);
-                        var x1 = CcLineFromCandle ? ChartInfo.GetXByBar(CurrentBar - 1, true) + (int)Math.Round(barWidthExact) + 2 : region.Left;
-                        g.DrawLine(new RenderPen(WithOpacity(c, CcPriceLineOpacity / 100.0), CcPriceLineWidth, System.Drawing.Drawing2D.DashStyle.Dash), x1, y, region.Right, y);
-                    }
-                }
-            }
-            finally
-            {
-                g.ResetClip();
-            }
         }
     }
 }

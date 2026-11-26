@@ -2,6 +2,17 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## Unreleased
+
+- **Custom candles, rebuilt** (RoninFlow Suite for ATAS, Candles tab):
+  - **24 templates**, each giving the whole look in one pick: Classic, Hollow up / filled down, Diagonal stripes, Shapes inside, Gradient body, Neon glow, Volume-weighted fill, Buy / sell split, Dot pattern, Rounded pills, Open / close ticks, Pattern highlights, Arrow bodies, Hex / gem, Corner brackets, Double border, Scanlines, Chevron fill, Capped wicks, Range ghost, Close-in-range fill, POC marker, Momentum heat and 3D extruded.
+  - **Separate up and down candle styles and outlines.** Shape, wicks, markers and pattern highlights can each override the template too; "From template" keeps the template's choice.
+  - **Colours:** body, border, wick and pattern colours for each side, plus doji, middle-close, inside-bar, engulfing-outline and POC-dot colours.
+  - **Wicks never cross a body.**
+  - **Backfill:** the native candle under each one, wick included, is painted over first, so hollow bodies and non-square shapes never show it.
+  - **Follows the zoom:** spacing, glow, depth and marker sizes scale with the candle. Detail steps down cleanly as candles shrink.
+  - **Real order flow:** the volume, buy / sell and POC styles use ATAS's volume, bid/ask and most-traded price for each bar.
+
 ## 2.2.2
 
 - **Contract Rolls (Macro → Tools):** for every market you trade (picked up from your journal; add others yourself), the contract to be in today, the next one, the roll date and the last trading / first notice day on a timeline, and the last session's volume of both contracts side by side. Covers stock indices and their micros, energy, metals, Treasuries, currencies, grains and CME crypto, with US exchange holidays.
