@@ -274,6 +274,11 @@ namespace TradeJournal
         [Tab(TabName = "Candles", TabOrder = 7)]
         public Color CcMaskColor { get; set; } = Color.FromArgb(255, 10, 10, 10);
 
+        [Display(Name = "Backfill margin (px past the native candle — raise it if a native outline still peeks out)", GroupName = "Native candles", Order = 752)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        [Range(0, 6)]
+        public int CcMaskMargin { get; set; } = 1;
+
         [Display(Name = "Show live price line", GroupName = "Live price line", Order = 760)]
         [Tab(TabName = "Candles", TabOrder = 7)]
         public bool CcPriceLine { get; set; } = false;
@@ -399,7 +404,7 @@ namespace TradeJournal
 
         private struct CcBar
         {
-            public int Left, Width, Center, High, Low, OpenY, CloseY, Top, Bottom, PocY;
+            public int Left, Width, Center, High, Low, OpenY, CloseY, Top, Bottom, PocY, NativeLeft, NativeWidth;
             public bool Bull, Doji, Inside, Engulf;
             public double Volume, BuyShare, BodySize, RangePos;
         }
@@ -530,7 +535,9 @@ namespace TradeJournal
                 ref var b = ref bars[i - first];
                 b.Width = -1;
                 if (c == null) continue;
-                b.Left = ChartInfo.GetXByBar(i, true) + CcOffsetX;
+                b.NativeLeft = ChartInfo.GetXByBar(i, true);            // where ATAS draws its own candle (no nudge)
+                b.NativeWidth = Math.Max(1, (int)Math.Ceiling(barWidthExact));
+                b.Left = b.NativeLeft + CcOffsetX;
                 b.Width = Math.Max(1, (int)Math.Round(barWidthExact));
                 if (b.Width > 2 && b.Width % 2 == 0) b.Width--; // an odd width has a true middle pixel for the wick
                 b.Center = b.Left + b.Width / 2;
@@ -574,15 +581,19 @@ namespace TradeJournal
                 // reaching into the neighbour) gets cut off by the next candle's backfill
                 if (CcMask)
                 {
+                    // ATAS's own candle reaches a pixel or so past the bar width (its outline sits on the outer edge),
+                    // so the backfill covers the native box plus a margin — otherwise its outline peeks out around
+                    // arrows, gems and pills
+                    var m = CcMaskMargin;
                     foreach (var b in bars)
                     {
                         if (b.Width < 0) continue;
-                        if (!b.Doji && b.Bottom > b.Top)
-                            g.FillRectangle(CcMaskColor, new Rectangle(b.Left, b.Top, b.Width, b.Bottom - b.Top + 1));
+                        g.FillRectangle(CcMaskColor, new Rectangle(b.NativeLeft - m, b.Top - m, b.NativeWidth + m * 2, b.Bottom - b.Top + 1 + m * 2));
                         if (b.Low > b.High) // the native wick too — faded or see-through wicks would show it otherwise
                         {
-                            var ww = Math.Max(3, CcWickWidth + 2);
-                            g.FillRectangle(CcMaskColor, new Rectangle(b.Center - ww / 2, b.High, ww, b.Low - b.High + 1));
+                            var ww = Math.Max(3, CcWickWidth + 2) + m * 2;
+                            var nc = b.NativeLeft + b.NativeWidth / 2;
+                            g.FillRectangle(CcMaskColor, new Rectangle(nc - ww / 2, b.High - m, ww, b.Low - b.High + 1 + m * 2));
                         }
                     }
                 }
