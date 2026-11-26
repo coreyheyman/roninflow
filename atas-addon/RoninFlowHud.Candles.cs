@@ -116,6 +116,13 @@ namespace TradeJournal
             [Display(Name = "Off")] Off,
         }
 
+        public enum CandleTagColor
+        {
+            [Display(Name = "Candle body colour")] Body,
+            [Display(Name = "Candle border colour")] Border,
+            [Display(Name = "Custom")] Custom,
+        }
+
         #region Settings — candles
 
         [Display(Name = "Restyle the candles", GroupName = "Candles", Order = 700)]
@@ -266,6 +273,39 @@ namespace TradeJournal
         [Display(Name = "Start the line at the live candle (not the left edge)", GroupName = "Live price line", Order = 763)]
         [Tab(TabName = "Candles", TabOrder = 7)]
         public bool CcLineFromCandle { get; set; } = false;
+
+        [Display(Name = "Paint the live price tag on the price scale", GroupName = "Price scale tag", Order = 770)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        public bool CcAxisTag { get; set; } = true;
+
+        [Display(Name = "Tag colour", GroupName = "Price scale tag", Order = 771)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        public CandleTagColor CcAxisTagSource { get; set; } = CandleTagColor.Body;
+
+        [Display(Name = "Custom colour when up", GroupName = "Price scale tag", Order = 772)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        public Color CcAxisTagUp { get; set; } = Color.FromArgb(255, 38, 166, 154);
+
+        [Display(Name = "Custom colour when down", GroupName = "Price scale tag", Order = 773)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        public Color CcAxisTagDown { get; set; } = Color.FromArgb(255, 156, 77, 204);
+
+        [Display(Name = "Pick the text colour automatically (black or white)", GroupName = "Price scale tag", Order = 774)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        public bool CcAxisTagAutoText { get; set; } = true;
+
+        [Display(Name = "Text colour", GroupName = "Price scale tag", Order = 775)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        public Color CcAxisTagText { get; set; } = Color.White;
+
+        [Display(Name = "Extra height (px, covers the native tag)", GroupName = "Price scale tag", Order = 776)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        [Range(0, 12)]
+        public int CcAxisTagPad { get; set; } = 3;
+
+        [Display(Name = "Pointer on the left edge", GroupName = "Price scale tag", Order = 777)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        public bool CcAxisTagPointer { get; set; } = false;
 
         #endregion
 
@@ -551,6 +591,61 @@ namespace TradeJournal
             finally
             {
                 g.ResetClip();
+            }
+
+            if (CcAxisTag)
+                try { CcDrawAxisTag(g); } catch { /* the scale tag is decoration; never break the chart */ }
+        }
+
+        /// <summary>
+        /// The live price on the price scale, painted in the candles' own colours over ATAS's native tag (which keeps
+        /// the native candle colours). Full scale width and a little taller than the native one, so it's covered.
+        /// </summary>
+        private void CcDrawAxisTag(RenderContext g)
+        {
+            var live = GetCandle(CurrentBar - 1);
+            if (live == null) return;
+            var up = live.Close >= live.Open;
+            if (live.Close == live.Open && CurrentBar > 1) up = live.Close >= GetCandle(CurrentBar - 2).Close; // doji: against the last close
+            var fill = CcAxisTagSource switch
+            {
+                CandleTagColor.Border => up ? CcBullBorder : CcBearBorder,
+                CandleTagColor.Custom => up ? CcAxisTagUp : CcAxisTagDown,
+                _ => up ? CcBullBody : CcBearBody,
+            };
+            fill = Color.FromArgb(255, fill.R, fill.G, fill.B); // a see-through tag would show the native one under it
+            var ink = CcAxisTagAutoText ? (fill.R * 0.299 + fill.G * 0.587 + fill.B * 0.114 > 150 ? Color.Black : Color.White) : CcAxisTagText;
+
+            var font = ChartInfo.PriceAxisFont;
+            var text = ChartInfo.GetPriceString(live.Close);
+            var size = g.MeasureString(text, font);
+            var x = ChartInfo.PriceChartContainer.Region.Right;
+            var right = ChartInfo.ChartContainer.Region.Right;
+            if (right - x < 8) return; // no price scale showing
+            var y = ChartInfo.GetYByPrice(live.Close, false);
+            var half = size.Height / 2 + CcAxisTagPad;
+            var chart = ChartInfo.PriceChartContainer.Region;
+            if (y < chart.Top - half || y > chart.Bottom + half) return; // price is off screen
+
+            var tip = CcAxisTagPointer ? Math.Max(3, half) : 0;
+            var bounds = g.ClipBounds;
+            g.ResetClip();
+            try
+            {
+                if (tip > 0)
+                {
+                    g.FillPolygon(fill, new[] { new Point(x, y), new Point(x + tip, y - half), new Point(right, y - half), new Point(right, y + half), new Point(x + tip, y + half) });
+                }
+                else
+                {
+                    g.FillRectangle(fill, new Rectangle(x, y - half, right - x, half * 2 + 1), 2);
+                }
+                var tx = x + tip + Math.Max(3, (right - x - tip - size.Width) / 2);
+                g.DrawString(text, font, ink, tx, y - size.Height / 2);
+            }
+            finally
+            {
+                g.SetClip(bounds);
             }
         }
 
