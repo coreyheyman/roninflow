@@ -2,12 +2,14 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
-## 2.3.0
+## 2.2.2
 
 - **Contract Rolls (Macro → Tools):** for every market you trade (picked up from your journal; add others yourself), the contract to be in today, the next one, the roll date and the last trading / first notice day on a timeline, and the last session's volume of both contracts side by side. Covers stock indices and their micros, energy, metals, Treasuries, currencies, grains and CME crypto, with US exchange holidays.
 - **Told when to switch, by where the volume is:** as soon as the next contract trades more than the current one (each session's volume per contract month, from Yahoo Finance), RoninFlow says switch — often a day or two before the calendar date for gold, crude or bonds. The exchange's roll date is the early warning (from 5 days out) and the backstop when volume data isn't available.
 - **Roll reminder in the journal:** a one-line banner when a market you trade is about to roll, has just rolled, or your last trade was on the old contract. Dismiss it per roll, or turn it off on the Contract Rolls page.
 - **Roll reminder on your chart (ATAS Suite → Account → Contract roll):** the account panel shows “Contract roll: switch to NQH7 in 3 days” and, once volume has moved, “Switch to NQH7 — it now trades more than NQZ6 (62% of volume)”, with a pop-up the morning it matters. Click it to open Contract Rolls.
+
+**Updating:** restart RoninFlow; for the reminder on your chart, reinstall the ATAS add-on with ATAS closed (`npm run addon`).
 
 ## 2.2.1
 
