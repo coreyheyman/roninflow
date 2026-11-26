@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import { createCandleHandler } from './candles.js';
 import { createMacroHandler } from './macro.js';
 import { createFredHandler } from './fred.js';
+import { rollVolume } from './rollvol.js';
 import { createGexHandler, futuresFromCandles } from './gex.js';
 import { createNewsHandler } from './news.js';
 import { createShotsHandler } from './shots.js';
@@ -410,7 +411,7 @@ export default function localApiPlugin() {
     server.middlewares.use('/api/net', (req, res, next) => net(req, res, next, ctx(req)));
     server.middlewares.use('/api/candles', (req, res) => candles(req, res));
     server.middlewares.use('/api/shots', (req, res) => shots(Object.assign(req, { url: req.originalUrl }), res));
-    server.middlewares.use('/api/macro', (req, res) => (req.originalUrl?.startsWith('/api/macro/gex') ? gex(Object.assign(req, { url: req.originalUrl }), res) : req.originalUrl?.startsWith('/api/macro/news') ? news(Object.assign(req, { url: req.originalUrl }), res) : req.originalUrl?.startsWith('/api/macro/fred') ? fred(Object.assign(req, { url: req.originalUrl }), res) : macro(req, res)));
+    server.middlewares.use('/api/macro', (req, res) => (req.originalUrl?.startsWith('/api/macro/gex') ? gex(Object.assign(req, { url: req.originalUrl }), res) : req.originalUrl?.startsWith('/api/macro/news') ? news(Object.assign(req, { url: req.originalUrl }), res) : req.originalUrl?.startsWith('/api/macro/fred') ? fred(Object.assign(req, { url: req.originalUrl }), res) : req.originalUrl?.startsWith('/api/macro/rolls') ? rollVolume.handler(Object.assign(req, { url: req.originalUrl }), res) : macro(req, res)));
     server.middlewares.use('/api/connect', (req, res) => connect(req, res, { trusted: true, loopback: true }));
   };
   return { name: 'tj-local-api', configureServer: mount, configurePreviewServer: mount };

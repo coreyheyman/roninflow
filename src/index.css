@@ -3303,3 +3303,55 @@ tr.click { cursor: pointer; }
 .win-btn.on { color: var(--primary); }
 .win-btn.close:hover { background: #e5484d; color: #fff; }
 .host-trade .modal-head .win-ctl { border-left: 0; padding-left: 0; margin-left: 0; }
+
+/* contract rolls */
+.storage-banner.neg-b { background: var(--neg-bg); color: var(--fg); }
+.roll-banner b { font-weight: 600; }
+.roll-banner > svg { flex-shrink: 0; color: var(--warn); }
+.roll-banner.neg-b > svg { color: var(--neg); }
+.roll-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; }
+.roll-card { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.roll-card.ph-roll, .roll-card.ph-expired { border-color: color-mix(in srgb, var(--neg) 45%, var(--border)); }
+.roll-card.ph-soon, .roll-card.ph-rolled { border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); }
+.roll-head { display: flex; align-items: center; gap: 10px; }
+.roll-head > div { flex: 1; min-width: 0; font-size: 13px; }
+.roll-root { font-size: 17px; margin-right: 4px; }
+.cr-status { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; font-size: 11.5px; font-weight: 600; border-radius: 999px; white-space: nowrap; }
+.cr-status.ok { color: var(--pos); background: color-mix(in srgb, var(--pos) 12%, transparent); }
+.cr-status.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.cr-status.bad { color: var(--neg); background: var(--neg-bg); }
+.roll-now { display: flex; align-items: center; gap: 16px; padding: 12px 14px; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.roll-now > div { display: flex; flex-direction: column; gap: 2px; }
+.roll-now small { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.roll-now b { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+.roll-now span { font-size: 12px; }
+.roll-warn { display: flex; gap: 8px; align-items: flex-start; padding: 9px 11px; font-size: 12.5px; line-height: 1.45; border-radius: var(--r-sm); }
+.roll-warn svg { flex-shrink: 0; margin-top: 2px; }
+.roll-warn.warn { background: color-mix(in srgb, var(--warn) 10%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); } .roll-warn.warn svg { color: var(--warn); }
+.roll-warn.bad { background: var(--neg-bg); border: 1px solid color-mix(in srgb, var(--neg) 35%, transparent); } .roll-warn.bad svg { color: var(--neg); }
+.roll-line { position: relative; height: 40px; margin: 4px 6px 0; }
+.roll-track { position: absolute; left: 0; right: 0; top: 18px; height: 4px; border-radius: 2px; background: var(--card-3); overflow: hidden; }
+.roll-track i { display: block; height: 100%; background: color-mix(in srgb, var(--primary) 55%, transparent); }
+.roll-mark { position: absolute; top: 14px; width: 2px; height: 12px; margin-left: -1px; background: var(--muted-2); }
+.roll-mark b { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font-size: 10.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.roll-mark.roll { background: var(--warn); } .roll-mark.roll b { color: var(--warn); }
+.roll-mark.last { background: var(--neg); } .roll-mark.last b { color: var(--neg); }
+.roll-today { position: absolute; top: 12px; width: 10px; height: 10px; margin-left: -5px; margin-top: 1px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent); }
+.roll-today b { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 10.5px; color: var(--primary); white-space: nowrap; }
+.roll-facts { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 0; font-size: 13px; }
+.roll-facts > div { display: flex; justify-content: space-between; gap: 10px; }
+.roll-facts dt { color: var(--muted); }
+.roll-facts dd { margin: 0; text-align: right; }
+.roll-rule { font-size: 12px; line-height: 1.5; margin: 0; }
+@media (max-width: 760px) { .roll-grid { grid-template-columns: 1fr; } .roll-now b { font-size: 19px; } .storage-banner.roll-banner { flex-wrap: wrap; padding: 9px 14px; } }
+.roll-toggle { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--fg-2); cursor: pointer; margin-right: 6px; }
+.roll-vol { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); font-size: 12.5px; }
+.roll-vol-head { display: flex; justify-content: space-between; color: var(--muted); font-size: 11.5px; }
+.roll-vol-head .pos { font-weight: 600; }
+.roll-vol-row { display: grid; grid-template-columns: 64px 1fr 60px; align-items: center; gap: 10px; color: var(--fg-2); }
+.roll-vol-row.lead { color: var(--fg); }
+.roll-vol-bar { height: 8px; border-radius: 4px; background: var(--card-3); overflow: hidden; }
+.roll-vol-bar i { display: block; height: 100%; background: var(--muted-2); border-radius: 4px; }
+.roll-vol-row.lead .roll-vol-bar i { background: var(--primary); }
+.roll-vol-n { text-align: right; font-variant-numeric: tabular-nums; }
+.roll-vol-today { font-size: 11.5px; }

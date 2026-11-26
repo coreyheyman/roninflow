@@ -53,7 +53,8 @@ namespace TradeJournal
         private sealed class Level { public decimal Price; public string Kind = ""; }
         private sealed class Gex { public string Index = "", Zone = "", Error = ""; public decimal Total; public decimal? Flip, CallWall, PutWall; public List<Level> Pos = new(), Neg = new(); public bool Delayed; public long At; }
         private sealed class AccountInfo { public string TierName = "", TierColor = ""; public int Level, Of; public decimal DailyLoss, Trail, Target; public int MaxTrades; public bool TargetOpen = true, FlattenLoss, FlattenTarget; public bool Enforced, Enforcing, Blocked, Windowed, InWindow = true, ManualLock, Paused; public string Reason = ""; public int? WindowMin; }
-        private sealed class Snapshot { public long DayStartUtc; public string Market = ""; public AccountInfo? Account; public Gex? Gex; public List<EventItem> Events = new(); public List<NewsItem> News = new(); public string Error = ""; public DateTime At; public bool Enforcer; }
+        private sealed class RollInfo { public string Symbol = "", Phase = "", To = "", LastLabel = "", Reason = ""; public long RollAt, LastAt; public int Days; public int? Share; }
+        private sealed class Snapshot { public RollInfo? Roll; public long DayStartUtc; public string Market = ""; public AccountInfo? Account; public Gex? Gex; public List<EventItem> Events = new(); public List<NewsItem> News = new(); public string Error = ""; public DateTime At; public bool Enforcer; }
         private sealed class DayStats { public decimal Realised, Peak, AvgWin, AvgLoss, Best, Worst, GrossWin, GrossLoss; public int Trades, Wins, Losses; }
         private sealed class PosRow { public string Account = "", Code = ""; public decimal Volume; public decimal? Pnl; }
         private sealed class Popup { public string Key = "", Kind = "news", Meta = "", Title = "", Impact = ""; public List<Tag> Tags = new(); public string[]? Nums; public DateTime Shown; }
@@ -79,6 +80,7 @@ namespace TradeJournal
         private Rectangle _statsRect = Rectangle.Empty;
         private Rectangle _accountRect = Rectangle.Empty;
         private Rectangle _brandRect = Rectangle.Empty; // “RoninFlow” at the top of the account panel: opens the journal
+        private Rectangle _rollRect = Rectangle.Empty;  // the contract-roll reminder: opens Macro → Contract Rolls
         private NewsItem? _detail;                                   // the headline open in its pop-up
         private Rectangle _detailRect = Rectangle.Empty;
         private readonly List<(Rectangle Box, NewsItem Item)> _newsRows = new();
@@ -183,6 +185,10 @@ namespace TradeJournal
         [Display(Name = "Journal and trade review windows stay on top of ATAS", GroupName = "Journal window", Order = 36)]
         [Tab(TabName = "Account", TabOrder = 2)]
         public bool JournalOnTop { get; set; } = true;
+
+        [Display(Name = "Remind me when this chart's contract is about to roll (or has)", GroupName = "Contract roll", Order = 37)]
+        [Tab(TabName = "Account", TabOrder = 2)]
+        public bool ShowRollReminder { get; set; } = true;
 
         [Display(Name = "GEX line: distance from the flip (updates live)", GroupName = "What it shows", Order = 33)]
         [Tab(TabName = "Account", TabOrder = 2)]
@@ -724,6 +730,8 @@ namespace TradeJournal
                     }
                     snap.News.Add(item);
                 }
+            if (root.TryGetProperty("roll", out var rl) && rl.ValueKind == JsonValueKind.Object)
+                snap.Roll = new RollInfo { Symbol = Str(rl, "symbol"), Phase = Str(rl, "phase"), To = Str(rl, "to"), LastLabel = Str(rl, "lastLabel"), RollAt = Long(rl, "rollAt"), LastAt = Long(rl, "lastAt"), Days = (int)Dec(rl, "days"), Reason = Str(rl, "reason"), Share = NDec(rl, "share") is decimal sh ? (int)sh : null };
             _snap = snap;
             QueuePopups(snap);
         }
@@ -1109,6 +1117,19 @@ namespace TradeJournal
             var add = new List<Popup>();
             lock (_popLock)
             {
+                // contract roll: once a day, the morning it matters (and every day you're still on the old contract)
+                var rl = s.Roll;
+                if (ShowRollReminder && rl != null && rl.To.Length > 0 && (rl.Phase is "roll" or "expired" || (rl.Phase == "soon" && rl.Days <= 1)))
+                {
+                    var key = $"roll:{rl.Symbol}:{rl.Phase}:{DateTime.Now:yyyy-MM-dd}";
+                    if (_seen.Add(key))
+                        add.Add(new Popup
+                        {
+                            Key = key, Kind = "warn",
+                            Title = rl.Phase == "soon" ? $"{rl.Symbol} rolls to {rl.To} {(rl.Days <= 0 ? "today" : "tomorrow")}" : rl.Phase == "expired" ? $"{rl.Symbol} has expired — trade {rl.To}" : rl.Reason == "volume" ? $"Switch to {rl.To} — it now trades more than {rl.Symbol}" : $"Switch to {rl.To} — {rl.Symbol} has rolled",
+                            Meta = rl.Reason == "volume" && rl.Share is int ps ? $"Contract roll · {rl.To} had {ps}% of the last session's volume" : "Contract roll · volume moves to the next contract on the roll date",
+                        });
+                }
                 foreach (var n in s.News.OrderBy(x => x.T))
                 {
                     var key = "n:" + n.Id;
@@ -1208,6 +1229,11 @@ namespace TradeJournal
                 JournalWindows.ShowJournal(Root() + "/", JournalWindows.CursorScreen(), JournalOnTop);
                 return true;
             }
+            if (ShowAccount && _rollRect.Contains(e.Location))
+            {
+                JournalWindows.ShowJournal(Root() + "/#/macro/rolls", JournalWindows.CursorScreen(), JournalOnTop, goTo: true);
+                return true;
+            }
             if (ShowExecutions && ExecReview && ExecAt(e.Location) is Exec hit)
             {
                 OpenTradeReview(hit);
@@ -1264,7 +1290,7 @@ namespace TradeJournal
             if ((ShowNews && _newsHeader.Contains(e.Location)) || (ShowAccount && ShowStats && _statsRect.Contains(e.Location)) || _closeBoxes.Any(b => b.Box.Contains(e.Location))
                 || _newsRows.Any(b => b.Box.Contains(e.Location)) || _detailButtons.Any(b => b.Box.Contains(e.Location)) || _popupBodies.Any(b => b.Box.Contains(e.Location) && b.Key.StartsWith("n:")) || (ShowHeatmap && HmShowButton && _hmButton.Contains(e.Location))
                 || (ShowAccount && _stateRect.Contains(e.Location)) || (_blockAsk && _blockButtons.Any(b => b.Box.Contains(e.Location)))
-                || (ShowAccount && OpenJournalOnClick && _brandRect.Contains(e.Location)) || (ShowExecutions && ExecReview && ExecAt(e.Location) != null))
+                || (ShowAccount && OpenJournalOnClick && _brandRect.Contains(e.Location)) || (ShowAccount && _rollRect.Contains(e.Location)) || (ShowExecutions && ExecReview && ExecAt(e.Location) != null))
                 return StdCursor.Hand;
             return base.GetCursor(e);
         }
@@ -1657,6 +1683,24 @@ namespace TradeJournal
             var blockLines = blocked ? Wrap(g, blockText, _small, w - pad * 2 - 14, 3) : new List<string>();
             var blockH = blockLines.Count * (sh + 2) + 10;
             if (blocked) h += blockH + 6;
+            var roll = ShowRollReminder ? s?.Roll : null;
+            string? rollText = null;
+            if (roll != null && roll.To.Length > 0)
+            {
+                var when = DateTimeOffset.FromUnixTimeMilliseconds(roll.RollAt).LocalDateTime.ToString("ddd MMM d", CultureInfo.InvariantCulture);
+                rollText = roll.Phase switch
+                {
+                    "soon" => $"⟳ Contract roll: switch to {roll.To} {(roll.Days <= 0 ? "today" : roll.Days == 1 ? "tomorrow" : $"in {roll.Days} days")} · {when}{(roll.Share is int sp && sp > 0 ? $" · {roll.To} has {sp}% of volume" : "")}",
+                    "roll" when roll.Reason == "volume" => $"⟳ Switch to {roll.To} — it now trades more than {roll.Symbol}{(roll.Share is int sv ? $" ({sv}% of volume)" : "")}",
+                    "roll" => $"⟳ Switch to {roll.To} — volume moved off {roll.Symbol} on {when}",
+                    "expired" => $"⟳ {roll.Symbol} has expired — switch to {roll.To}",
+                    _ => null,
+                };
+            }
+            var rollUrgent = roll?.Phase is "roll" or "expired";
+            var rollLines = rollText != null ? Wrap(g, rollText, _small, w - pad * 2 - 14, 2) : new List<string>();
+            var rollH = rollLines.Count * (sh + 2) + 10;
+            if (rollText != null) h += rollH + 6; else _rollRect = Rectangle.Empty;
             var tileH = sh + lh + (int)Math.Round(14 * k);
             if (ShowPnlTiles) h += tileH + 8;
             var dll = acct?.DailyLoss ?? 0;
@@ -1720,6 +1764,19 @@ namespace TradeJournal
                 var ty = br.Y + 5;
                 foreach (var l in blockLines) { g.DrawString(l, _small, NegativeColor, br.X + 7, ty); ty += sh + 2; }
                 y += br.Height + 6;
+            }
+
+            if (rollText != null)
+            {
+                var rc = rollUrgent ? NegativeColor : WarningColor;
+                var rr = new Rectangle(x, y, w - pad * 2, rollH);
+                _rollRect = rr;
+                var hover = rr.Contains(MouseLocationInfo?.LastPosition ?? Point.Empty);
+                g.FillRectangle(A(rc, hover ? 34 : 22), rr, 4);
+                g.DrawRectangle(new RenderPen(A(rc, 110), 1), rr, 4);
+                var ty = rr.Y + 5;
+                foreach (var l in rollLines) { g.DrawString(l, _small, rc, rr.X + 7, ty); ty += sh + 2; }
+                y += rr.Height + 6;
             }
 
             // tiles

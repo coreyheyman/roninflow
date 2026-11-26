@@ -1,6 +1,6 @@
 // The Macro section's navigation: a bar of categories across the top of every Macro page — click one for its pages
 // (a category with a single page opens it straight away). Remembers the last page you opened, so Macro reopens there.
-import { CalendarDays, ChartColumnStacked, Check, ChevronDown, Magnet, Newspaper, Grid3x3, BellRing, Gauge, Network, Landmark, Building2, TriangleAlert, Briefcase, Flame, Percent, Globe, Table2, ChartSpline, ListChecks, Activity } from 'lucide-react';
+import { CalendarDays, ChartColumnStacked, Check, ChevronDown, Magnet, Newspaper, Grid3x3, BellRing, Gauge, Network, Landmark, Building2, TriangleAlert, Briefcase, Flame, Percent, Globe, Table2, ChartSpline, ListChecks, Activity, CalendarClock } from 'lucide-react';
 import { Popover } from './ui';
 import { navigate } from '../store/store';
 import { useSeries } from '../lib/useSeries';
@@ -35,6 +35,7 @@ export const MACRO_PAGES = [
   { id: 'g10', cat: 'economy', label: 'G10 Indicators', desc: 'Unemployment, inflation and policy rates side by side', icon: Table2 },
   { id: 'compare', cat: 'tools', label: 'Comparator', desc: 'Overlay any series against any other', icon: ChartSpline },
   { id: 'watch', cat: 'tools', label: 'Watch List', desc: 'Your pinned series in one place', icon: ListChecks },
+  { id: 'rolls', cat: 'tools', label: 'Contract Rolls', desc: 'Which contract month to trade, and when to switch', icon: CalendarClock },
 ];
 export const macroPage = (id) => MACRO_PAGES.find((p) => p.id === id);
 

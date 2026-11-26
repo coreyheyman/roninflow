@@ -156,6 +156,25 @@ function gex(symbol, exps) {
   };
 }
 
+/** sample volumes for Contract Rolls: the next contract's share grows into the calendar roll date, as it does in the market */
+function demoRollVolumes({ contracts, PRODUCTS }, u) {
+  const BASE = { ES: 1.6e6, MES: 2.1e6, NQ: 9e5, MNQ: 3.4e6, RTY: 1.6e5, M2K: 2e5, YM: 1.1e5, MYM: 1.4e5, GC: 2.2e5, MGC: 1.1e5, CL: 3.1e5, MCL: 1.2e5, NG: 2.6e5, ZN: 1.5e6, SI: 7e4, '6E': 1.9e5 };
+  const today = new Date().toISOString().slice(0, 10);
+  const volumes = {};
+  for (const root of (u.searchParams.get('roots') || '').split(',').filter((r) => PRODUCTS[r])) {
+    const list = contracts(root, new Date(), 6);
+    const i = list.findIndex((c) => c.last >= today);
+    const [a, b] = [list[i], list[i + 1]];
+    if (!a || !b) continue;
+    const d = (Date.parse(a.roll) - Date.parse(today)) / 86400000;
+    const share = d > 4 ? 0.02 + 0.01 * ((root.length * 7) % 3) : d > 1 ? 0.12 + (4 - d) * 0.1 : d > 0 ? 0.45 : 0.82;
+    const tot = BASE[root] || 9e4;
+    const day = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    volumes[root] = { root, a: { symbol: a.symbol, year: a.year, month: a.month, last: Math.round(tot * (1 - share)), today: Math.round(tot * 0.04 * (1 - share)) }, b: { symbol: b.symbol, year: b.year, month: b.month, last: Math.round(tot * share), today: Math.round(tot * 0.04 * share) }, day, leader: share > 0.5 ? 'next' : 'current', share, source: 'Sample data (demo)' };
+  }
+  return { volumes };
+}
+
 /** the real calendar snapshot, cut to the range asked for (sample data for weeks it doesn't cover) */
 function snapCalendar(c, from, to) {
   const a = Date.parse(`${c.from}T00:00:00Z`), b = Date.parse(`${c.to}T23:59:59Z`);
@@ -171,6 +190,7 @@ export function demoMacro(url, body) {
   const u = new URL(url, 'http://x');
   if (u.pathname.includes('/news/')) return import('./newsDemo').then((m) => m.demoNews(url, body));
   if (u.pathname.includes('/fred')) return import('./fredDemo').then((m) => m.demoFred(u));
+  if (u.pathname.includes('/rolls/volume')) return import('../../rolls.js').then((m) => demoRollVolumes(m, u));
   if (u.pathname.endsWith('/gex')) return gex(String(u.searchParams.get('symbol') || 'SPX').toUpperCase(), (u.searchParams.get('exp') || '').split(',').filter(Boolean));
   if (u.pathname.endsWith('/calendar/history')) return snap('calendar.json').then((c) => (c?.events?.length ? { events: c.events.filter((e) => e.ccy === u.searchParams.get('ccy') && e.title === u.searchParams.get('title') && Date.parse(e.t) <= Date.now()) } : history(u.searchParams.get('ccy'), u.searchParams.get('title'))));
   if (u.pathname.endsWith('/calendar')) return snap('calendar.json').then((c) => (c?.events?.length ? snapCalendar(c, u.searchParams.get('from'), u.searchParams.get('to')) : calendar(u.searchParams.get('from'), u.searchParams.get('to'))));

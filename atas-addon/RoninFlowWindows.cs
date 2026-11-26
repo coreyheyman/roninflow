@@ -61,13 +61,19 @@ namespace TradeJournal
         }
 
         /// <summary>The whole journal, large and centred on the screen the chart is on.</summary>
-        public static void ShowJournal(string url, Point near, bool onTop)
+        public static void ShowJournal(string url, Point near, bool onTop, bool goTo = false)
         {
+            if (goTo) // a specific page (e.g. from the roll reminder): go there even if the journal is open
+            {
+                Show("journal", url, "RoninFlow", near, onTop, wa =>
+                    new Rectangle(wa.Left + wa.Width / 12, wa.Top + wa.Height / 14, wa.Width * 10 / 12, wa.Height * 12 / 14), tool: false, resume: false, remember: true);
+                return;
+            }
             // pick up where you left off: the page you were on last time (this session or the one before)
             var last = LastPage();
             var start = last != null && last.StartsWith(Origin(url), StringComparison.OrdinalIgnoreCase) ? last : url;
             Show("journal", start, "RoninFlow", near, onTop, wa =>
-                new Rectangle(wa.Left + wa.Width / 12, wa.Top + wa.Height / 14, wa.Width * 10 / 12, wa.Height * 12 / 14), tool: false, resume: true);
+                new Rectangle(wa.Left + wa.Width / 12, wa.Top + wa.Height / 14, wa.Width * 10 / 12, wa.Height * 12 / 14), tool: false, resume: true, remember: true);
         }
 
         /// <summary>One trade's review, next to the execution that was clicked.</summary>
@@ -118,7 +124,7 @@ namespace TradeJournal
             };
         }
 
-        private static void Show(string key, string url, string title, Point near, bool onTop, Func<Rectangle, Rectangle> place, bool tool, bool keepPlace = true, bool resume = false)
+        private static void Show(string key, string url, string title, Point near, bool onTop, Func<Rectangle, Rectangle> place, bool tool, bool keepPlace = true, bool resume = false, bool remember = false)
         {
             if (!EnsureThread()) { OpenInBrowser(url); return; }
             _ctx!.Post(async _ =>
@@ -207,7 +213,7 @@ namespace TradeJournal
                     core.WindowCloseRequested += (_, _) => f.Close();                         // the page's own close / “done” buttons
                     core.NewWindowRequested += (_, a) => { a.Handled = true; OpenInBrowser(a.Uri); }; // links out go to your browser
                     core.DocumentTitleChanged += (_, _) => { if (!tool && !string.IsNullOrWhiteSpace(core.DocumentTitle)) f.Text = core.DocumentTitle; };
-                    if (resume)
+                    if (remember)
                     {
                         void Remember() { try { var src = core.Source; if (!src.Contains("/#/embed/", StringComparison.Ordinal)) SaveLastPage(src); } catch { } } // for next time
                         core.HistoryChanged += (_, _) => Remember();

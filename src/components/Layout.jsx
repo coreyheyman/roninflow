@@ -11,6 +11,7 @@ import { MiniCoach } from '../views/Coach';
 import { SyncPill } from './AtasSync';
 import MacroPill from './MacroPill';
 import { WindowControls } from './HostWindow';
+import RollBanner from './RollBanner';
 import { ShareButton } from './ShareDialog';
 import { RiskMini } from './Playbook';
 import NetworkAccess from './NetworkAccess';
@@ -313,6 +314,7 @@ export default function Layout({ route, crumbs, children }) {
         )}
         {replica && replica.pcOnline && replica.pending && <div className="storage-banner pos-b">PC is back — syncing your changes…</div>}
         {storage.error && storage.mode === 'server' && <div className="storage-banner warn-b">{storage.error}</div>}
+        {!IS_VIEWER && <RollBanner />}
         <DayPopupContext.Provider value={setDayPopup}><ReviewPopupContext.Provider value={setReviewPopup}><div className="content" ref={contentRef}>{children}</div></ReviewPopupContext.Provider></DayPopupContext.Provider>
       </main>
 

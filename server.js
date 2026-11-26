@@ -28,6 +28,7 @@ import { createVault } from './secrets.js';
 import { createSystemHandler } from './system.js';
 import { createMacroHandler } from './macro.js';
 import { createFredHandler } from './fred.js';
+import { rollVolume } from './rollvol.js';
 import { createGexHandler, futuresFromCandles } from './gex.js';
 import { createShotsHandler } from './shots.js';
 import { createNewsHandler } from './news.js';
@@ -247,6 +248,7 @@ function handle(req, res) {
     if (req.url.startsWith('/api/macro/gex')) return gexApi(req, res);
     if (req.url.startsWith('/api/macro/news')) return newsApi(req, res);
     if (req.url.startsWith('/api/macro/fred')) return fredApi(req, res);
+    if (req.url.startsWith('/api/macro/rolls')) return rollVolume.handler(req, res); // contract rolls: where the volume is
     if (req.url.startsWith('/api/macro')) return macroApi(req, res);
     if (req.url.startsWith('/api/shares')) return isReplica ? sendJson(res, 403, { error: 'forbidden' }) : shareApi.api(req, res);
     if (req.url.startsWith('/api/vault')) return isReplica ? sendJson(res, 403, { error: 'forbidden' }) : vaultApi(req, res);

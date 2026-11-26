@@ -33,6 +33,7 @@ import G10 from './views/G10';
 import Comparator from './views/Comparator';
 import Watchlist from './views/Watchlist';
 import EmbedTrade from './views/EmbedTrade';
+import ContractRolls from './views/ContractRolls';
 import { useEffect } from 'react';
 
 /** The Macro section: the category bar, then the page — opening Macro without a page goes back to the last one. */
@@ -44,7 +45,7 @@ function MacroArea({ sub }) {
   }, [page, sub]);
   const views = {
     daily: <DailyCheck />, calendar: <EconCalendar />, news: <NewsFlow />, heatmap: <NewsHeatmap />, agents: <NewsAgents />,
-    cot: <Cot />, gex: <Gex />, correlation: <Correlation />, g10: <G10 />, compare: <Comparator />, watch: <Watchlist />,
+    cot: <Cot />, gex: <Gex />, correlation: <Correlation />, g10: <G10 />, compare: <Comparator />, watch: <Watchlist />, rolls: <ContractRolls />,
   };
   return (
     <div className="macro-area">

@@ -11,6 +11,8 @@
 //
 // GEX is worked out in futures prices from the index's options (NQ ← NDX, ES ← SPX, RTY ← RUT); it takes a few
 // seconds, so it's refreshed in the background and the last result is served meanwhile.
+import { rollStatus, rollAdvice, rootOf } from './rolls.js';
+import { rollVolume } from './rollvol.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { newsMarketOf, NEWS_MARKETS } from './src/lib/newsRules.js';
@@ -137,7 +139,21 @@ export function createHudHandler({ gexApi, newsApi, macroApi, riskApi, log = () 
       gex: indexOf(symbol) ? gexFor(indexOf(symbol)) : gexFor(cashIndexOf(symbol), true),
       events: await eventsToday(),
       news: newsFor(market),
+      roll: rollFor(symbol),
     };
+  }
+
+  /** the chart's contract against the roll calendar: { symbol, phase, to, rollAt, lastAt, lastLabel, days } */
+  function rollFor(symbol) {
+    try {
+      const root = rootOf(symbol);
+      if (root) rollVolume.forRoot(root).catch(() => {}); // refresh in the background (cached 20 min)
+      const st = rollAdvice(rollStatus(symbol, new Date(now()), { soonDays: 5 }), root ? rollVolume.peek(root) : null);
+      if (!st?.held) return null;
+      const ms = (d) => Date.parse(`${d}T13:30:00Z`); // the US open, so “days” counts trading mornings
+      const c = st.phase === 'roll' || st.phase === 'expired' ? st.held : st.front;
+      return { symbol: st.held.symbol, phase: st.phase, to: st.switchTo?.symbol || st.next.symbol, rollAt: ms(c.roll), lastAt: ms(c.last), lastLabel: c.lastLabel, days: st.phase === 'soon' || st.phase === 'hold' ? st.daysToRoll : -(st.daysSinceRoll || 0), reason: st.reason || '', share: st.share == null ? null : Math.round(st.share * 100) };
+    } catch { return null; }
   }
 
   async function handler(req, res) {
