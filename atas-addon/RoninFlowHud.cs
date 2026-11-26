@@ -412,6 +412,14 @@ namespace TradeJournal
         [Tab(TabName = "News", TabOrder = 5)]
         public Color UpcomingChipFill { get; set; } = Color.FromArgb(230, 14, 14, 18);
 
+        [Display(Name = "Past event chip background (raise the opacity for a solid chip)", GroupName = "Event markers", Order = 104)]
+        [Tab(TabName = "News", TabOrder = 5)]
+        public Color MarkerChipFill { get; set; } = Color.FromArgb(0, 14, 14, 18);
+
+        [Display(Name = "Tint chips with the impact colour (off = exactly the background above)", GroupName = "Event markers", Order = 105)]
+        [Tab(TabName = "News", TabOrder = 5)]
+        public bool MarkerChipTint { get; set; } = true;
+
         [Display(Name = "Dashed line up the chart", GroupName = "Event markers", Order = 102)]
         [Tab(TabName = "News", TabOrder = 5)]
         public bool MarkerLines { get; set; } = true;
@@ -1577,8 +1585,9 @@ namespace TradeJournal
                 var box = new Rectangle(x - size.Width / 2 - 5, r.Bottom - size.Height - 10, size.Width + 10, size.Height + 4);
                 if (MarkerLines)
                     g.DrawLine(new RenderPen(A(c, upcoming ? 70 : 90), 1, upcoming ? System.Drawing.Drawing2D.DashStyle.Dot : System.Drawing.Drawing2D.DashStyle.Dash), x, r.Top, x, box.Top);
-                if (upcoming) g.FillRectangle(UpcomingChipFill, box, 3);
-                g.FillRectangle(A(c, upcoming ? 14 : 40), box, 3);
+                var chipFill = upcoming ? UpcomingChipFill : MarkerChipFill;
+                if (chipFill.A > 0) g.FillRectangle(chipFill, box, 3);
+                if (MarkerChipTint) g.FillRectangle(A(c, upcoming ? 14 : 40), box, 3);
                 g.DrawRectangle(new RenderPen(A(c, upcoming ? 110 : 140), 1), box, 3);
                 g.DrawString(label, _small, upcoming ? A(c, 220) : c, box.X + 5, box.Y + 2);
                 if (box.Contains(mouse)) { hover = e; hoverX = x; }

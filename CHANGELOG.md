@@ -2,18 +2,21 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
-## Unreleased
+## 2.2.3
 
 - **Custom candles, rebuilt** (RoninFlow Suite for ATAS, Candles tab):
   - **24 templates**, each giving the whole look in one pick: Classic, Hollow up / filled down, Diagonal stripes, Shapes inside, Gradient body, Neon glow, Volume-weighted fill, Buy / sell split, Dot pattern, Rounded pills, Open / close ticks, Pattern highlights, Arrow bodies, Hex / gem, Corner brackets, Double border, Scanlines, Chevron fill, Capped wicks, Range ghost, Close-in-range fill, POC marker, Momentum heat and 3D extruded.
   - **Separate up and down candle styles and outlines.** Shape, wicks, markers and pattern highlights can each override the template too; "From template" keeps the template's choice.
   - **Colours:** body, border, wick and pattern colours for each side, plus doji, middle-close, inside-bar, engulfing-outline and POC-dot colours.
   - **Wicks never cross a body.**
-  - **Backfill:** the native candle under each one, wick included, is painted over first, so hollow bodies and non-square shapes never show it.
+  - **Backfill:** each native candle is painted over first, at ATAS's own position and full width plus an adjustable margin, so hollow bodies and non-square shapes never show it. Bodies and wicks have separate switches and colours; set them to your chart's background.
   - **Follows the zoom:** spacing, glow, depth and marker sizes scale with the candle. Detail steps down cleanly as candles shrink.
   - **Body fill behind the design:** each side can paint its body colour behind its stripes, dots, chevrons or hollow body, at any opacity, flat or fading from the close toward the open.
   - **Price scale tag:** the live price on the scale is painted in the candles' own colours (body, border or custom, with automatic black/white text), slightly taller than ATAS's native tag so it covers it.
   - **Real order flow:** the volume, buy / sell and POC styles use ATAS's volume, bid/ask and most-traded price for each bar.
+- **News chips on the chart (ATAS Suite → News → Event markers):** a background colour for past-event chips as well as upcoming ones; raise the opacity for a solid chip. A new switch turns off the impact-colour tint, so the chip is exactly the colour you pick.
+
+**Updating:** reinstall the ATAS add-on with ATAS closed (`npm run addon`). If you had the old "Hollow" body style, pick it again as a template or as an up/down style.
 
 ## 2.2.2
 
