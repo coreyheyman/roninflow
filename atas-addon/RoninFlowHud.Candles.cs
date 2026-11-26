@@ -157,6 +157,15 @@ namespace TradeJournal
         [Tab(TabName = "Candles", TabOrder = 7)]
         public Color CcBullPattern { get; set; } = Color.FromArgb(255, 38, 166, 154);
 
+        [Display(Name = "Body fill behind the design (opacity %, 0 = none)", GroupName = "Up candles", Order = 716)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        [Range(0, 100)]
+        public int CcUpBackfill { get; set; } = 0;
+
+        [Display(Name = "Fade the body fill toward the open", GroupName = "Up candles", Order = 717)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        public bool CcUpBackfillFade { get; set; } = false;
+
         [Display(Name = "Down candle style", GroupName = "Down candles", Order = 720)]
         [Tab(TabName = "Candles", TabOrder = 7)]
         public CandleFill CcDownFill { get; set; } = CandleFill.FromTemplate;
@@ -180,6 +189,15 @@ namespace TradeJournal
         [Display(Name = "Pattern (stripes, dots, arrows …)", GroupName = "Down candles", Order = 725)]
         [Tab(TabName = "Candles", TabOrder = 7)]
         public Color CcBearPattern { get; set; } = Color.FromArgb(255, 156, 77, 204);
+
+        [Display(Name = "Body fill behind the design (opacity %, 0 = none)", GroupName = "Down candles", Order = 726)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        [Range(0, 100)]
+        public int CcDownBackfill { get; set; } = 0;
+
+        [Display(Name = "Fade the body fill toward the open", GroupName = "Down candles", Order = 727)]
+        [Tab(TabName = "Candles", TabOrder = 7)]
+        public bool CcDownBackfillFade { get; set; } = false;
 
         [Display(Name = "Shape", GroupName = "Shape & wicks", Order = 730)]
         [Tab(TabName = "Candles", TabOrder = 7)]
@@ -756,6 +774,26 @@ namespace TradeJournal
                 g.SetClip(clip);
                 try { draw(); } finally { g.SetClip(region); }
                 if (!isRect) CcBackfillOutside(g, pts, bottomIndex, l, r);
+            }
+
+            // body colour behind the design (stripes, dots, hollow …) — flat, or fading from the close toward the open
+            var backfill = (bull ? CcUpBackfill : CcDownBackfill) / 100.0;
+            if (backfill > 0 && fill != CandleFill.Solid && !b.Inside)
+            {
+                if (bull ? CcUpBackfillFade : CcDownBackfillFade)
+                {
+                    var band = h > 40 ? 2 : 1;
+                    Clip(() =>
+                    {
+                        for (var y = 0; y < h; y += band)
+                        {
+                            var f = (double)y / Math.Max(1, h - 1);          // 0 at the top, 1 at the bottom
+                            var a = bull ? 1 - 0.9 * f : 0.1 + 0.9 * f;      // strongest at the close
+                            g.FillRectangle(WithOpacity(body, backfill * a * solidAlpha), new Rectangle(l, t + y, w, Math.Min(band, h - y)));
+                        }
+                    });
+                }
+                else FillShape(WithOpacity(body, backfill * solidAlpha));
             }
 
             switch (fill)

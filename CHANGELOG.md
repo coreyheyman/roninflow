@@ -11,6 +11,7 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
   - **Wicks never cross a body.**
   - **Backfill:** the native candle under each one, wick included, is painted over first, so hollow bodies and non-square shapes never show it.
   - **Follows the zoom:** spacing, glow, depth and marker sizes scale with the candle. Detail steps down cleanly as candles shrink.
+  - **Body fill behind the design:** each side can paint its body colour behind its stripes, dots, chevrons or hollow body, at any opacity, flat or fading from the close toward the open.
   - **Price scale tag:** the live price on the scale is painted in the candles' own colours (body, border or custom, with automatic black/white text), slightly taller than ATAS's native tag so it covers it.
   - **Real order flow:** the volume, buy / sell and POC styles use ATAS's volume, bid/ask and most-traded price for each bar.
 
