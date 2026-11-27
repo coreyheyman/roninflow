@@ -580,7 +580,7 @@ namespace TradeJournal
                 if (ExecShowAvg && _avgPrice is decimal avg)
                 {
                     var text = $"{(_avgLong ? "LONG" : "SHORT")} {_avgQty:0.##} avg {ChartInfo.GetPriceString(avg)}";
-                    if (ExecShowRR && plan.Rr is decimal rr) text += $" · R:R 1:{rr:0.0#}";
+                    if (ExecShowRR && plan.Rr is decimal rr) text += $" · RR {rr:0.0#}";
                     else if (ExecShowRR && plan.RiskFree) text += " · risk-free";
                     PriceLine(avg, _avgLong ? ExecAvgColor : ExecAvgShortColor, text, System.Drawing.Drawing2D.DashStyle.Dash);
                 }
@@ -661,7 +661,7 @@ namespace TradeJournal
 
             var tpNo = 0;
             foreach (var l in targets) l.Text = $"TP{(targets.Count > 1 ? (++tpNo).ToString() : "")} {l.Qty:0.##} @ {ChartInfo.GetPriceString(l.Price)} · {Move((l.Price - a) * dir, l.Qty)}"
-                + (ExecShowRR && risk > 0 ? $" · {(l.Price - a) * dir / risk:0.0#}R" : "");
+                + (ExecShowRR && risk > 0 ? $" · RR {(l.Price - a) * dir / risk:0.0#}" : "");
             foreach (var l in stops)
             {
                 var pts = (l.Price - a) * dir;
