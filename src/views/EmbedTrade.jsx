@@ -12,6 +12,20 @@ const readQuery = () => Object.fromEntries(new URLSearchParams((window.location.
 const root = (s) => String(s || '').toUpperCase().replace(/@.*/, '').replace(/[FGHJKMNQUVXZ]\d{1,2}$/, '');
 
 /** the journal trade for an ATAS execution: by its ATAS ids first, then by account, market and entry time */
+/**
+ * The chart's review window stays open (hidden) between executions, so it would keep running an old version of the
+ * journal after an update: reload when the journal's script has changed.
+ */
+async function reloadIfUpdated() {
+  try {
+    const mine = document.querySelector('script[src*="/assets/"]')?.getAttribute('src');
+    if (!mine) return; // the development server
+    const html = await fetch('/', { cache: 'no-store' }).then((r) => r.text());
+    const now = html.match(/src="([^"]*\/assets\/[^"]+\.js)"/)?.[1];
+    if (now && now !== mine) window.location.reload();
+  } catch { /* offline for a moment */ }
+}
+
 export function findTrade(trades, q) {
   const ids = new Set(String(q.ids || '').split(',').filter(Boolean));
   if (ids.size) {
@@ -42,9 +56,11 @@ export default function EmbedTrade() {
   const [q, setQ] = useState(readQuery);
   const [since, setSince] = useState(Date.now());
   useEffect(() => {
-    const on = () => { setQ(readQuery()); setSince(Date.now()); }; // the window is reused for the next execution clicked
+    const on = () => { setQ(readQuery()); setSince(Date.now()); reloadIfUpdated(); }; // the window is reused for the next execution clicked
+    const shown = () => { if (!document.hidden) reloadIfUpdated(); }; // brought back for the same execution
     window.addEventListener('hashchange', on);
-    return () => window.removeEventListener('hashchange', on);
+    document.addEventListener('visibilitychange', shown);
+    return () => { window.removeEventListener('hashchange', on); document.removeEventListener('visibilitychange', shown); };
   }, []);
   useEffect(() => { document.title = 'Trade review · RoninFlow'; }, []);
   const [, tick] = useState(0);
