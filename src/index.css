@@ -318,7 +318,12 @@ table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size
 .kpi-foot { margin-top: auto; font-size: 14px; color: var(--muted); }
 .kpi .spark { position: absolute; right: 22px; bottom: 50px; }
 /* a two-part breakdown under the headline number, kept clear of the sparkline */
-.kpi-split { display: flex; flex-direction: column; gap: 2px; padding-right: 124px; font-size: 13px; }
+/* headline figures on the left, the curve filling whatever space is left (it resizes with the tile) */
+.kpi-body { display: flex; gap: 20px; flex: 1; min-height: 0; align-items: stretch; }
+.kpi-main { flex: 0 1 auto; min-width: 0; }
+.spark-fill { flex: 1 1 0; min-width: 70px; position: relative; margin: 14px 0 8px; }
+.spark-fill > div { position: absolute; inset: 0; }
+.kpi-split { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .kpi-split > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kpi-split em { font-style: normal; font-weight: 400; color: var(--muted); }
 .dash-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 22px; margin-bottom: 22px; }
@@ -613,8 +618,7 @@ code { font-size: 12px; background: var(--card-3); padding: 1px 4px; border-radi
   .toolbar { gap: 8px; }
   .acct-title { font-size: 19px; padding-right: 0; }
   .kpi { min-height: 0; padding: 18px; }
-  .kpi .spark { display: none; }
-  .kpi-split { padding-right: 0; }
+  .kpi .spark, .kpi .spark-fill { display: none; }
   .hold-cards { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
   .hold-card .v { font-size: 18px; }
   .dash-grid.thirds, .dash-grid { grid-template-columns: 1fr !important; }

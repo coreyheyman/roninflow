@@ -212,8 +212,11 @@ export function PnlChart({ data, mode = 'area', height = 300, smooth = false, co
   );
 }
 
-export function Sparkline({ values, width = 110, height = 70 }) {
+export function Sparkline({ values, width = 110, height = 70, fill = false }) {
   const data = values.map((y, i) => ({ label: String(i), y }));
+  const [ref, { h }] = useSize();
+  // fill: as wide and tall as the space it's given (resizes with the tile)
+  if (fill) return <div ref={ref} className="spark-fill"><div>{h > 16 && <PnlChart data={data} mode="line" height={Math.round(h)} compact startAtZero={false} />}</div></div>;
   return (
     <div style={{ width, height }} className="spark">
       <PnlChart data={data} mode="line" height={height} compact startAtZero={false} />

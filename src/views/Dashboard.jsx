@@ -329,16 +329,20 @@ function WidgetView({ item, c }) {
       return (
         <div className={`kpi wkpi ${totalNet >= 0 ? 'posc' : 'negc'}`}>
           <div className="kpi-head"><StatLabel k="net" v={s.net} ctx={sctx}>Total P&L</StatLabel> <TrendBadge value={(totalNet / initial) * 100} /></div>
-          <div className="kpi-val"><Private>{fmtMoney(totalNet)}</Private></div>
-          {gap
-            ? (
-              <div className="kpi-sub kpi-split" title="Total P&L is your ATAS balance minus your starting balance. The adjustment is what the trades in the journal don't account for (missing fills, account fees…).">
-                <span><em>Trades</em> <Private>{fmtMoney(s.net)}</Private></span>
-                <span><em>Balance adj.</em> <Private>{fmtMoney(gap, { sign: true })}</Private></span>
-              </div>
-            )
-            : <div className="kpi-sub">Avg: <Private>{fmtMoney(s.avgTrade)}</Private></div>}
-          <Sparkline values={[0, ...curve.map((x) => x.y)]} />
+          <div className="kpi-body">
+            <div className="kpi-main">
+              <div className="kpi-val"><Private>{fmtMoney(totalNet)}</Private></div>
+              {gap
+                ? (
+                  <div className="kpi-sub kpi-split" title="Total P&L is your ATAS balance minus your starting balance. The adjustment is what the trades in the journal don't account for (missing fills, account fees…).">
+                    <span><em>Trades</em> <Private>{fmtMoney(s.net)}</Private></span>
+                    <span><em>Balance adj.</em> <Private>{fmtMoney(gap, { sign: true })}</Private></span>
+                  </div>
+                )
+                : <div className="kpi-sub">Avg: <Private>{fmtMoney(s.avgTrade)}</Private></div>}
+            </div>
+            <Sparkline fill values={[0, ...curve.map((x) => x.y)]} />
+          </div>
           <div className="kpi-foot">{s.count} closed positions</div>
         </div>
       );
@@ -396,9 +400,13 @@ function WidgetView({ item, c }) {
       return (
         <div className={`kpi wkpi ${(top?.pnl || 0) >= 0 ? 'posc' : 'negc'}`}>
           <div className="kpi-head"><StatLabel k="mostTraded" v={top?.pnl || 0} ctx={sctx}>Most Traded</StatLabel> {top && <TrendBadge value={prevTrades.length ? pctChange(top.pnl, prevTop) : (top.pnl / initial) * 100} />}</div>
-          <div className="kpi-val"><Private>{fmtMoney(top?.pnl || 0)}</Private></div>
-          <div className="kpi-sub">{top?.symbol} — {top?.count} positions</div>
-          {top && <Sparkline values={[0, ...equityCurve(top.trades).map((x) => x.y)]} />}
+          <div className="kpi-body">
+            <div className="kpi-main">
+              <div className="kpi-val"><Private>{fmtMoney(top?.pnl || 0)}</Private></div>
+              <div className="kpi-sub">{top?.symbol} — {top?.count} positions</div>
+            </div>
+            {top && <Sparkline fill values={[0, ...equityCurve(top.trades).map((x) => x.y)]} />}
+          </div>
           <div className="kpi-foot">Most traded symbol</div>
         </div>
       );
