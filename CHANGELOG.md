@@ -2,6 +2,15 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
+## Unreleased
+
+- **GEX converts to futures prices around market holidays:** before the open on the day after a holiday (e.g. the Friday after Thanksgiving), the levels are matched to ES/NQ at the last real cash close instead of the holiday's, and the 1:00 PM early closes are known.
+- **Your position and orders on the chart (ATAS Suite → Executions):**
+  - Working orders are read against your open position. Orders on your side are scale-ins (`ADD 1 @ … · avg → …`, showing the new average if filled). Stops on the other side are the stop loss: `SL 3 @ … · −12.5 pts · −$750`, or `break-even` / `locked` once it's past your average. Limits beyond the average are targets, numbered from the nearest: `TP1 2 @ … · +25 pts · +$1,000 · 2.0R`.
+  - The position line shows the overall R:R from your average price, with targets weighted by size.
+  - Separate colours for stop, target and scale-in lines. Dollars come from ATAS's tick value; switch R, dollars or the classification off in the settings.
+  - The labels on these lines now sit on top of the line instead of across it.
+
 ## 2.2.3
 
 - **Custom candles, rebuilt** (RoninFlow Suite for ATAS, Candles tab):

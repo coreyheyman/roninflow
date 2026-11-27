@@ -133,6 +133,30 @@ namespace TradeJournal
         [Tab(TabName = "Executions", TabOrder = 3)]
         public Color ExecSellOrderColor { get; set; } = Color.FromArgb(255, 240, 140, 60);
 
+        [Display(Name = "Tell stops, targets and scale-ins apart (while in a position)", GroupName = "Working orders", Order = 353)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public bool ExecOrderRoles { get; set; } = true;
+
+        [Display(Name = "Show R:R (from the average price to the stop and targets)", GroupName = "Working orders", Order = 354)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public bool ExecShowRR { get; set; } = true;
+
+        [Display(Name = "Show the dollar amount at the stop and targets", GroupName = "Working orders", Order = 355)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public bool ExecShowMoney { get; set; } = true;
+
+        [Display(Name = "Stop loss line", GroupName = "Working orders", Order = 356)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public Color ExecStopColor { get; set; } = Color.FromArgb(255, 229, 72, 77);
+
+        [Display(Name = "Take profit line", GroupName = "Working orders", Order = 357)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public Color ExecTargetColor { get; set; } = Color.FromArgb(255, 43, 196, 138);
+
+        [Display(Name = "Scale-in line", GroupName = "Working orders", Order = 358)]
+        [Tab(TabName = "Executions", TabOrder = 3)]
+        public Color ExecScaleColor { get; set; } = Color.FromArgb(255, 77, 163, 255);
+
         #endregion
 
         #region Settings — heatmap
@@ -328,6 +352,7 @@ namespace TradeJournal
         private volatile List<Exec> _execs = new();
         private decimal? _avgPrice;
         private decimal _avgQty;
+        private decimal _tickCost; // dollars per tick per contract, from ATAS's instrument (0 = unknown)
         private bool _avgLong;
         private volatile List<Order> _orders = new();
         private DateTime _execRefreshed = DateTime.MinValue;
@@ -421,7 +446,7 @@ namespace TradeJournal
                 var pos = core?.Positions.FirstOrDefault(p => p != null && p.Volume != 0
                     && string.Equals(p.AccountID ?? p.Portfolio?.AccountID, account, StringComparison.OrdinalIgnoreCase)
                     && SameInstrument(p.Security?.Code));
-                if (pos != null) { avg = pos.AveragePrice; lng = pos.Volume > 0; _avgQty = Math.Abs(pos.Volume); }
+                if (pos != null) { avg = pos.AveragePrice; lng = pos.Volume > 0; _avgQty = Math.Abs(pos.Volume); try { if (pos.Security?.TickCost > 0) _tickCost = pos.Security.TickCost; } catch { } }
             }
             catch { }
             if (avg == null)
@@ -533,13 +558,16 @@ namespace TradeJournal
                 }
 
                 var tags = new List<Rectangle>();
+                // a horizontal line with its label chip sitting on top of it (below it when there's no room above)
                 void PriceLine(decimal price, Color c, string text, System.Drawing.Drawing2D.DashStyle dash)
                 {
                     var y = ChartInfo.GetYByPrice(price, false);
                     if (y < r.Top - 20 || y > r.Bottom + 20) return;
                     g.DrawLine(new RenderPen(c, 1, dash), r.Left, y, r.Right, y);
                     var size = g.MeasureString(text, _small);
-                    var box = new Rectangle(r.Right - size.Width - 90, y - size.Height / 2 - 2, size.Width + 10, size.Height + 4);
+                    var h = size.Height + 4;
+                    var box = new Rectangle(r.Right - size.Width - 90, y - h, size.Width + 10, h);
+                    if (box.Top < r.Top + 2) box.Y = y + 1;
                     for (var k = 0; k < 6 && tags.Any(t => t.IntersectsWith(box)); k++) box.Offset(-(box.Width + 6), 0); // side by side, not on top of each other
                     tags.Add(box);
                     g.FillRectangle(A(Background, 235), box, 3);
@@ -547,25 +575,121 @@ namespace TradeJournal
                     g.DrawString(text, _small, c, box.X + 5, box.Y + 2);
                 }
 
-                if (ExecShowAvg && _avgPrice is decimal avg)
-                    PriceLine(avg, _avgLong ? ExecAvgColor : ExecAvgShortColor, $"{(_avgLong ? "LONG" : "SHORT")} {_avgQty:0.##} avg {ChartInfo.GetPriceString(avg)}", System.Drawing.Drawing2D.DashStyle.Dash);
+                var plan = PlanOrders(ExecShowOrders ? _orders : new List<Order>());
 
-                if (ExecShowOrders)
-                    foreach (var o in _orders)
-                    {
-                        var buy = o.Direction == OrderDirections.Buy;
-                        var kind = o.Type == OrderTypes.Limit ? "LMT" : o.Type == OrderTypes.Stop ? "STP" : o.Type == OrderTypes.StopLimit ? "STP LMT" : "";
-                        var at = o.Type == OrderTypes.Stop || o.Type == OrderTypes.StopLimit ? o.TriggerPrice : o.Price;
-                        if (at <= 0) continue;
-                        var qty = o.Unfilled > 0 ? o.Unfilled : o.QuantityToFill;
-                        PriceLine(at, buy ? ExecBuyOrderColor : ExecSellOrderColor, $"{(buy ? "BUY" : "SELL")} {kind} {qty:0.##} @ {ChartInfo.GetPriceString(at)}", System.Drawing.Drawing2D.DashStyle.Dot);
-                    }
+                if (ExecShowAvg && _avgPrice is decimal avg)
+                {
+                    var text = $"{(_avgLong ? "LONG" : "SHORT")} {_avgQty:0.##} avg {ChartInfo.GetPriceString(avg)}";
+                    if (ExecShowRR && plan.Rr is decimal rr) text += $" · R:R 1:{rr:0.0#}";
+                    else if (ExecShowRR && plan.RiskFree) text += " · risk-free";
+                    PriceLine(avg, _avgLong ? ExecAvgColor : ExecAvgShortColor, text, System.Drawing.Drawing2D.DashStyle.Dash);
+                }
+
+                foreach (var line in plan.Lines)
+                    PriceLine(line.Price, line.Color, line.Text, System.Drawing.Drawing2D.DashStyle.Dot);
             }
             finally
             {
                 g.ResetClip();
                 _execHits = hits;
             }
+        }
+
+        private enum OrderRole { Entry, ScaleIn, Stop, Target, Exit }
+
+        private sealed class PlanLine
+        {
+            public Order Order = null!;
+            public OrderRole Role;
+            public decimal Price, Qty;
+            public string Text = "";
+            public Color Color;
+        }
+
+        private sealed class OrderPlan
+        {
+            public List<PlanLine> Lines = new();
+            public decimal? Rr;     // reward : risk for the whole position (targets weighted by size)
+            public bool RiskFree;   // the stop is at or past the average price
+        }
+
+        /// <summary>
+        /// The working orders, read against the open position: orders on the position's side are scale-ins; on the other
+        /// side, stops are the stop loss and limits beyond the average price are the targets (TP1 nearest). R is worked out
+        /// from the average price — risk to the stop (size-weighted if the stop is split), reward to each target.
+        /// </summary>
+        private OrderPlan PlanOrders(List<Order> orders)
+        {
+            var plan = new OrderPlan();
+            var tick = InstrumentInfo?.TickSize ?? 0m;
+            foreach (var o in orders)
+            {
+                var isStop = o.Type == OrderTypes.Stop || o.Type == OrderTypes.StopLimit;
+                var at = isStop ? o.TriggerPrice : o.Price;
+                if (at <= 0) continue;
+                var qty = o.Unfilled > 0 ? o.Unfilled : o.QuantityToFill;
+                var buy = o.Direction == OrderDirections.Buy;
+                var role = OrderRole.Entry;
+                if (ExecOrderRoles && _avgPrice is decimal avg && _avgQty > 0)
+                {
+                    if (buy == _avgLong) role = OrderRole.ScaleIn;
+                    else if (isStop) role = OrderRole.Stop;
+                    else role = (_avgLong ? at > avg : at < avg) ? OrderRole.Target : OrderRole.Exit;
+                }
+                plan.Lines.Add(new PlanLine { Order = o, Role = role, Price = at, Qty = qty });
+            }
+
+            var hasPos = _avgPrice.HasValue && _avgQty > 0;
+            var a = _avgPrice ?? 0m;
+            var dir = _avgLong ? 1m : -1m;
+            // the stop as one price: size-weighted if it's split across several orders
+            var stops = plan.Lines.Where(l => l.Role == OrderRole.Stop).ToList();
+            decimal? stopAt = stops.Count > 0 && stops.Sum(l => l.Qty) > 0 ? stops.Sum(l => l.Price * l.Qty) / stops.Sum(l => l.Qty) : null;
+            var risk = stopAt is decimal sp ? (a - sp) * dir : 0m; // points lost per contract if stopped (≤ 0 = locked in)
+            plan.RiskFree = hasPos && stopAt.HasValue && risk <= 0;
+            var targets = plan.Lines.Where(l => l.Role == OrderRole.Target).OrderBy(l => Math.Abs(l.Price - a)).ToList();
+            if (hasPos && risk > 0 && targets.Count > 0 && targets.Sum(l => l.Qty) > 0)
+                plan.Rr = targets.Sum(l => (l.Price - a) * dir * l.Qty) / targets.Sum(l => l.Qty) / risk;
+
+            string Move(decimal pts, decimal qty)
+            {
+                var sign = pts >= 0 ? "+" : "−";
+                var dist = ExecResultUnit == ExecResult.Ticks && tick > 0 ? $"{sign}{Math.Abs(pts / tick):0.#}t" : $"{sign}{Math.Abs(pts):0.##} pts";
+                if (ExecShowMoney && _tickCost > 0 && tick > 0) dist += $" · {sign}${Math.Abs(pts / tick * _tickCost * qty):N0}";
+                return dist;
+            }
+
+            var tpNo = 0;
+            foreach (var l in targets) l.Text = $"TP{(targets.Count > 1 ? (++tpNo).ToString() : "")} {l.Qty:0.##} @ {ChartInfo.GetPriceString(l.Price)} · {Move((l.Price - a) * dir, l.Qty)}"
+                + (ExecShowRR && risk > 0 ? $" · {(l.Price - a) * dir / risk:0.0#}R" : "");
+            foreach (var l in stops)
+            {
+                var pts = (l.Price - a) * dir;
+                l.Text = $"SL {l.Qty:0.##} @ {ChartInfo.GetPriceString(l.Price)} · " + (pts == 0 ? "break-even" : Move(pts, l.Qty) + (pts > 0 ? " locked" : ""));
+            }
+            var adds = plan.Lines.Where(l => l.Role == OrderRole.ScaleIn).OrderBy(l => Math.Abs(l.Price - a)).ToList();
+            var addNo = 0;
+            foreach (var l in adds)
+            {
+                var newAvg = (a * _avgQty + l.Price * l.Qty) / (_avgQty + l.Qty);
+                if (tick > 0) newAvg = Math.Round(newAvg / tick) * tick;
+                l.Text = $"ADD{(adds.Count > 1 ? (++addNo).ToString() : "")} {l.Qty:0.##} @ {ChartInfo.GetPriceString(l.Price)} · avg → {ChartInfo.GetPriceString(newAvg)}";
+            }
+            foreach (var l in plan.Lines)
+            {
+                var buy = l.Order.Direction == OrderDirections.Buy;
+                var kind = l.Order.Type == OrderTypes.Limit ? "LMT" : l.Order.Type == OrderTypes.Stop ? "STP" : l.Order.Type == OrderTypes.StopLimit ? "STP LMT" : "";
+                if (l.Role == OrderRole.Entry) l.Text = $"{(buy ? "BUY" : "SELL")} {kind} {l.Qty:0.##} @ {ChartInfo.GetPriceString(l.Price)}";
+                if (l.Role == OrderRole.Exit) l.Text = $"EXIT {kind} {l.Qty:0.##} @ {ChartInfo.GetPriceString(l.Price)} · {Move((l.Price - a) * dir, l.Qty)}";
+                l.Color = l.Role switch
+                {
+                    OrderRole.Stop => ExecStopColor,
+                    OrderRole.Target => ExecTargetColor,
+                    OrderRole.ScaleIn => ExecScaleColor,
+                    _ => buy ? ExecBuyOrderColor : ExecSellOrderColor,
+                };
+            }
+            return plan;
         }
 
         /// <summary>A buy points up from below its price, a sell points down from above it; the tip sits on the price.</summary>
