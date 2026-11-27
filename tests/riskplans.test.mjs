@@ -168,3 +168,19 @@ test('risk profiles: accounts can follow a saved profile, and edits to it reach 
   assert.deepEqual(matchingProfiles(profilesOf(s), { maxDrawdown: 3000 }), []);
   assert.deepEqual(matchingProfiles(profilesOf(s), {}), []);
 });
+
+test('the tier moves at the end of the day: a losing day doesn’t drop you a tier halfway through it', () => {
+  const T = (date, pnl) => ({ id: date + pnl, entry: `${date}T10:00:00`, exit: `${date}T10:05:00`, pnl, qty: 1, symbol: 'MES' });
+  const trades = [T('2026-11-26', 400), T('2026-11-27', -1200)]; // today: 1,200 below the high, past "Risk off" at 1,000
+  const plan = riskOf(st({}));
+  const eod = riskState(trades, {}, plan, { today: '2026-11-27' });
+  assert.equal(eod.tier.name, 'Normal', 'still Normal today');
+  assert.equal(eod.remaining, 500 - 1200, 'today’s loss still counts against Normal’s $500 daily limit');
+  assert.equal(eod.stopNow, true);
+  assert.equal(eod.pending?.tier.name, 'Risk off', 'and it says where tomorrow starts');
+  const tomorrow = riskState(trades, {}, plan, { today: '2026-11-30' });
+  assert.equal(tomorrow.tier.name, 'Risk off');
+  const live = riskState(trades, {}, { ...plan, tierUpdate: 'live' }, { today: '2026-11-27' });
+  assert.equal(live.tier.name, 'Risk off', 'straight away when asked');
+  assert.equal(live.pending, null);
+});

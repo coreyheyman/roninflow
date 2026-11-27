@@ -1,5 +1,5 @@
 // Trading playbook: routines, market conditions, edge blockers and the risk-tier engine.
-import { groupByDay, summarize, equityCurve, todayKey, toDate, keyOf, money0 } from './stats';
+import { groupByDay, summarize, equityCurve, todayKey, toDate, keyOf, money0, dayKey } from './stats';
 
 // Generic starting playbook for new journals — everything is editable (Diary → Playbook) and any part can be removed.
 export const DEFAULT_PLAYBOOK = {
@@ -222,11 +222,21 @@ export function riskState(trades, account, risk, opts = {}) {
   if (mode === 'hwm') for (const p of curve) if (p.y + gap > peak) { peak = p.y + gap; peakAt = p.x; }
   const current = (curve.length ? curve[curve.length - 1].y : 0) + gap;
   const dd = Math.max(0, peak - current);
+  const today = opts.today || todayKey(); // opts.today: run the engine as of another day (days-to-ruin simulation)
+  // tierUpdate 'eod' (default): the drawdown that sets the tier is the one at the end of the last session, so a losing
+  // day never drops you a tier halfway through it — today's losses move the tier tomorrow. 'live': straight away.
+  const eod = risk.tierUpdate !== 'live';
+  let ddTier = dd;
+  if (eod) {
+    const prior = equityCurve(trades.filter((t) => t.entry && dayKey(t.entry) < today));
+    let pk = 0;
+    if (mode === 'hwm') for (const p of prior) if (p.y + gap > pk) pk = p.y + gap;
+    ddTier = Math.max(0, pk - ((prior.length ? prior[prior.length - 1].y : 0) + gap));
+  }
 
   const sessions = [...groupByDay(trades)].reverse(); // oldest → newest
   let L = normal, mlStreak = 0, reducing = false;
   const history = [];
-  const today = opts.today || todayKey(); // opts.today: run the engine as of another day (days-to-ruin simulation)
   for (const d of sessions) {
     if (d.date === today) continue; // today's result doesn't change today's tier
     const tier = tiers[L];
@@ -251,10 +261,16 @@ export function riskState(trades, account, risk, opts = {}) {
   // drawdown caps the tier: past a tier's threshold you can be no higher than that tier
   const steps = ddSteps(risk);
   let ddLevel = normal, hit = null;
-  for (const st of steps) if (dd >= st.at && st.i < ddLevel) { ddLevel = st.i; hit = st; }
+  for (const st of steps) if (ddTier >= st.at && st.i < ddLevel) { ddLevel = st.i; hit = st; }
   const level = Math.min(ruleLevel, ddLevel);
+  // where today's drawdown would put you once the day closes (only differs with end-of-day updates)
+  let liveDdLevel = normal;
+  for (const st of steps) if (dd >= st.at && st.i < liveDdLevel) liveDdLevel = st.i;
+  const pendingLevel = eod ? Math.min(ruleLevel, liveDdLevel) : level;
+  const pending = pendingLevel !== level ? { level: pendingLevel, tier: tiers[pendingLevel], dir: pendingLevel < level ? -1 : 1 } : null;
   const reasons = [];
-  if (hit) reasons.push(`Drawdown of ${money0(dd)} is at or beyond ${money0(hit.at)} (“${hit.name}”)`);
+  if (hit) reasons.push(`Drawdown of ${money0(ddTier)}${eod && ddTier !== dd ? ' at the last close' : ''} is at or beyond ${money0(hit.at)} (“${hit.name}”)`);
+  if (pending) reasons.push(`Today’s drawdown of ${money0(dd)} would ${pending.dir < 0 ? 'drop' : 'lift'} you to “${pending.tier.name}” — that happens at the end of the day, so today’s daily loss limit stays as it is`);
   if (ruleLevel < normal) reasons.push(history.length ? `${history[history.length - 1].why} on ${history[history.length - 1].date}` : 'Recent losing streak');
   if (!reasons.length) reasons.push(dd > 0 ? `Drawdown ${money0(dd)} is inside your limits and no losing streak is active` : mode === 'start' ? 'Account is at or above its starting balance' : 'Account is at its equity high');
 
@@ -264,12 +280,12 @@ export function riskState(trades, account, risk, opts = {}) {
   const remaining = tier.dailyLL + Math.min(0, todayNet);
   const recent = sessions.slice(-10);
   // the next threshold that would lower the tier, and what it takes to climb out of the current one
-  const next = steps.find((st) => st.at > dd && st.i < ddLevel) || null;
-  const nextDrop = next ? { ...next, left: next.at - dd } : null;
-  const recover = hit ? { ...hit, need: dd - hit.at + 0.01 } : null;
+  const next = steps.find((st) => st.at > ddTier && st.i < ddLevel) || null;
+  const nextDrop = next ? { ...next, left: next.at - ddTier } : null;
+  const recover = hit ? { ...hit, need: ddTier - hit.at + 0.01 } : null;
   const nextDown = nextDrop?.left ?? null;
   return {
-    level, ruleLevel, ddLevel, normal, base, tier, tiers, dd, peak, peakAt, current, ddMode: mode, reasons, history: history.slice(-12).reverse(),
+    level, ruleLevel, ddLevel, normal, base, tier, tiers, dd, ddTier, pending, tierUpdate: eod ? 'eod' : 'live', peak, peakAt, current, ddMode: mode, reasons, history: history.slice(-12).reverse(),
     todayNet, remaining, stopNow: remaining <= 0, recent, steps, nextDrop, recover, toDamage: nextDown,
     balance: (account?.initial || 0) + current,
   };

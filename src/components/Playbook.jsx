@@ -826,6 +826,10 @@ function RiskEditor({ rk, setRk, account }) {
           <Seg value={rk.ddMode === 'start' ? 'start' : 'hwm'} onChange={(v) => setRk({ ...rk, ddMode: v })} options={[{ value: 'start', label: 'Starting balance' }, { value: 'hwm', label: 'High watermark (trailing)' }]} />
           <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{rk.ddMode === 'start' ? 'Drawdown only counts how far you are below where the account started — profits give you a cushion.' : 'Drawdown counts how far you are below your highest balance — like a trailing max-drawdown rule.'}</span>
         </div>
+        <div className="field full"><label className="label">Tier changes from drawdown</label>
+          <Seg value={rk.tierUpdate === 'live' ? 'live' : 'eod'} onChange={(v) => setRk({ ...rk, tierUpdate: v })} options={[{ value: 'eod', label: 'At the end of the day' }, { value: 'live', label: 'Straight away' }]} />
+          <span className="muted" style={{ fontSize: 12, marginTop: 4 }}>{rk.tierUpdate === 'live' ? 'The tier (and its daily loss limit) changes the moment your drawdown crosses a threshold — even halfway through a day.' : 'The tier is set by your drawdown at the last close, so it never changes halfway through a day: today’s losses count against today’s daily loss limit, and move your tier tomorrow.'}</span>
+        </div>
         <div className="field"><label className="label">Consecutive max-loss days before reducing</label><input className="input" type="number" min="1" value={rk.maxLossStreak} onChange={(e) => setRk({ ...rk, maxLossStreak: Math.max(1, Number(e.target.value)) })} /></div>
         <div className="field"><label className="label">Sizable green day = × daily loss limit</label><input className="input" type="number" step="0.25" value={rk.greenMultiple} onChange={(e) => setRk({ ...rk, greenMultiple: Number(e.target.value) })} /></div>
         <div className="field"><label className="label">Look-back for stats (days)</label><input className="input" type="number" value={rk.lookbackDays} onChange={(e) => setRk({ ...rk, lookbackDays: Number(e.target.value) })} /></div>
