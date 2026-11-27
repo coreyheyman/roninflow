@@ -2,7 +2,7 @@
 
 Each release's notes on GitHub come from its section here (`## x.y.z`, newest first).
 
-## Unreleased
+## 2.2.4
 
 - **GEX converts to futures prices around market holidays:** before the open on the day after a holiday (e.g. the Friday after Thanksgiving), the levels are matched to ES/NQ at the last real cash close instead of the holiday's, and the 1:00 PM early closes are known.
 - **Risk tiers change at the end of the day (Risk plan → Tier changes from drawdown):** the tier is now set by your drawdown at the last close, so a losing day never drops you a tier, and with it a smaller daily loss limit, halfway through it. Today's losses still count against today's limit and move your tier tomorrow; the Risk page says where tomorrow starts. Choose "Straight away" for the old behaviour.
@@ -10,6 +10,7 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
 - **"Mark as reviewed" in the chart's trade review now saves before the window closes.** The journal waits 0.7 s after a change before saving, and closing the window cut that off. Closing with Esc or the window's X waits for the save the same way.
 - **The chart's trade review opens the right trade when ATAS reuses a trade id:** it prefers the chart's account and the nearest time.
 - **The chart's trade-review window no longer syncs ATAS itself, and no journal window syncs before your journal has loaded.** That's what produced a "2678 new trades synced" message.
+- **Dashboard → Total P&L:** the trades / balance adjustment breakdown sits on two lines instead of running under the curve. The P&L curve (and the Most Traded one) fills the space beside the figures and resizes with the tile.
 - **GEX no longer goes blank just after the open:** for the first minutes after 9:30 ET, Cboe's delayed file lists the options without volatility or Greeks, which made every bar zero. RoninFlow now keeps the last complete numbers up, with a "Waiting for Cboe's opening Greeks" badge, until Cboe fills them in.
 - **Your position and orders on the chart (ATAS Suite → Executions):**
   - Working orders are read against your open position. Orders on your side are scale-ins (`ADD 1 @ … · avg → …`, showing the new average if filled). Stops on the other side are the stop loss: `SL 3 @ … · −12.5 pts · −$750`, or `break-even` / `locked` once it's past your average. Limits beyond the average are targets, numbered from the nearest: `TP1 2 @ … · +25 pts · +$1,000 · RR 2.0`.
@@ -17,6 +18,8 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
   - Separate colours for stop, target and scale-in lines. Dollars come from ATAS's tick value; switch R, dollars or the classification off in the settings.
   - The labels on these lines now sit on top of the line instead of across it.
   - **A scaled position shows one result:** its fills share a single P&L chip at the last exit, with the total. In points or ticks, that's the move from the average entry to the average exit. The connecting lines are coloured by the whole position's result.
+
+**Updating:** restart RoninFlow, then reinstall the ATAS add-on with ATAS closed (`npm run addon`) for the order labels and the single result per scaled position. Reopen the chart's trade-review and journal windows once so they load the new version.
 
 ## 2.2.3
 
