@@ -6,6 +6,7 @@ import { RefreshCw } from 'lucide-react';
 import { useStore } from '../store/store';
 import { TradeDrawer } from '../components/TradeForms';
 import { wallClock } from '../lib/stats';
+import { HOST, hostSend } from '../components/HostWindow';
 
 const readQuery = () => Object.fromEntries(new URLSearchParams((window.location.hash.split('?')[1] || '')));
 const root = (s) => String(s || '').toUpperCase().replace(/@.*/, '').replace(/[FGHJKMNQUVXZ]\d{1,2}$/, '');
@@ -49,7 +50,9 @@ export default function EmbedTrade() {
   const [, tick] = useState(0);
   useEffect(() => { const id = setInterval(() => tick((n) => n + 1), 2000); return () => clearInterval(id); }, []);
   const trade = useMemo(() => findTrade(state.trades || [], q), [state.trades, q]);
-  const close = async () => { await saveNow(); window.close(); }; // the save first: closing ends the page
+  // the save first (closing ends the page), then ask the RoninFlow window itself to close — a page's own window.close()
+  // can be ignored once it's no longer straight after the click
+  const close = async () => { await saveNow(); if (HOST) hostSend('close'); else window.close(); };
   if (trade) return <div className="embed-page"><TradeDrawer key={trade.id} trade={trade} onClose={close} embed /></div>;
   const waiting = Date.now() - since < 25000;
   return (
