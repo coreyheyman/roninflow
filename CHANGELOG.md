@@ -15,6 +15,7 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
   - The position line shows the overall RR from your average price (`RR 3.5`), with targets weighted by size.
   - Separate colours for stop, target and scale-in lines. Dollars come from ATAS's tick value; switch R, dollars or the classification off in the settings.
   - The labels on these lines now sit on top of the line instead of across it.
+  - **A scaled position shows one result:** its fills share a single P&L chip at the last exit, with the total. In points or ticks, that's the move from the average entry to the average exit. The connecting lines are coloured by the whole position's result.
 
 ## 2.2.3
 

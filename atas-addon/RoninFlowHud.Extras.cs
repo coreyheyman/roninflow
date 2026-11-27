@@ -322,6 +322,44 @@ namespace TradeJournal
             public bool Long, Complete;
             public string Account = "", Symbol = "";
             public List<string> Ids = new(); // ATAS trade ids (several when the same trade is drawn once for every copy-traded account)
+            public ExecPos? Pos;               // the position this fill belongs to, when it was scaled (several fills)
+        }
+
+        /// <summary>A scaled position: its fills' totals, shown as one result at the last exit.</summary>
+        private sealed class ExecPos
+        {
+            public decimal Net, Qty, EntryCost, ExitCost;
+            public int Count;
+            public Exec Last = null!;
+        }
+
+        /// <summary>
+        /// Groups the fills of each position — same account, market and side, never flat in between — so a scaled
+        /// position gets one result chip with its total instead of one per fill.
+        /// </summary>
+        private static void GroupPositions(List<Exec> rows)
+        {
+            var done = rows.Where(r => r.Complete).OrderBy(r => r.Account).ThenBy(r => SymParts(r.Symbol).Root).ThenBy(r => r.Long).ThenBy(r => r.Open).ToList();
+            var cur = new List<Exec>();
+            var end = DateTime.MinValue;
+            string key = "";
+            void Flush()
+            {
+                if (cur.Count > 1)
+                {
+                    var pos = new ExecPos { Count = cur.Count, Last = cur.OrderBy(x => x.Close).Last() };
+                    foreach (var x in cur) { pos.Net += x.Net; pos.Qty += x.Qty; pos.EntryCost += x.OpenPrice * x.Qty; pos.ExitCost += x.ClosePrice * x.Qty; x.Pos = pos; }
+                }
+                cur.Clear();
+            }
+            foreach (var e in done)
+            {
+                var k = $"{e.Account}|{SymParts(e.Symbol).Root}|{e.Long}";
+                if (cur.Count > 0 && k == key && e.Open <= end) { cur.Add(e); if (e.Close > end) end = e.Close; continue; }
+                Flush();
+                cur.Add(e); key = k; end = e.Close;
+            }
+            Flush();
         }
 
         private volatile List<(Rectangle Box, Exec Trade)> _execHits = new();
@@ -435,6 +473,7 @@ namespace TradeJournal
                 if (all) seen[key] = row;
                 rows.Add(row);
             }
+            GroupPositions(rows);
             _execs = rows;
 
             // the open position on this chart's account and instrument
@@ -542,12 +581,12 @@ namespace TradeJournal
                         var x2 = ChartInfo.GetXByBar(b2, false);
                         var y2 = ChartInfo.GetYByPrice(e.ClosePrice, false);
                         if (ExecConnect)
-                            g.DrawLine(e.Net >= 0 ? _execPenWin! : _execPenLoss!, x1, y1, x2, y2);
+                            g.DrawLine((e.Pos?.Net ?? e.Net) >= 0 ? _execPenWin! : _execPenLoss!, x1, y1, x2, y2); // coloured by the whole position
                         DrawMarker(g, x1, y1, e.Long, e.Qty);
                         DrawMarker(g, x2, y2, !e.Long, e.Qty);
                         Hit(e, x1, y1);
                         Hit(e, x2, y2);
-                        if (ExecShowResult)
+                        if (ExecShowResult && (e.Pos == null || e.Pos.Last == e)) // a scaled position: one total, at its last exit
                             DrawResult(g, e, x2, y2, labels);
                     }
                     else
@@ -744,14 +783,17 @@ namespace TradeJournal
         private void DrawResult(RenderContext g, Exec e, int x, int y, List<Rectangle> used)
         {
             var tick = InstrumentInfo?.TickSize ?? 0m;
-            var move = (e.ClosePrice - e.OpenPrice) * (e.Long ? 1 : -1);
+            // a scaled position: the total net, and the move per contract from its average entry to its average exit
+            var p = e.Pos;
+            var net = p?.Net ?? e.Net;
+            var move = p != null && p.Qty > 0 ? (p.ExitCost - p.EntryCost) / p.Qty * (e.Long ? 1 : -1) : (e.ClosePrice - e.OpenPrice) * (e.Long ? 1 : -1);
             string text = ExecResultUnit switch
             {
                 ExecResult.Ticks when tick > 0 => $"{(move / tick >= 0 ? "+" : "")}{move / tick:0.#}t",
                 ExecResult.Points => $"{(move >= 0 ? "+" : "")}{move:0.##} pts",
-                _ => (e.Net >= 0 ? "+$" : "-$") + Math.Abs(e.Net).ToString("N2"),
+                _ => (net >= 0 ? "+$" : "-$") + Math.Abs(net).ToString("N2"),
             };
-            var good = ExecResultUnit == ExecResult.Money ? e.Net >= 0 : move >= 0;
+            var good = ExecResultUnit == ExecResult.Money ? net >= 0 : move >= 0;
             var c = good ? ExecWinColor : ExecLossColor;
             var size = g.MeasureString(text, _small);
             var w = size.Width + 10;
