@@ -20,6 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { bsGreeks, parseOcc, expiryMs, computeGex, computeVannaCharm, nyDate } from './src/lib/gexMath.js';
+import { usMarketDay } from './holidays.js';
 
 export { bsGreeks, parseOcc, expiryMs, computeGex, computeVannaCharm };
 
@@ -185,15 +186,24 @@ export function createGexHandler(dataDir, { log = () => {}, vault = null, fetchI
     } catch { return null; }
   }
 
-  /** Is the US cash market open at ms? If not, when did it last close (4:00 PM New York)? */
+  /**
+   * Is the US cash market open at ms? If not, when did it last close? Skips weekends and market holidays (Thanksgiving,
+   * Good Friday …) and knows the 1:00 PM early closes — otherwise the futures price is looked up for a session that
+   * never happened and the levels can't be converted.
+   */
   function cashState(ms) {
     const ny = new Date(new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York' }));
     const mins = ny.getHours() * 60 + ny.getMinutes(), wd = ny.getDay();
-    if (wd > 0 && wd < 6 && mins >= 570 && mins < 960) return { open: true };
-    let d = new Date(Date.parse(`${nyDate(ms)}T12:00:00Z`));
-    if (!(wd > 0 && wd < 6 && mins >= 960)) d = new Date(d.getTime() - 864e5); // before today's open (or a weekend): an earlier day's close
-    while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d = new Date(d.getTime() - 864e5);
-    return { open: false, close: expiryMs(d.toISOString().slice(0, 10)) };
+    const today = nyDate(ms);
+    const kind = (d) => (d.getUTCDay() === 0 || d.getUTCDay() === 6 ? 'closed' : usMarketDay(d.toISOString().slice(0, 10)));
+    const closeMin = (k) => (k === 'early' ? 780 : 960);
+    const todayKind = wd > 0 && wd < 6 ? usMarketDay(today) : 'closed';
+    if (todayKind !== 'closed' && mins >= 570 && mins < closeMin(todayKind)) return { open: true };
+    let d = new Date(Date.parse(`${today}T12:00:00Z`));
+    if (!(todayKind !== 'closed' && mins >= closeMin(todayKind))) d = new Date(d.getTime() - 864e5); // before today's open: an earlier day's close
+    for (let i = 0; i < 10 && kind(d) === 'closed'; i++) d = new Date(d.getTime() - 864e5);
+    const day = d.toISOString().slice(0, 10);
+    return { open: false, close: expiryMs(day) - (kind(d) === 'early' ? 3 * 3600e3 : 0) };
   }
 
   async function report(symbol, exps, { source = cfg.source } = {}) {

@@ -177,6 +177,14 @@ const COUNTRY_NAME = { US: 'US', UK: 'UK', EU: 'Eurozone', DE: 'Germany', JP: 'J
 const KIND_LABEL = { closed: 'markets closed', early: 'early close', bank: 'banks closed' };
 
 /** Holidays between two dates (YYYY-MM-DD, inclusive) as calendar events. */
+/** What a US holiday does to the stock market on a date (YYYY-MM-DD): 'closed', 'early' (1:00 PM ET close) or null. */
+const usDayCache = new Map();
+export function usMarketDay(date) {
+  const y = Number(String(date).slice(0, 4));
+  if (!usDayCache.has(y)) usDayCache.set(y, new Map(us(y).filter((h) => h[2] === 'closed' || h[2] === 'early').map((h) => [h[0], h[2]])));
+  return usDayCache.get(y).get(date) || null;
+}
+
 export function holidayEvents(from, to) {
   const out = [];
   for (let y = Number(from.slice(0, 4)); y <= Number(to.slice(0, 4)); y++) {

@@ -169,6 +169,27 @@ test('after the cash close the index sits at its close, so futures are converted
   assert.ok(Math.abs(b.implied.spot - 6090 / 1.005) < 1e-6); assert.equal(b.implied.fut, 6090);
 });
 
+test('market holidays and early closes: before Friday’s open after Thanksgiving, futures are matched at Wednesday’s close', async () => {
+  const wedClose = Date.parse('2026-11-25T21:00:00Z'); // Wed 4:00 PM New York (Thursday was Thanksgiving)
+  const friPre = Date.parse('2026-11-27T14:26:00Z');   // Fri 9:26 AM, before the open
+  const asked = [];
+  const futuresAt = async (fut, at) => { asked.push(at); return at === wedClose ? { price: 6030, at: wedClose - 60e3 } : { price: 6090, at: friPre - 60e3 }; };
+  const json = { ...cboeJson(), timestamp: '2026-11-27 14:26:00' };
+  const fetchImpl = async () => ({ ok: true, status: 200, text: async () => JSON.stringify(json) });
+  const h = createGexHandler(tmp(), { fetchImpl, now: () => friPre, futuresAt });
+  const r = res(); await h(req('/api/macro/gex?symbol=SPX&exp=2026-11-27'), r);
+  assert.equal(r.body.cashOpen, false);
+  assert.equal(r.body.closeAt, wedClose, 'not Thursday (closed)');
+  assert.ok(r.body.fut && r.body.fut.atClose, 'converted at the close');
+  // after Friday's 1:00 PM early close, the close is 1:00 PM — not 4:00 PM
+  const friLate = Date.parse('2026-11-27T19:30:00Z'); // 2:30 PM New York
+  const json2 = { ...cboeJson(), timestamp: '2026-11-27 19:30:00' };
+  const h2 = createGexHandler(tmp(), { fetchImpl: async () => ({ ok: true, status: 200, text: async () => JSON.stringify(json2) }), now: () => friLate, futuresAt: async () => null });
+  const r2 = res(); await h2(req('/api/macro/gex?symbol=SPX&exp=2026-11-30'), r2);
+  assert.equal(r2.body.cashOpen, false);
+  assert.equal(new Date(r2.body.closeAt).toISOString(), '2026-11-27T18:00:00.000Z', '1:00 PM EST');
+});
+
 test('no ES bars (you didn’t trade ES that day): the add-on is asked for them', async () => {
   const asked = [];
   const candles = { get: async () => ({ candles: [], interval: '1m' }), requestDay: (...a) => asked.push(a) };
