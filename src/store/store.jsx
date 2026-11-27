@@ -1,3 +1,4 @@
+import { mergeStates } from '../lib/mergeState';
 import { reviewPart, shareTargets, linkedTrades, backfillReviews } from '../lib/linkedTrades';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { initialState } from '../data/seed';
@@ -14,6 +15,7 @@ import { freshShowcase, freshenDemo, stampDemo } from '../data/showcase';
 const KEY = IS_DEMO ? 'roninflow-demo-v1' : 'trade-journal-state-v1';
 const OLD_KEY = 'iq-journal-state-v1'; // earlier versions
 const UNSAVED_KEY = `${KEY}:unsaved`; // a change the tab was closed/reloaded on before it reached the server
+
 const Ctx = createContext(null);
 
 /** Apply one-time migrations and fill in defaults for state from storage or the server. */
@@ -103,6 +105,7 @@ export function StoreProvider({ children }) {
     srv.current.version = version;
     const next = normalize(remote);
     srv.current.synced = next; // don't echo this change back to the server
+    srv.current.base = next;   // what the server has: the common ancestor if a save is refused
     srv.current.lastJson = JSON.stringify(next);
     stateRef.current = next;
     setState(next);
@@ -187,15 +190,29 @@ export function StoreProvider({ children }) {
     s0.dirty = true;
     s0.timer = setTimeout(async function save() {
       if (s0.inflight) { s0.timer = setTimeout(save, 300); return; }
-      const json = JSON.stringify(stateRef.current);
+      const snap = stateRef.current;
+      const json = JSON.stringify(snap);
       s0.dirty = false;
       if (json === s0.lastJson) return; // nothing actually changed
       s0.inflight = true;
       try {
         const r = await fetch('/api/data/state', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: `{"state":${json},"baseVersion":${s0.version}}` });
         const j = await jsonOf(r);
-        if (r.ok) { s0.version = j.version; s0.lastJson = json; setStorage((x) => ({ ...x, savedAt: new Date().toISOString(), error: null })); }
-        else if (r.status === 409) { await pull(); setStorage((x) => ({ ...x, notice: 'conflict' })); }
+        if (r.ok) { s0.version = j.version; s0.lastJson = json; s0.base = snap; setStorage((x) => ({ ...x, savedAt: new Date().toISOString(), error: null })); }
+        else if (r.status === 409) {
+          // another window saved first (the chart's trade review, a second tab, ATAS sync in another window): keep both —
+          // your changes laid over the newer copy, then saved again — instead of throwing yours away
+          const base = s0.base;
+          const rr = await fetch('/api/data/state', { cache: 'no-store' });
+          const remote = await jsonOf(rr);
+          if (remote?.state) {
+            applyRemote(remote.state, remote.version);
+            if (base) {
+              const merged = normalize(mergeStates(base, snap, srv.current.base));
+              if (JSON.stringify(merged) !== srv.current.lastJson) { stateRef.current = merged; setState(merged); }
+            }
+          }
+        }
         else if (r.status === 401) window.location.reload();
         else { s0.dirty = true; setStorage((x) => ({ ...x, error: j?.error || `Save failed (${r.status})` })); }
       } catch {
@@ -206,7 +223,7 @@ export function StoreProvider({ children }) {
       }
     }, 700);
     return () => clearTimeout(id);
-  }, [state, pull]);
+  }, [state, pull, applyRemote]);
 
   // closing or reloading the tab within a moment of a change: send that save straight away
   useEffect(() => {

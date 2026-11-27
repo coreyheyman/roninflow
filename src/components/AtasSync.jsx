@@ -24,7 +24,7 @@ const fmtOffset = (h) => `UTC${h >= 0 ? '+' : '−'}${String(Math.floor(Math.abs
  * status.receiver: 'online' | 'offline' | 'unknown'; status.addon: 'live' | 'stale' | 'never'
  */
 export function AtasSyncProvider({ children }) {
-  const { state, syncAtas, setSync } = useStore();
+  const { state, syncAtas, setSync, storage } = useStore();
   const toast = useToast();
   const sync = state.settings.sync || {};
   const [status, setStatus] = useState({ receiver: 'unknown' });
@@ -90,10 +90,13 @@ export function AtasSyncProvider({ children }) {
 
   useEffect(() => {
     if (!sync.enabled || remoteDevice) return undefined; // phones get ATAS trades through the PC's saved journal
+    // not before the journal has loaded (it would merge ATAS's whole history into an empty or old copy), and not in the
+    // chart's trade-review window (the journal windows do the syncing)
+    if (storage.mode === 'checking' || storage.mode === 'waiting' || window.location.hash.startsWith('#/embed')) return undefined;
     tick();
     const id = setInterval(() => tick(), 4000);
     return () => clearInterval(id);
-  }, [sync.enabled, tick, remoteDevice]);
+  }, [sync.enabled, tick, remoteDevice, storage.mode]);
 
   const value = { status: remoteDevice ? { ...status, remote: true } : status, open: () => setModal(true), checkNow: () => tick(true) };
   return (
