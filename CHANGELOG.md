@@ -5,6 +5,7 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
 ## Unreleased
 
 - **GEX converts to futures prices around market holidays:** before the open on the day after a holiday (e.g. the Friday after Thanksgiving), the levels are matched to ES/NQ at the last real cash close instead of the holiday's, and the 1:00 PM early closes are known.
+- **GEX no longer goes blank just after the open:** for the first minutes after 9:30 ET, Cboe's delayed file lists the options without volatility or Greeks, which made every bar zero. RoninFlow now keeps the last complete numbers up, with a "Waiting for Cboe's opening Greeks" badge, until Cboe fills them in.
 - **Your position and orders on the chart (ATAS Suite → Executions):**
   - Working orders are read against your open position. Orders on your side are scale-ins (`ADD 1 @ … · avg → …`, showing the new average if filled). Stops on the other side are the stop loss: `SL 3 @ … · −12.5 pts · −$750`, or `break-even` / `locked` once it's past your average. Limits beyond the average are targets, numbered from the nearest: `TP1 2 @ … · +25 pts · +$1,000 · 2.0R`.
   - The position line shows the overall R:R from your average price, with targets weighted by size.

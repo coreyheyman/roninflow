@@ -330,6 +330,7 @@ export default function Gex() {
         </div>
         <div className="grow" />
         {data && <span className={`badge ${data.delayed ? 'neutral' : 'pos-soft'}`} title={data.at ? `Data as of ${new Date(data.at).toLocaleTimeString()}` : ''}>{data.sample ? 'Sample data (demo)' : data.delayed ? 'Cboe · ~15 min delayed' : `${data.source === 'polygon' ? 'Polygon' : 'Tradier'} · real time`}{data.at ? ` · ${new Date(data.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}</span>}
+        {data?.waiting && <span className="badge warn-soft" title="Cboe’s newest file has no volatility or Greeks yet (normal for the first minutes after the open). These are the last complete numbers; they update by themselves once Cboe fills them in.">Waiting for Cboe’s opening Greeks</span>}
         <Popover width={340} align="right" trigger={({ toggle }) => <button className="icon-btn" onClick={toggle} title="Data source"><Settings2 size={16} /></button>}>
           {() => <SourceSettings cfg={cfg} onSaved={(c) => { setCfg(c); reload(true); }} />}
         </Popover>

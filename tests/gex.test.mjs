@@ -190,6 +190,23 @@ test('market holidays and early closes: before Friday’s open after Thanksgivin
   assert.equal(new Date(r2.body.closeAt).toISOString(), '2026-11-27T18:00:00.000Z', '1:00 PM EST');
 });
 
+test('right after the open Cboe lists options without Greeks: the last good chain stays up, marked as waiting', async () => {
+  let t = NOW, bare = false;
+  const noGreeks = () => { const j = cboeJson(); j.data.options = j.data.options.map((o) => ({ ...o, iv: 0, gamma: 0 })); return j; };
+  const fetchImpl = async () => ({ ok: true, status: 200, text: async () => JSON.stringify(bare ? noGreeks() : cboeJson()) });
+  const h = createGexHandler(tmp(), { fetchImpl, now: () => t });
+  const r1 = res(); await h(req(`/api/macro/gex?symbol=SPX&exp=${EXP}`), r1);
+  assert.ok(r1.body.total !== 0 && !r1.body.waiting);
+  bare = true; t += 5 * 60e3;
+  const r2 = res(); await h(req(`/api/macro/gex?symbol=SPX&exp=${EXP}`), r2);
+  assert.equal(r2.body.waiting, true);
+  assert.equal(r2.body.callWall, r1.body.callWall, 'still the last good numbers');
+  // a fresh start with only bare data: a clear message instead of an empty chart
+  const h2 = createGexHandler(tmp(), { fetchImpl, now: () => t });
+  const r3 = res(); await h2(req(`/api/macro/gex?symbol=SPX&exp=${EXP}`), r3);
+  assert.match(JSON.stringify(r3.body), /no volatility or Greeks yet/);
+});
+
 test('no ES bars (you didn’t trade ES that day): the add-on is asked for them', async () => {
   const asked = [];
   const candles = { get: async () => ({ candles: [], interval: '1m' }), requestDay: (...a) => asked.push(a) };

@@ -46,6 +46,13 @@ export const FUT_OF = { SPX: 'ES', SPY: 'ES', XSP: 'ES', NDX: 'NQ', QQQ: 'NQ', R
 const INDEX_OF_FUT = { ES: 'SPX', MES: 'SPX', NQ: 'NDX', MNQ: 'NDX', RTY: 'RUT', M2K: 'RUT' };
 
 // ---------- chains ----------
+/** a chain whose options carry volatility or gamma (Cboe's file has neither for the first minutes after the open) */
+export function hasGreeks(rows) {
+  const held = rows.filter((r) => r.oi > 0);
+  const priced = held.filter((r) => r.gamma > 0 || r.iv > 0).length;
+  return held.length > 0 && priced >= Math.max(5, held.length * 0.2);
+}
+
 function normCboe(j) {
   const d = j?.data || j;
   const spot = Number(d?.current_price ?? d?.close ?? d?.last_trade_price);
@@ -98,6 +105,7 @@ export function createGexHandler(dataDir, { log = () => {}, vault = null, fetchI
   }
 
   // Cboe: the whole chain in one file (indices are "_SPX"); kept 2 minutes, it's delayed anyway
+  const lastGood = new Map(); // symbol → the last Cboe chain that had Greeks
   async function cboeChain(symbol) {
     const k = `cboe|${symbol}`, c = cache.get(k);
     if (c && now() - c.at < 120e3) return c.data;
@@ -107,12 +115,23 @@ export function createGexHandler(dataDir, { log = () => {}, vault = null, fetchI
       // from its own quote pages — so ask the way those pages do
       const urls = [];
       for (const host of CBOE_HOSTS) for (const n of names) urls.push(`${host}/api/global/delayed_quotes/options/${n}.json`);
-      let last;
+      let last, notReady = false;
       for (const u of urls) {
         try {
           const data = normCboe(await getJson(u, { headers: CBOE_HEADERS }));
-          if (data.rows.length && data.spot > 0) { data.source = 'cboe'; data.at ||= now() - 15 * 60e3; cache.set(k, { at: now(), data }); return data; }
+          if (!(data.rows.length && data.spot > 0)) continue;
+          if (!hasGreeks(data.rows)) { notReady = true; continue; }
+          data.source = 'cboe'; data.at ||= now() - 15 * 60e3;
+          cache.set(k, { at: now(), data }); lastGood.set(symbol, data);
+          return data;
         } catch (e) { last = e; }
+      }
+      // for the first minutes after the open Cboe's file lists the options with no volatility or Greeks yet: everything
+      // would come out as zero, so keep showing the last good chain (marked as waiting) and look again soon
+      if (notReady) {
+        const prev = lastGood.get(symbol);
+        if (prev) { const data = { ...prev, waiting: true }; cache.set(k, { at: now() - 90e3, data }); return data; }
+        throw new Error('Cboe’s data has no volatility or Greeks yet — that happens for the first minutes after the open; it fills in shortly');
       }
       throw new Error(last?.status === 404 ? `Cboe has no options for ${symbol}` : last?.status === 403 ? `Cboe refused the request (HTTP 403) — its firewall may be blocking it; try again in a few minutes, or use Polygon or Tradier` : `Couldn’t reach Cboe (${last?.message || 'no data'})`);
     });
@@ -245,7 +264,7 @@ export function createGexHandler(dataDir, { log = () => {}, vault = null, fetchI
       if (Math.abs(near2.price - implied.spot) / implied.spot < 0.01) gex.zone = near2.gex >= 0 ? 'positive' : 'negative';
     }
     const out = {
-      symbol, spot, at, source: main.source, delayed: main.source === 'cboe', liveError, expirations: list, exps,
+      symbol, spot, at, source: main.source, delayed: main.source === 'cboe', waiting: !live && !!free.waiting, liveError, expirations: list, exps,
       ...gex, near, regime, fut: fut ? { ...fut, atClose: !cs.open } : null, implied, cashOpen: cs.open, closeAt: cs.close || null,
     };
     remember(symbol, out);
