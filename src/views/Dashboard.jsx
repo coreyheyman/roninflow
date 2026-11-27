@@ -330,9 +330,14 @@ function WidgetView({ item, c }) {
         <div className={`kpi wkpi ${totalNet >= 0 ? 'posc' : 'negc'}`}>
           <div className="kpi-head"><StatLabel k="net" v={s.net} ctx={sctx}>Total P&L</StatLabel> <TrendBadge value={(totalNet / initial) * 100} /></div>
           <div className="kpi-val"><Private>{fmtMoney(totalNet)}</Private></div>
-          <div className="kpi-sub">{gap
-            ? <span title="Total P&L is your ATAS balance minus your starting balance. The adjustment is what the trades in the journal don't account for (missing fills, account fees…).">Trades <Private>{fmtMoney(s.net)}</Private> · balance adj. <Private>{fmtMoney(gap, { sign: true })}</Private></span>
-            : <>Avg: <Private>{fmtMoney(s.avgTrade)}</Private></>}</div>
+          {gap
+            ? (
+              <div className="kpi-sub kpi-split" title="Total P&L is your ATAS balance minus your starting balance. The adjustment is what the trades in the journal don't account for (missing fills, account fees…).">
+                <span><em>Trades</em> <Private>{fmtMoney(s.net)}</Private></span>
+                <span><em>Balance adj.</em> <Private>{fmtMoney(gap, { sign: true })}</Private></span>
+              </div>
+            )
+            : <div className="kpi-sub">Avg: <Private>{fmtMoney(s.avgTrade)}</Private></div>}
           <Sparkline values={[0, ...curve.map((x) => x.y)]} />
           <div className="kpi-foot">{s.count} closed positions</div>
         </div>
