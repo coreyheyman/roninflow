@@ -101,6 +101,7 @@ export function StoreProvider({ children }) {
   // mode: 'checking' | 'server' | 'local' (no server, browser only) | 'waiting' (network device, PC hasn't moved data yet)
   const [storage, setStorage] = useState({ mode: 'checking', savedAt: null, error: null, notice: null });
   const srv = useRef({ mode: 'checking', version: 0, synced: null, lastJson: null, inflight: false, timer: null });
+  const saveRef = useRef(null); // the pending save, so a window about to close can send it now
   const applyRemote = useCallback((remote, version) => {
     srv.current.version = version;
     const next = normalize(remote);
@@ -188,7 +189,7 @@ export function StoreProvider({ children }) {
     if (s0.mode !== 'server') return () => clearTimeout(id);
     clearTimeout(s0.timer);
     s0.dirty = true;
-    s0.timer = setTimeout(async function save() {
+    s0.timer = setTimeout(saveRef.current = async function save() {
       if (s0.inflight) { s0.timer = setTimeout(save, 300); return; }
       const snap = stateRef.current;
       const json = JSON.stringify(snap);
@@ -224,6 +225,23 @@ export function StoreProvider({ children }) {
     }, 700);
     return () => clearTimeout(id);
   }, [state, pull, applyRemote]);
+
+  /**
+   * Save now and wait for it — for windows about to close (the chart's trade review): the usual 0.7 s wait would be cut
+   * off, and a big journal is too large for the browser's send-on-close.
+   */
+  const saveNow = useCallback(async () => {
+    const s0 = srv.current;
+    if (s0.mode !== 'server') return;
+    for (let round = 0; round < 3; round++) {
+      await new Promise((r) => setTimeout(r, 40)); // let the last change render into stateRef
+      for (let i = 0; i < 60 && s0.inflight; i++) await new Promise((r) => setTimeout(r, 100));
+      if (JSON.stringify(stateRef.current) === s0.lastJson) return;
+      clearTimeout(s0.timer);
+      await saveRef.current?.();
+    }
+  }, []);
+  useEffect(() => { window.__rfSaveNow = saveNow; return () => { if (window.__rfSaveNow === saveNow) delete window.__rfSaveNow; }; }, [saveNow]);
 
   // closing or reloading the tab within a moment of a change: send that save straight away
   useEffect(() => {
@@ -401,7 +419,7 @@ export function StoreProvider({ children }) {
     };
   }, [update]);
 
-  const value = useMemo(() => ({ state, storage, dismissStorageNotice: () => setStorage((x) => ({ ...x, notice: null })), ...actions }), [state, storage, actions]);
+  const value = useMemo(() => ({ state, storage, saveNow, dismissStorageNotice: () => setStorage((x) => ({ ...x, notice: null })), ...actions }), [state, storage, actions, saveNow]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

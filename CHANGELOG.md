@@ -6,6 +6,8 @@ Each release's notes on GitHub come from its section here (`## x.y.z`, newest fi
 
 - **GEX converts to futures prices around market holidays:** before the open on the day after a holiday (e.g. the Friday after Thanksgiving), the levels are matched to ES/NQ at the last real cash close instead of the holiday's, and the 1:00 PM early closes are known.
 - **Reviews from the chart stick:** with several journal windows open (the chart's trade review, the journal over ATAS, a browser tab), a save another window beat to the server used to be dropped. Marking a trade reviewed from the chart often lost out to another window saving live account balances. Now your change is merged into the newer copy and saved again.
+- **"Mark as reviewed" in the chart's trade review now saves before the window closes.** The journal waits 0.7 s after a change before saving, and closing the window cut that off. Closing with Esc or the window's X waits for the save the same way.
+- **The chart's trade review opens the right trade when ATAS reuses a trade id:** it prefers the chart's account and the nearest time.
 - **The chart's trade-review window no longer syncs ATAS itself, and no journal window syncs before your journal has loaded.** That's what produced a "2678 new trades synced" message.
 - **GEX no longer goes blank just after the open:** for the first minutes after 9:30 ET, Cboe's delayed file lists the options without volatility or Greeks, which made every bar zero. RoninFlow now keeps the last complete numbers up, with a "Waiting for Cboe's opening Greeks" badge, until Cboe fills them in.
 - **Your position and orders on the chart (ATAS Suite → Executions):**

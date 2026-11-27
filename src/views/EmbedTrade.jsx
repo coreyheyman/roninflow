@@ -14,8 +14,16 @@ const root = (s) => String(s || '').toUpperCase().replace(/@.*/, '').replace(/[F
 export function findTrade(trades, q) {
   const ids = new Set(String(q.ids || '').split(',').filter(Boolean));
   if (ids.size) {
-    const hit = trades.find((t) => ids.has(String(t.atasId)) || (t.atasIds || []).some((x) => ids.has(String(x))) || (t.fills || []).some((f) => ids.has(String(f.atasId))));
-    if (hit) return hit;
+    // ATAS reuses trade ids (per account, and after a reinstall), so an id can match old trades too: prefer the chart's
+    // account, then the one nearest the execution's time
+    const hits = trades.filter((t) => ids.has(String(t.atasId)) || (t.atasIds || []).some((x) => ids.has(String(x))) || (t.fills || []).some((f) => ids.has(String(f.atasId))));
+    const mine = q.acct ? hits.filter((t) => t.accountId === q.acct) : hits;
+    const pool = mine.length ? mine : hits;
+    if (pool.length === 1) return pool[0];
+    if (pool.length > 1) {
+      const at = q.t ? Date.parse(wallClock(new Date(q.t)) || '') : NaN;
+      return Number.isFinite(at) ? [...pool].sort((a, b) => Math.abs(Date.parse(a.entry) - at) - Math.abs(Date.parse(b.entry) - at))[0] : pool[0];
+    }
   }
   if (!q.t) return null;
   const at = Date.parse(wallClock(new Date(q.t)) || '');
@@ -29,7 +37,7 @@ export function findTrade(trades, q) {
 }
 
 export default function EmbedTrade() {
-  const { state, storage } = useStore();
+  const { state, storage, saveNow } = useStore();
   const [q, setQ] = useState(readQuery);
   const [since, setSince] = useState(Date.now());
   useEffect(() => {
@@ -41,7 +49,7 @@ export default function EmbedTrade() {
   const [, tick] = useState(0);
   useEffect(() => { const id = setInterval(() => tick((n) => n + 1), 2000); return () => clearInterval(id); }, []);
   const trade = useMemo(() => findTrade(state.trades || [], q), [state.trades, q]);
-  const close = () => window.close();
+  const close = async () => { await saveNow(); window.close(); }; // the save first: closing ends the page
   if (trade) return <div className="embed-page"><TradeDrawer key={trade.id} trade={trade} onClose={close} embed /></div>;
   const waiting = Date.now() - since < 25000;
   return (

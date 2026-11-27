@@ -39,7 +39,7 @@ export function WindowControls({ compact = false }) {
       <button className={`win-btn ${st.top ? 'on' : ''}`} onClick={() => hostSend('top')} title={st.top ? 'Stays on top of ATAS — click to let it go behind' : 'Keep on top of ATAS'}>{st.top ? <Pin size={14} /> : <PinOff size={14} />}</button>
       {!compact && <button className="win-btn" onClick={() => hostSend('min')} title="Minimise"><Minus size={15} /></button>}
       {!compact && <button className="win-btn" onClick={() => hostSend('max')} title={st.max ? 'Restore' : 'Maximise'}>{st.max ? <Copy size={13} /> : <Square size={13} />}</button>}
-      <button className="win-btn close" onClick={() => hostSend('close')} title="Close"><X size={16} /></button>
+      <button className="win-btn close" onClick={async () => { await window.__rfSaveNow?.(); hostSend('close'); }} title="Close"><X size={16} /></button>
     </div>
   );
 }
